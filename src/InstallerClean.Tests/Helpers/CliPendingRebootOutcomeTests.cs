@@ -9,7 +9,8 @@ using NSubstitute;
 namespace InstallerClean.Tests.Helpers;
 
 /// <summary>
-/// What a held run RETURNS and what class it records, driven from the enum itself.
+/// What a held run RETURNS, and the event class declared beside its exit code, driven
+/// from the enum itself.
 ///
 /// CliPendingRebootStringsTests walks the same enum twice, once per string surface, so
 /// a reason added without its sentence or without its label is a red test. The emitter
@@ -22,14 +23,9 @@ namespace InstallerClean.Tests.Helpers;
 /// THE TABLE IS THE DECISION AND THE WALK IS THE GATE. One row per reason; a member
 /// with no row fails below, and writing its row is the choice being made.
 ///
-/// WHAT THE TWO COLUMNS ARE WORTH, BECAUSE THEY ARE NOT EQUAL AND A READER SHOULD NOT
-/// ASSUME THEY ARE. The exit code is read back from a real run driven through the work
-/// method. THE EVENT CLASS IS NEVER READ BACK FROM ANYTHING THE APP WRITES. It is
-/// handed to a static write that takes it directly, and nothing here observes what
-/// reaches the channel. What holds that column instead is a check that it agrees with
-/// the exit code declared beside it, which is two declared values agreeing with each
-/// other rather than either of them being compared to behaviour. Observing the class
-/// would need a seam in shipping code, and that is ruled out.
+/// HOW EACH COLUMN IS HELD. The exit code is read back from a real run driven through
+/// the work method. The event class is held against the exit code declared beside it:
+/// its Event ID has to sit in the band that code's entries go out in.
 /// </summary>
 public class CliPendingRebootOutcomeTests
 {
@@ -82,12 +78,9 @@ public class CliPendingRebootOutcomeTests
     [Fact]
     public void Every_row_declares_an_event_class_whose_band_matches_its_exit_code()
     {
-        // WHAT THIS IS AND IS NOT, so the column above is not read as more than it is.
-        // It does not make the emitter observable: what reaches the channel is written
-        // by a static this cannot see. It compares two DECLARED values with each other
-        // and reads no behaviour at all. What it buys is that the class column can no
-        // longer hold a value the exit code beside it contradicts, which is what a
-        // column nothing looks at would otherwise allow.
+        // Each row's event class has to have its Event ID in the band BandForExit gives
+        // the exit code beside it, so the class column cannot hold a value its own row's
+        // exit code contradicts.
         var wrong = new List<string>();
 
         foreach (var (reason, declared) in Declared)

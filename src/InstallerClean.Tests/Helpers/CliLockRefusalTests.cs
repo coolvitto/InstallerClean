@@ -13,20 +13,16 @@ namespace InstallerClean.Tests.Helpers;
 /// The two lines a <c>/d</c> or <c>/m</c> emits when the action service refused
 /// the batch for want of <c>Global\_MSIExecute</c>: the sentence the operator
 /// reads and the Application-channel entry an RMM matches on. Most of this file is
-/// the refusal with nothing shown holding the lock; the last test is the line a lock
-/// the app was refused permission to open writes.
+/// the refusal with nothing shown holding the lock, and
+/// A_refused_lock_writes_one_line_naming_the_flag_and_both_actions holds the line
+/// written where the app was refused permission to open the lock.
 /// </summary>
 /// <remarks>
-/// The two wording tests read the lines back through the methods that build them,
-/// which is what lets the wording be held without an assertion on the Application
-/// channel itself. The last two tests drive a whole run instead, so what they hold
-/// is that a refused batch reaches those lines at all and what it exits with.
-///
-/// WHAT IS STILL NOT HELD ANYWHERE: the class an entry is written under. It is
-/// handed to a static write that nothing here observes, so the Event ID a
-/// monitoring tool filters on rests on the pair of values in the emitter rather
-/// than on anything read back. CliPendingRebootOutcomeTests says the same of its
-/// own column.
+/// The wording tests read the lines back through the methods that build them, so
+/// they hold the wording without reading the Application channel.
+/// A_batch_refused_with_nothing_holding_the_lock_prints_its_line_and_exits_transient
+/// drives a whole run instead, for <c>/d</c> and for <c>/m</c>, and holds that a
+/// batch refused that way prints its stdout line and exits with the transient code.
 ///
 /// A refused lock goes out through the pending-reboot emitter under the gate's own
 /// reason for it, wherever it is met, and CliPendingRebootOutcomeTests holds its
@@ -56,8 +52,7 @@ public class CliLockRefusalTests
     public void The_event_log_line_opens_by_naming_the_flag(string arg)
     {
         // Every entry this tool writes opens with the flag, so that a fleet's
-        // history can be filtered by what was actually run. One of them did not,
-        // and a search for delete runs on those machines returned nothing.
+        // history can be filtered by what was actually run.
         var line = MachineContract.English(
             () => Program.InstallerLockUnavailableEventLogLine(arg));
 
@@ -75,12 +70,10 @@ public class CliLockRefusalTests
 
         Assert.Equal(delete["/d".Length..], move["/m".Length..]);
 
-        // What that shared remainder may not do, and the fault it had: it ended
-        // "so nothing was deleted", which was false of every /m run that could
-        // produce it. So a wording naming one of the two actions has to name the
-        // other. A wording naming neither is fine and passes here on purpose,
-        // "no files were touched" being true of both; what cannot stand is a
-        // sentence true of half the runs it is written for.
+        // What that shared remainder may not do is name one of the two actions
+        // without the other, which would make it false of half the runs it is
+        // written for. A wording naming neither is fine and passes here on
+        // purpose, "no files were touched" being true of both.
         Assert.Equal(
             delete.Contains("deleted", StringComparison.OrdinalIgnoreCase),
             delete.Contains("moved", StringComparison.OrdinalIgnoreCase));
@@ -89,20 +82,16 @@ public class CliLockRefusalTests
     [Fact]
     public void The_event_log_line_reads_English_on_a_machine_that_is_not_and_leaves_the_thread_as_it_found_it()
     {
-        // Two properties, and the second is the one with teeth. The line is
-        // machine-read, so it is built inside MachineContract.English and an RMM
-        // gets the same words whatever language Windows is in. That much would
-        // also hold today without the forcing, every satellite stripping the
-        // machine-contract keys, so the English assertion is holding the guarantee
-        // rather than proving the mechanism is what delivers it.
-        //
-        // The restore is different: English swaps two thread cultures and puts
-        // them back in a finally, and a leak would leave en-GB on the thread for
-        // everything that ran afterwards, sizes and nouns included. Nothing else
-        // in the suite holds that.
+        // Two properties. The line is machine-read, so it is built inside
+        // MachineContract.English and an RMM gets the same words whatever language
+        // Windows is in; the first two assertions hold two phrases of it on an
+        // Italian thread. And English swaps two thread cultures and puts them back
+        // in a finally, so the last two hold that the thread is Italian again
+        // afterwards: a leak would leave en-GB on it for everything that ran next,
+        // sizes and nouns included.
         //
         // Safe to write the thread cultures because the assembly disables test
-        // parallelisation (AssemblyInfo.cs, for a reason of its own).
+        // parallelisation (AssemblyInfo.cs).
         var ui = CultureInfo.CurrentUICulture;
         var format = CultureInfo.CurrentCulture;
         var italian = CultureInfo.GetCultureInfo("it-IT");
