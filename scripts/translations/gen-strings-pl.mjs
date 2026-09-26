@@ -598,6 +598,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `Wymagane uprawnienia administratora`,
   'Startup.AdminRightsNeededBody': `InstallerClean potrzebuje uprawnień administratora, żeby widzieć każdy program zainstalowany na tym komputerze, a nie działa jako administrator, więc nie przeprowadzi skanowania. Nic nie zostało zmienione.\n\nUruchom InstallerClean ponownie jako administrator.`,
   'Cli.AdminRightsNeeded': `InstallerClean potrzebuje uprawnień administratora, żeby widzieć każdy program zainstalowany na tym komputerze, a nie działa jako administrator, więc nie przeprowadzi skanowania. Nic nie zostało zmienione. Uruchom go ponownie z wiersza polecenia administratora.`,
+  'Error.ScanInstallerFolderNotFound': `Windows zgłasza, że {InstallerFolder} nie istnieje na tym komputerze, więc InstallerClean się zatrzymał. Niczego nie zaproponowano i niczego nie usunięto.`,
+  'Error.ScanInstallerFolderListFailed': `Windows zgłosił błąd, gdy InstallerClean próbował pobrać listę plików w {InstallerFolder}, więc nie udało mu się uzyskać pełnej listy i się zatrzymał. Niczego nie zaproponowano i niczego nie usunięto.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

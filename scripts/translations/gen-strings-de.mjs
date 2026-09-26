@@ -574,6 +574,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `Administratorrechte erforderlich`,
   'Startup.AdminRightsNeededBody': `InstallerClean braucht Administratorrechte, um alle auf diesem PC installierten Programme zu sehen, läuft aber nicht als Administrator und scannt deshalb nicht. Es wurde nichts verändert.\n\nFühre InstallerClean erneut als Administrator aus.`,
   'Cli.AdminRightsNeeded': `InstallerClean braucht Administratorrechte, um alle auf diesem PC installierten Programme zu sehen, läuft aber nicht als Administrator und scannt deshalb nicht. Es wurde nichts verändert. Führe es erneut in einer Eingabeaufforderung als Administrator aus.`,
+  'Error.ScanInstallerFolderNotFound': `Windows meldet, dass {InstallerFolder} auf diesem PC nicht existiert, deshalb hat InstallerClean abgebrochen. Es wurde nichts angeboten und nichts entfernt.`,
+  'Error.ScanInstallerFolderListFailed': `Windows hat einen Fehler gemeldet, als InstallerClean versuchte, die Dateien in {InstallerFolder} aufzulisten, deshalb konnte es keine vollständige Liste erhalten und hat abgebrochen. Es wurde nichts angeboten und nichts entfernt.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -629,6 +629,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `Administrator rights needed`,
   'Startup.AdminRightsNeededBody': `InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed.\n\nRun InstallerClean again as administrator.`,
   'Cli.AdminRightsNeeded': `InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed. Run it again from an administrator prompt.`,
+  'Error.ScanInstallerFolderNotFound': `Windows reports that {InstallerFolder} doesn't exist on this PC, so InstallerClean stopped. Nothing has been offered and nothing has been removed.`,
+  'Error.ScanInstallerFolderListFailed': `Windows reported an error when InstallerClean tried to list the files in {InstallerFolder}, so it couldn't get a complete list and stopped. Nothing has been offered and nothing has been removed.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

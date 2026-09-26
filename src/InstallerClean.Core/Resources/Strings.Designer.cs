@@ -355,6 +355,8 @@ public static class Strings
     public static string Error_ScanCorrelationFailed => Get("Error.ScanCorrelationFailed");
     public static string Error_ScanFailedTitle => Get("Error.ScanFailedTitle");
     public static string Error_ScanInstallerFolderElsewhere => Get("Error.ScanInstallerFolderElsewhere");
+    public static string Error_ScanInstallerFolderListFailed => Get("Error.ScanInstallerFolderListFailed");
+    public static string Error_ScanInstallerFolderNotFound => Get("Error.ScanInstallerFolderNotFound");
     public static string Error_ScanNoRegisteredFileInFolder => Get("Error.ScanNoRegisteredFileInFolder");
     public static string Error_ScanRecordsUnreadable => Get("Error.ScanRecordsUnreadable");
     public static string Error_ScanStoppedDetails => Get("Error.ScanStoppedDetails");

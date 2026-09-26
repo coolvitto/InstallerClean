@@ -559,6 +559,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `Cần quyền quản trị viên`,
   'Startup.AdminRightsNeededBody': `InstallerClean cần quyền quản trị viên để thấy mọi chương trình được cài trên máy này, nhưng hiện không chạy với tư cách quản trị viên, nên sẽ không quét. Không có gì bị thay đổi.\n\nHãy chạy lại InstallerClean với tư cách quản trị viên.`,
   'Cli.AdminRightsNeeded': `InstallerClean cần quyền quản trị viên để thấy mọi chương trình được cài trên máy này, nhưng hiện không chạy với tư cách quản trị viên, nên sẽ không quét. Không có gì bị thay đổi. Hãy chạy lại từ dấu nhắc quản trị viên.`,
+  'Error.ScanInstallerFolderNotFound': `Windows báo rằng {InstallerFolder} không tồn tại trên máy này, nên InstallerClean đã dừng lại. Không có gì được đề xuất và không có gì bị bỏ đi.`,
+  'Error.ScanInstallerFolderListFailed': `Windows đã báo lỗi khi InstallerClean cố liệt kê các tệp trong {InstallerFolder}, nên InstallerClean không lấy được danh sách đầy đủ và đã dừng lại. Không có gì được đề xuất và không có gì bị bỏ đi.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

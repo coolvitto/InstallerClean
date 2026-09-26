@@ -4,6 +4,7 @@ using NSubstitute.ExceptionExtensions;
 using InstallerClean.Helpers;
 using InstallerClean.Models;
 using InstallerClean.Services;
+using InstallerClean.Tests.Helpers;
 
 namespace InstallerClean.Tests.Services;
 
@@ -1350,9 +1351,8 @@ public class FileSystemScanServiceTests
     [Fact]
     public async Task ScanAsync_still_offers_hidden_and_system_cache_files()
     {
-        // The other half of the same change. Real cache entries sometimes carry
-        // Hidden or System, and .NET's default AttributesToSkip is exactly those
-        // two, so a walk that took the default would quietly stop offering them.
+        // Real cache entries sometimes carry Hidden or System, and those two are
+        // .NET's default AttributesToSkip, so the walk lists with nothing skipped.
         var mockQuery = QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>().AsReadOnly()));
 
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
@@ -1364,6 +1364,108 @@ public class FileSystemScanServiceTests
         var result = await new FileSystemScanService(mockQuery, fs).ScanAsync();
 
         Assert.Equal(2, result.RemovableFiles.Count);
+    }
+
+    [Fact]
+    public async Task A_missing_Installer_folder_stops_the_scan_before_the_records_are_asked()
+    {
+        // Nothing is added to the file system, so the folder the walk lists is not
+        // there, while Windows holds a record naming a file in it.
+        var query = QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>
+        {
+            Registered(Path.Combine(InstallerCacheHelpers.InstallerFolder, "a.msi")),
+        }.AsReadOnly()));
+
+        var ex = await Assert.ThrowsAsync<LocalisedInvalidOperationException>(() =>
+            new FileSystemScanService(query, new MockFileSystem()).ScanAsync());
+
+        Assert.Equal(InstallerClean.Resources.Strings.Error_ScanInstallerFolderNotFound, ex.Message);
+        Assert.IsAssignableFrom<DirectoryNotFoundException>(ex.InnerException);
+        await query.DidNotReceive().GetRegisteredPackagesAsync(
+            Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// What .NET raises when a listing fails, each with whether it is Windows saying
+    /// the folder cannot be found, which is the one case that gets the message saying
+    /// the folder doesn't exist. An OperationCanceledException from the listing is a
+    /// read Windows aborted, the enumeration taking no token.
+    /// </summary>
+    public static TheoryData<Exception, bool> ListingFailures => new()
+    {
+        { new UnauthorizedAccessException("refused"), false },
+        { new IOException("failed"), false },
+        { new OperationCanceledException(), false },
+        { new DirectoryNotFoundException("not found"), true },
+    };
+
+    [Theory]
+    [MemberData(nameof(ListingFailures))]
+    public async Task A_listing_that_fails_as_the_folder_is_opened_stops_the_scan(
+        Exception failure, bool saysNotFound)
+    {
+        // The listing throws as it is asked for, which is where .NET reports a folder
+        // it cannot open. The folder holds a cache file, so a walk that got past the
+        // failure would have something to offer.
+        var fs = new FailingListingFileSystem(failure, afterEntries: false);
+        fs.AddFile(Path.Combine(InstallerCacheHelpers.InstallerFolder, "a.msi"), new MockFileData("x"));
+        var query = QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>().AsReadOnly()));
+
+        var ex = await Assert.ThrowsAsync<LocalisedInvalidOperationException>(() =>
+            new FileSystemScanService(query, fs).ScanAsync());
+
+        Assert.Equal(StopFor(saysNotFound), ex.Message);
+        Assert.Same(failure, ex.InnerException);
+        await query.DidNotReceive().GetRegisteredPackagesAsync(
+            Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [MemberData(nameof(ListingFailures))]
+    public async Task A_listing_that_fails_part_way_through_the_folder_stops_the_scan(
+        Exception failure, bool saysNotFound)
+    {
+        // The listing gives both cache files and then fails, so the walk has files in
+        // hand when the read fails. None of them goes any further.
+        var fs = new FailingListingFileSystem(failure, afterEntries: true);
+        fs.AddFile(Path.Combine(InstallerCacheHelpers.InstallerFolder, "a.msi"), new MockFileData("x"));
+        fs.AddFile(Path.Combine(InstallerCacheHelpers.InstallerFolder, "b.msp"), new MockFileData("x"));
+        var query = QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>().AsReadOnly()));
+
+        var ex = await Assert.ThrowsAsync<LocalisedInvalidOperationException>(() =>
+            new FileSystemScanService(query, fs).ScanAsync());
+
+        Assert.Equal(StopFor(saysNotFound), ex.Message);
+        Assert.Same(failure, ex.InnerException);
+        await query.DidNotReceive().GetRegisteredPackagesAsync(
+            Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>());
+    }
+
+    private static string StopFor(bool saysNotFound) => saysNotFound
+        ? InstallerClean.Resources.Strings.Error_ScanInstallerFolderNotFound
+        : InstallerClean.Resources.Strings.Error_ScanInstallerFolderListFailed;
+
+    [Fact]
+    public async Task A_walk_cancelled_part_way_ends_as_a_cancellation()
+    {
+        // The walk reports its running count every thousand files, and the report at
+        // the thousandth cancels the scan, so the walk is part-way through the folder
+        // when the token is cancelled. The scan ends cancelled, not stopped.
+        using var cts = new CancellationTokenSource();
+        var fs = new MockFileSystem();
+        for (var i = 0; i < 1_001; i++)
+            fs.AddFile(Path.Combine(InstallerCacheHelpers.InstallerFolder, $"f{i}.msi"), new MockFileData("x"));
+        var progress = new SyncProgress<ScanProgressUpdate>(update =>
+        {
+            if (update.Position == 1_000) cts.Cancel();
+        });
+        var query = QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>().AsReadOnly()));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new FileSystemScanService(query, fs).ScanAsync(progress, cts.Token));
+
+        await query.DidNotReceive().GetRegisteredPackagesAsync(
+            Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

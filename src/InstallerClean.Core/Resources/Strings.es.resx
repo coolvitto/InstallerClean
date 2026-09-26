@@ -1131,6 +1131,20 @@ InstallerClean ya se estaba ejecutando como administrador, así que volver a ini
        {0} is that path, a full folder path such as D:\Cache\Installer. Names the
        folder the app asked about through the {InstallerFolder} token. -->
   <data name="Error.ScanInstallerFolderElsewhere" xml:space="preserve"><value>InstallerClean no puede analizar {InstallerFolder} en este PC. Windows sitúa esa carpeta en {0}, e InstallerClean solo analiza una carpeta Installer que Windows sitúe en su propia ruta. No se ha ofrecido nada y no se ha quitado nada.</value></data>
+  <!-- Shown when the scan stops at its walk because Windows answered that the
+       cache folder cannot be found when the app went to list it. Only that answer
+       reaches this message; every other failure to list the folder gets
+       Error.ScanInstallerFolderListFailed below. Names the folder through the
+       {InstallerFolder} token. No placeholders. -->
+  <data name="Error.ScanInstallerFolderNotFound" xml:space="preserve"><value>Windows indica que {InstallerFolder} no existe en este PC, así que InstallerClean se detuvo. No se ha ofrecido nada y no se ha quitado nada.</value></data>
+  <!-- Shown when the scan stops at its walk because Windows returned an error while
+       the app was listing the cache folder, whether when the folder was opened or
+       part-way through it: a refusal or any other failed read. Windows answering
+       that the folder cannot be found has Error.ScanInstallerFolderNotFound above
+       instead. States no cause beyond that, because more than one condition
+       produces it and naming one would be false of the others. Names the folder
+       through the {InstallerFolder} token. No placeholders. -->
+  <data name="Error.ScanInstallerFolderListFailed" xml:space="preserve"><value>Windows devolvió un error cuando InstallerClean intentó listar los archivos de {InstallerFolder}, así que no pudo obtener una lista completa y se detuvo. No se ha ofrecido nada y no se ha quitado nada.</value></data>
   <!-- Shown when BOTH of the app's sources for "what is still needed" came
        back short on the same scan: the Windows Installer enumeration lost at
        least one program's records, and reading the same registrations out of

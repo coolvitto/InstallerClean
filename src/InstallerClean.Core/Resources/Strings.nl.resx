@@ -1131,6 +1131,20 @@ InstallerClean draaide al als administrator, dus opnieuw starten op die manier h
        {0} is that path, a full folder path such as D:\Cache\Installer. Names the
        folder the app asked about through the {InstallerFolder} token. -->
   <data name="Error.ScanInstallerFolderElsewhere" xml:space="preserve"><value>InstallerClean kan {InstallerFolder} op deze pc niet scannen. Windows meldt die map als {0}, en InstallerClean scant alleen een Installer-map die Windows op zijn eigen pad meldt. Er is niets voor opruimen aangeboden en er is niets verwijderd.</value></data>
+  <!-- Shown when the scan stops at its walk because Windows answered that the
+       cache folder cannot be found when the app went to list it. Only that answer
+       reaches this message; every other failure to list the folder gets
+       Error.ScanInstallerFolderListFailed below. Names the folder through the
+       {InstallerFolder} token. No placeholders. -->
+  <data name="Error.ScanInstallerFolderNotFound" xml:space="preserve"><value>Windows meldt dat {InstallerFolder} niet bestaat op deze pc, dus InstallerClean is gestopt. Er is niets voor opruimen aangeboden en er is niets verwijderd.</value></data>
+  <!-- Shown when the scan stops at its walk because Windows returned an error while
+       the app was listing the cache folder, whether when the folder was opened or
+       part-way through it: a refusal or any other failed read. Windows answering
+       that the folder cannot be found has Error.ScanInstallerFolderNotFound above
+       instead. States no cause beyond that, because more than one condition
+       produces it and naming one would be false of the others. Names the folder
+       through the {InstallerFolder} token. No placeholders. -->
+  <data name="Error.ScanInstallerFolderListFailed" xml:space="preserve"><value>Windows meldde een fout toen InstallerClean de bestanden in {InstallerFolder} probeerde op te sommen, dus het kon geen volledige lijst krijgen en is gestopt. Er is niets voor opruimen aangeboden en er is niets verwijderd.</value></data>
   <!-- Shown when BOTH of the app's sources for "what is still needed" came
        back short on the same scan: the Windows Installer enumeration lost at
        least one program's records, and reading the same registrations out of

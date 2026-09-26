@@ -1577,42 +1577,94 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// without opening it or putting it to the containment check, which is
     /// assertable against a MockFileSystem;
     /// Hidden and System stay included, because real cache entries sometimes
-    /// carry those attributes; and a folder the process cannot read yields
-    /// nothing rather than throwing, which is what IgnoreInaccessible bought and
-    /// is the only place this scan drops anything quietly. It drops in the safe
-    /// direction: fewer files offered, never more.
+    /// carry those attributes; and a listing that is refused throws rather than
+    /// being passed over.
+    ///
+    /// A LISTING THAT ENDS IN AN ERROR STOPS THE SCAN, whether Windows reports the
+    /// folder is not there, refuses the listing, or fails a read part-way through
+    /// the folder. Everything after the walk reads its list as the folder's whole
+    /// contents, down to the finished screen saying there is nothing to clean up in
+    /// the folder, so the walk hands on a listing that ended without an error or
+    /// stops the scan. The stop carries the error as its inner exception.
+    ///
+    /// AN ERROR THAT ENDS A LISTING ARRIVES AS ONE OF THREE TYPES, each raised by
+    /// .NET from the error Windows returned: <see cref="UnauthorizedAccessException"/>
+    /// for a refusal, <see cref="IOException"/> for any other failed read, and
+    /// <see cref="OperationCanceledException"/> for a read Windows aborted. The
+    /// enumeration takes no cancellation token, so an OperationCanceledException
+    /// from it is always the answer Windows returned. The user's cancellation is
+    /// raised between entries by the loop consuming the walk
+    /// (<see cref="MaterialiseInstallerFiles"/>), outside both guarded calls, and
+    /// stays a cancellation.
+    ///
+    /// TWO MESSAGES, AND ONLY WINDOWS SAYING THE FOLDER CANNOT BE FOUND GETS THE
+    /// FIRST. .NET raises <see cref="DirectoryNotFoundException"/> for
+    /// ERROR_PATH_NOT_FOUND alone, and for ERROR_FILE_NOT_FOUND as well when it
+    /// opens the folder, so that message can say Windows reports the folder does
+    /// not exist. Everything else gets the second, which says Windows reported an
+    /// error listing the folder and names no cause. Widening the first to any other
+    /// type puts that sentence over a folder Windows never said was missing.
+    ///
+    /// THE CALL AND EVERY MOVE ARE BOTH GUARDED. The enumeration opens the folder
+    /// when it is built, so a missing folder or a refused listing surfaces from
+    /// EnumerateFiles itself, and a read that fails later surfaces from MoveNext.
     ///
     /// ONLY A CACHE FILE IS MARKED. The extension test comes first, so an entry of
     /// any other kind is left out whether or not it carries the attribute.
     /// </summary>
     private IEnumerable<WalkedFile> GetInstallerFiles(string folder)
     {
-        if (!_fs.Directory.Exists(folder))
-            yield break;
-
-        using var entries = _fs.DirectoryInfo.New(folder)
-            .EnumerateFiles("*", SearchOption.TopDirectoryOnly)
-            .GetEnumerator();
-
-        while (true)
+        IEnumerator<IFileInfo> entries;
+        try
         {
-            IFileInfo entry;
-            try
+            entries = _fs.DirectoryInfo.New(folder)
+                .EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+                .GetEnumerator();
+        }
+        catch (Exception ex) when (EndsTheListing(ex))
+        {
+            throw ListingNotTakenWhole(ex);
+        }
+
+        using (entries)
+        {
+            while (true)
             {
-                if (!entries.MoveNext()) yield break;
-                entry = entries.Current;
+                IFileInfo entry;
+                try
+                {
+                    if (!entries.MoveNext()) yield break;
+                    entry = entries.Current;
+                }
+                catch (Exception ex) when (EndsTheListing(ex))
+                {
+                    throw ListingNotTakenWhole(ex);
+                }
+
+                if (!IsCacheExtension(entry.Extension)) continue;
+
+                yield return new WalkedFile(entry.FullName, SafeLength(entry),
+                    IsReparsePoint: (entry.Attributes & FileAttributes.ReparsePoint) != 0);
             }
-            // The enumerator opens the folder on the first move, so a DACL that
-            // refuses the elevated process surfaces here. Access-denied only,
-            // matching what IgnoreInaccessible itself continued past.
-            catch (UnauthorizedAccessException) { yield break; }
-
-            if (!IsCacheExtension(entry.Extension)) continue;
-
-            yield return new WalkedFile(entry.FullName, SafeLength(entry),
-                IsReparsePoint: (entry.Attributes & FileAttributes.ReparsePoint) != 0);
         }
     }
+
+    /// <summary>
+    /// Whether an exception from the folder listing is one the walk turns into the
+    /// scan's stop. <see cref="GetInstallerFiles"/> says what each of the three is.
+    /// </summary>
+    private static bool EndsTheListing(Exception ex) =>
+        ex is UnauthorizedAccessException or IOException or OperationCanceledException;
+
+    /// <summary>
+    /// The scan's stop for a listing of the folder it could not take whole, with what
+    /// ended the listing as its inner exception.
+    /// </summary>
+    private static LocalisedInvalidOperationException ListingNotTakenWhole(Exception cause) =>
+        new(cause is DirectoryNotFoundException
+                ? Strings.Error_ScanInstallerFolderNotFound
+                : Strings.Error_ScanInstallerFolderListFailed,
+            cause);
 
     private static bool IsCacheExtension(string extension) =>
         extension.Equals(".msi", StringComparison.OrdinalIgnoreCase)

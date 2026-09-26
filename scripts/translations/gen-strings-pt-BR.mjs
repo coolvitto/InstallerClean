@@ -561,6 +561,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `São necessários privilégios de administrador`,
   'Startup.AdminRightsNeededBody': `O InstallerClean precisa de privilégios de administrador para ver todos os programas instalados neste PC e não está sendo executado como administrador, então não vai fazer a análise. Nada foi alterado.\n\nExecute o InstallerClean novamente como administrador.`,
   'Cli.AdminRightsNeeded': `O InstallerClean precisa de privilégios de administrador para ver todos os programas instalados neste PC e não está sendo executado como administrador, então não vai fazer a análise. Nada foi alterado. Execute-o novamente a partir de um prompt como administrador.`,
+  'Error.ScanInstallerFolderNotFound': `O Windows informa que {InstallerFolder} não existe neste PC, então o InstallerClean parou. Nada foi oferecido e nada foi removido.`,
+  'Error.ScanInstallerFolderListFailed': `O Windows informou um erro quando o InstallerClean tentou listar os arquivos em {InstallerFolder}, então ele não conseguiu obter uma lista completa e parou. Nada foi oferecido e nada foi removido.`,
 };
 
 // Satellite-only .One override(s). NOT in the neutral; appended before </root>.

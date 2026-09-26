@@ -579,6 +579,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `Потрібні права адміністратора`,
   'Startup.AdminRightsNeededBody': `InstallerClean потрібні права адміністратора, щоб бачити всі програми, встановлені на цьому ПК, а його запущено не від імені адміністратора, тож сканування не буде. Нічого не змінено.\n\nЗапустіть InstallerClean знову від імені адміністратора.`,
   'Cli.AdminRightsNeeded': `InstallerClean потрібні права адміністратора, щоб бачити всі програми, встановлені на цьому ПК, а його запущено не від імені адміністратора, тож сканування не буде. Нічого не змінено. Запустіть його знову з командного рядка адміністратора.`,
+  'Error.ScanInstallerFolderNotFound': `Windows повідомляє, що {InstallerFolder} на цьому ПК не існує, тому InstallerClean зупинився. Нічого не запропоновано і нічого не прибрано.`,
+  'Error.ScanInstallerFolderListFailed': `Windows повідомив про помилку, коли InstallerClean намагався отримати список файлів у {InstallerFolder}, тому InstallerClean не зміг отримати повний список і зупинився. Нічого не запропоновано і нічого не прибрано.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

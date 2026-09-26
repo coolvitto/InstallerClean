@@ -485,6 +485,8 @@ Ayrıntılar şuraya yazıldı:
   'Startup.AdminRightsNeededTitle': `Yönetici hakları gerekli`,
   'Startup.AdminRightsNeededBody': `InstallerClean'in bu bilgisayarda yüklü her programı görebilmesi için yönetici hakları gerekir; şu anda yönetici olarak çalışmıyor, bu yüzden tarama yapmayacak. Hiçbir şey değiştirilmedi.\n\nInstallerClean'i yönetici olarak yeniden çalıştırın.`,
   'Cli.AdminRightsNeeded': `InstallerClean'in bu bilgisayarda yüklü her programı görebilmesi için yönetici hakları gerekir; şu anda yönetici olarak çalışmıyor, bu yüzden tarama yapmayacak. Hiçbir şey değiştirilmedi. Bir yönetici komut isteminden yeniden çalıştırın.`,
+  'Error.ScanInstallerFolderNotFound': `Windows, {InstallerFolder} klasörünün bu bilgisayarda bulunmadığını bildiriyor, bu yüzden InstallerClean durdu. Hiçbir şey sunulmadı ve hiçbir şey kaldırılmadı.`,
+  'Error.ScanInstallerFolderListFailed': `InstallerClean, {InstallerFolder} klasöründeki dosyaları listelemeye çalışırken Windows bir hata bildirdi, bu yüzden InstallerClean tam bir liste alamadı ve durdu. Hiçbir şey sunulmadı ve hiçbir şey kaldırılmadı.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

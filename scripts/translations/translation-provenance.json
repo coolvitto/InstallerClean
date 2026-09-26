@@ -6751,6 +6751,40 @@
       "uk": "27f1aa4f90eb9c79",
       "vi": "27f1aa4f90eb9c79",
       "zh-Hans": "27f1aa4f90eb9c79"
+    },
+    "Error.ScanInstallerFolderNotFound": {
+      "de": "2a07290d25f49e6c",
+      "es": "2a07290d25f49e6c",
+      "fr": "2a07290d25f49e6c",
+      "id": "2a07290d25f49e6c",
+      "it": "2a07290d25f49e6c",
+      "ja": "2a07290d25f49e6c",
+      "ko": "2a07290d25f49e6c",
+      "nl": "2a07290d25f49e6c",
+      "pl": "2a07290d25f49e6c",
+      "pt-BR": "2a07290d25f49e6c",
+      "ru": "2a07290d25f49e6c",
+      "tr": "2a07290d25f49e6c",
+      "uk": "2a07290d25f49e6c",
+      "vi": "2a07290d25f49e6c",
+      "zh-Hans": "2a07290d25f49e6c"
+    },
+    "Error.ScanInstallerFolderListFailed": {
+      "de": "7cb900a9d0fc486f",
+      "es": "7cb900a9d0fc486f",
+      "fr": "7cb900a9d0fc486f",
+      "id": "7cb900a9d0fc486f",
+      "it": "7cb900a9d0fc486f",
+      "ja": "7cb900a9d0fc486f",
+      "ko": "7cb900a9d0fc486f",
+      "nl": "7cb900a9d0fc486f",
+      "pl": "7cb900a9d0fc486f",
+      "pt-BR": "7cb900a9d0fc486f",
+      "ru": "7cb900a9d0fc486f",
+      "tr": "7cb900a9d0fc486f",
+      "uk": "7cb900a9d0fc486f",
+      "vi": "7cb900a9d0fc486f",
+      "zh-Hans": "7cb900a9d0fc486f"
     }
   }
 }

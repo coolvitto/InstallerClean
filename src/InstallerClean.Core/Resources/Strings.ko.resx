@@ -1131,6 +1131,20 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
        {0} is that path, a full folder path such as D:\Cache\Installer. Names the
        folder the app asked about through the {InstallerFolder} token. -->
   <data name="Error.ScanInstallerFolderElsewhere" xml:space="preserve"><value>InstallerClean은 이 PC에서 {InstallerFolder}를 검사할 수 없습니다. Windows는 이 폴더를 {0}(으)로 보고하며, InstallerClean은 Windows가 그 폴더 자체의 경로로 보고하는 Installer 폴더만 검사합니다. 아무것도 제시하지 않았고 아무것도 제거하지 않았습니다.</value></data>
+  <!-- Shown when the scan stops at its walk because Windows answered that the
+       cache folder cannot be found when the app went to list it. Only that answer
+       reaches this message; every other failure to list the folder gets
+       Error.ScanInstallerFolderListFailed below. Names the folder through the
+       {InstallerFolder} token. No placeholders. -->
+  <data name="Error.ScanInstallerFolderNotFound" xml:space="preserve"><value>Windows가 이 PC에 {InstallerFolder}가 없다고 보고해서 InstallerClean이 작업을 멈췄습니다. 아무것도 제시하지 않았고 아무것도 제거하지 않았습니다.</value></data>
+  <!-- Shown when the scan stops at its walk because Windows returned an error while
+       the app was listing the cache folder, whether when the folder was opened or
+       part-way through it: a refusal or any other failed read. Windows answering
+       that the folder cannot be found has Error.ScanInstallerFolderNotFound above
+       instead. States no cause beyond that, because more than one condition
+       produces it and naming one would be false of the others. Names the folder
+       through the {InstallerFolder} token. No placeholders. -->
+  <data name="Error.ScanInstallerFolderListFailed" xml:space="preserve"><value>InstallerClean이 {InstallerFolder}의 파일 목록을 가져오려 할 때 Windows가 오류를 보고해서, 전체 목록을 얻지 못하고 작업을 멈췄습니다. 아무것도 제시하지 않았고 아무것도 제거하지 않았습니다.</value></data>
   <!-- Shown when BOTH of the app's sources for "what is still needed" came
        back short on the same scan: the Windows Installer enumeration lost at
        least one program's records, and reading the same registrations out of

@@ -489,6 +489,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `Servono i diritti di amministratore`,
   'Startup.AdminRightsNeededBody': `InstallerClean ha bisogno dei diritti di amministratore per vedere tutti i programmi installati su questo PC e non è in esecuzione come amministratore, quindi non eseguirà la scansione. Non è stato modificato nulla.\n\nEsegui di nuovo InstallerClean come amministratore.`,
   'Cli.AdminRightsNeeded': `InstallerClean ha bisogno dei diritti di amministratore per vedere tutti i programmi installati su questo PC e non è in esecuzione come amministratore, quindi non eseguirà la scansione. Non è stato modificato nulla. Eseguilo di nuovo da un prompt come amministratore.`,
+  'Error.ScanInstallerFolderNotFound': `Windows segnala che {InstallerFolder} non esiste su questo PC, quindi InstallerClean si è fermato. Non è stato proposto nulla e non è stato rimosso nulla.`,
+  'Error.ScanInstallerFolderListFailed': `Windows ha segnalato un errore quando InstallerClean ha provato a elencare i file in {InstallerFolder}, quindi non è riuscito a ottenerne l'elenco completo e si è fermato. Non è stato proposto nulla e non è stato rimosso nulla.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

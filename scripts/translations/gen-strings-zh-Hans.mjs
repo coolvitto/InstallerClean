@@ -466,6 +466,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `需要管理员权限`,
   'Startup.AdminRightsNeededBody': `InstallerClean 需要管理员权限才能看到这台电脑上安装的每个程序，但它当前没有以管理员身份运行，所以不会扫描。没有做任何更改。\n\n请以管理员身份重新运行 InstallerClean。`,
   'Cli.AdminRightsNeeded': `InstallerClean 需要管理员权限才能看到这台电脑上安装的每个程序，但它当前没有以管理员身份运行，所以不会扫描。没有做任何更改。请从管理员命令提示符重新运行。`,
+  'Error.ScanInstallerFolderNotFound': `Windows 报告这台电脑上不存在 {InstallerFolder}，因此 InstallerClean 已停止。没有提供任何内容，也没有移除任何内容。`,
+  'Error.ScanInstallerFolderListFailed': `InstallerClean 尝试列出 {InstallerFolder} 中的文件时，Windows 报告了错误，因此 InstallerClean 无法获得完整的文件列表，已停止。没有提供任何内容，也没有移除任何内容。`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

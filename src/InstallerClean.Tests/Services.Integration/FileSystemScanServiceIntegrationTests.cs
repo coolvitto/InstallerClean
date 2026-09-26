@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using NSubstitute;
 using InstallerClean.Models;
 using InstallerClean.Resources;
@@ -43,6 +45,60 @@ public class FileSystemScanServiceIntegrationTests : IDisposable
         Assert.Contains(result.RemovableFiles, f => f.FileName == "b.msp" && f.SizeBytes == 2);
         Assert.DoesNotContain(result.RemovableFiles, f => f.FileName == "c.msi");     // subdirectory
         Assert.DoesNotContain(result.RemovableFiles, f => f.FileName == "readme.txt"); // wrong extension
+    }
+
+    [Fact]
+    public async Task A_folder_that_is_not_there_stops_the_scan()
+    {
+        var query = Substitute.For<IInstallerQueryService>();
+
+        var ex = await Assert.ThrowsAsync<LocalisedInvalidOperationException>(() =>
+            new FileSystemScanService(query, null, Path.Combine(_fakeInstallerDir, "absent")).ScanAsync());
+
+        Assert.Equal(Strings.Error_ScanInstallerFolderNotFound, ex.Message);
+        Assert.IsAssignableFrom<DirectoryNotFoundException>(ex.InnerException);
+        await query.DidNotReceive().GetRegisteredPackagesAsync(
+            Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_folder_Windows_refuses_to_list_stops_the_scan()
+    {
+        // An entry denying this process's own account the listing of the folder, which
+        // Windows applies to an administrator too. The folder holds a cache file, so a
+        // walk that got past the refusal would have something to offer.
+        var refused = Path.Combine(_fakeInstallerDir, "refused");
+        Directory.CreateDirectory(refused);
+        File.WriteAllBytes(Path.Combine(refused, "a.msi"), new byte[] { 1 });
+
+        var folder = new DirectoryInfo(refused);
+        var deny = new FileSystemAccessRule(
+            WindowsIdentity.GetCurrent().User!, FileSystemRights.ListDirectory, AccessControlType.Deny);
+        var security = folder.GetAccessControl();
+        security.AddAccessRule(deny);
+        folder.SetAccessControl(security);
+        try
+        {
+            // The entry has to refuse the listing, or this is a test of a folder that lists.
+            Assert.Throws<UnauthorizedAccessException>(() => Directory.EnumerateFiles(refused).ToList());
+
+            var query = Substitute.For<IInstallerQueryService>();
+
+            var ex = await Assert.ThrowsAsync<LocalisedInvalidOperationException>(() =>
+                new FileSystemScanService(query, null, refused).ScanAsync());
+
+            Assert.Equal(Strings.Error_ScanInstallerFolderListFailed, ex.Message);
+            Assert.IsType<UnauthorizedAccessException>(ex.InnerException);
+            await query.DidNotReceive().GetRegisteredPackagesAsync(
+                Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            // Off again whatever the assertions did, so the folder can be deleted.
+            security = folder.GetAccessControl();
+            security.RemoveAccessRule(deny);
+            folder.SetAccessControl(security);
+        }
     }
 
     [Fact]

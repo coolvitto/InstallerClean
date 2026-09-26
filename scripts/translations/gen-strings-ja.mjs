@@ -488,6 +488,8 @@ const MAP = {
   'Startup.AdminRightsNeededTitle': `管理者権限が必要です`,
   'Startup.AdminRightsNeededBody': `InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。\n\nInstallerClean を管理者としてもう一度実行してください。`,
   'Cli.AdminRightsNeeded': `InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。管理者権限のプロンプトからもう一度実行してください。`,
+  'Error.ScanInstallerFolderNotFound': `Windows は {InstallerFolder} がこの PC に存在しないと報告しているため、InstallerClean は処理を中止しました。何も提示されず、何も取り除かれていません。`,
+  'Error.ScanInstallerFolderListFailed': `InstallerClean が {InstallerFolder} 内のファイルを一覧にしようとしたときに Windows がエラーを報告したため、完全な一覧を得られず、処理を中止しました。何も提示されず、何も取り除かれていません。`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,
