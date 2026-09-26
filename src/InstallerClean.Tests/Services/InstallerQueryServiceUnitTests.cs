@@ -1931,6 +1931,117 @@ public class InstallerQueryServiceUnitTests
         Assert.Empty(result.Dropped);
     }
 
+    // ---- A superseded patch's file is read whatever it is called ----
+    //
+    // The row is a patch's by its registration, so the pass that reads a cached patch
+    // file for the products it declares reads this one too, whatever its name.
+
+    private const string PatchUnderAnotherName = @"C:\Windows\Installer\shared.bin";
+
+    /// <summary>
+    /// A package reader under which the file whose name ends in <paramref name="leaf"/>
+    /// reads as a patch declaring <paramref name="targets"/>, and every other file reads
+    /// as a patch naming no product.
+    /// </summary>
+    private sealed class OnePatchFileDeclaring(string leaf, params string[] targets) : IPackageIdentityReader
+    {
+        public PackageIdentity? Read(string filePath, bool isPatch, out string detail)
+        {
+            detail = string.Empty;
+            return new PackageIdentity(string.Empty, isPatch,
+                filePath.EndsWith(leaf, StringComparison.OrdinalIgnoreCase) ? targets : Array.Empty<string>());
+        }
+    }
+
+    [Fact]
+    public async Task A_superseded_patch_recorded_under_another_name_whose_file_does_not_read_is_withheld()
+    {
+        // The file is read like any cached patch file, does not yield the products it
+        // declares, and the row is withheld with the unread-file marker set.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: PatchUnderAnotherName, state: "2", uninstallable: "0");
+
+        var result = await new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, 0, ProductPatchSets: HealthyPatchSets(msi)),
+                identityReader: new OnePatchFileUnread("shared.bin"))
+            .GetRegisteredPackagesAsync();
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+        Assert.True(row.WithheldOnUnreadableFile);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+    }
+
+    [Fact]
+    public async Task A_superseded_patch_recorded_under_another_name_has_the_products_its_file_declares_asked()
+    {
+        // The file declares product B, which the product enumeration did not return and
+        // which holds the patch applied. B is asked because the file named it, and its
+        // answer keeps the row off the offer as a live claim.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: PatchUnderAnotherName, state: "2", uninstallable: "0");
+        msi.SetPatchProperty("{P}", "{B}", "State", "1");
+        msi.SetPatchProperty("{P}", "{B}", "Uninstallable", "0");
+
+        var result = await new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, 0,
+                    ProductPatchSets: new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["{A}"] = ProductPatchSet.AllNonRemovable,
+                        ["{B}"] = ProductPatchSet.AllNonRemovable,
+                    }),
+                identityReader: new OnePatchFileDeclaring("shared.bin", "{B}"))
+            .GetRegisteredPackagesAsync();
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.False(row.IsRemovable);
+        Assert.False(row.RemovableWithheld);
+    }
+
+    [Fact]
+    public async Task The_same_patch_recorded_as_a_patch_file_that_reads_is_offered()
+    {
+        // THE MUST-MISS FOR THE TWO ABOVE: an ordinary cached patch file that reads and
+        // declares no product that holds the patch.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+
+        var result = await new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, 0, ProductPatchSets: HealthyPatchSets(msi)),
+                identityReader: new OnePatchFileDeclaring("shared.msp"))
+            .GetRegisteredPackagesAsync();
+
+        AssertOffered(Assert.Single(result.Packages, r => r.PatchState == 2), expectedState: 2);
+    }
+
+    [Fact]
+    public async Task A_superseded_patch_under_another_name_whose_file_does_not_read_keeps_its_marker_on_such_a_scan()
+    {
+        // On a scan where a recorded path is unsettled as well, the failed read withholds
+        // the row first, so it keeps the marker and does not carry the flag, and the
+        // missing-files split leaves it out where its file has gone.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: PatchUnderAnotherName, state: "2", uninstallable: "0");
+        msi.AddProduct("{C}");
+        msi.SetProductProperty("{C}", "LocalPackage", UnrelatedPackageUnsettled);
+
+        var result = await new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, 0, ProductPatchSets: HealthyPatchSets(msi)),
+                identityReader: new OnePatchFileUnread("shared.bin"))
+            .GetRegisteredPackagesAsync();
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.True(row.RemovableWithheld);
+        Assert.True(row.WithheldOnUnreadableFile);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+        Assert.False(MissingFilesReport.Affected(row with { FileExists = false }));
+    }
+
     // ---- Both sources degraded at once refuses the scan ----
     //
     // Withholding the removable class answers a claim the API loop lost because

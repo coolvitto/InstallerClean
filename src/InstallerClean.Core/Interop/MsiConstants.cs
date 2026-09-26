@@ -211,7 +211,7 @@ public static class MsiSummaryProperty
     /// meanings have nothing to do with each other: on an installation package
     /// it is the platform-and-language string ("Intel;1033"), and on a PATCH it
     /// is the semicolon-delimited list of product codes the patch may be applied
-    /// to. Only the patch reading is used here, and only for a <c>.msp</c>.
+    /// to. Only the patch reading is used here.
     /// </summary>
     public const uint Template = 7;
 

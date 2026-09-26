@@ -1892,11 +1892,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
     {
         unreadable = false;
 
-        // Only a patch has a Template to read. A cached product package is not
-        // this route's business and its absence of one is not a failure.
-        if (!path.EndsWith(".msp", StringComparison.OrdinalIgnoreCase))
-            return Array.Empty<string>();
-
+        // EVERY PATH HANDED TO THIS IS READ, WHATEVER THE FILE IS CALLED. It is asked
+        // only about rows still carrying the removable verdict, which only a superseded
+        // patch's registration is granted, so the registration makes the file a patch's
+        // and its name decides nothing. A file that does not read as a patch withholds
+        // like any other file that does not read.
+        //
         // A FILE THAT IS NOT THERE IS LEFT TO THE READ BELOW AND FAILS IT. Nothing is
         // tested for here: the caller records which failure this was, and the scan, which
         // holds the filesystem, decides what it means. Where the patch is superseded or
@@ -4133,7 +4134,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
         string Value, bool Unreadable, bool NotRegistered = false, bool PatchNotHeld = false);
 
     /// <summary>
-    /// HALF the rule that decides whether a patch's cached .msp is offered, from its
+    /// HALF the rule that decides whether a patch's cached file is offered, from its
     /// State and Uninstallable values exactly as <c>MsiGetPatchInfoEx</c> returned
     /// them. The other half is
     /// <see cref="JudgeAndWithholdAgainstEveryProductPatchSet"/> and a row this returns true for
