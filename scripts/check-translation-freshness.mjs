@@ -12,33 +12,29 @@
 // present, the arity usually matches, and the value is not the current English.
 // It passes all three silently, in every language, for as long as nobody looks.
 //
-// flag-retranslation.mjs is what resets a key when its English moves, and it says
-// so in its own header: "a STALE translation (the old wording of a key whose
-// English changed) passes it silently". A tool has to be reached for. This is the
+// flag-retranslation.mjs is what sets a key's translations back to the English once
+// its English has moved, and it acts only when somebody runs it. This is the
 // enforcement, asking on every push rather than when somebody remembers.
 //
-// WHAT IT CANNOT DO, STATED HERE SO NOBODY READS A PASS AS MORE THAN IT IS.
-// Which neutral value a given translation was actually made from is not
-// recorded anywhere: a generator MAP entry is 'Key': `translation` and carries
-// no source English. So this check compares against a LEDGER of what was true
-// when each entry was last recorded, and it can only speak about drift from
-// that moment forward. It makes NO claim about any translation predating its
-// own seed. A key seeded "unverified" is reported as unverified and is not a
-// pass.
+// WHAT A PASS DOES NOT SAY. Which neutral value a given translation was actually
+// made from is not recorded anywhere: a generator MAP entry is 'Key': `translation`
+// and carries no source English. So this check compares against a LEDGER of what
+// was true when each entry was last recorded, and it can only speak about drift
+// from that moment forward. It makes NO claim about any translation predating its
+// own seed. A key seeded "unverified" is reported as unverified and is not a pass.
 //
-// DO NOT REPLACE THIS WITH A DATE COMPARISON, AND THE NUMBER IS WHY. The cheap
-// version of this check asks whether a satellite's value last moved before the
-// neutral's did. Over the four pre-August keys that comparison flags, it reports
-// one genuine key-slot against thirteen false positives. It flags Status.Done in
+// DO NOT REPLACE THIS WITH A DATE COMPARISON. The date version of this check asks
+// whether a satellite's value last moved before the neutral's did, and the English
+// moves for reasons that leave a translation correct. It flags Status.Done in
 // Spanish and Russian, where the neutral says "Ready" and the satellites say
 // "Listo" and "Готово", which are correct; flagging destroys two good
-// translations for a human to redo. It flags the two Cli.Help lines in seven
-// languages, where the only thing that moved was column padding that
-// check-cli-help-alignment.mjs already owns. A date is a screen for a human to
-// read, never a gate. flag-retranslation.mjs replaces a translation with the
-// English, and a run that writes prints its own way back when it finishes.
+// translations for a human to redo. It flags the two Cli.Help lines where the only
+// thing that moved was column padding that check-cli-help-alignment.mjs already
+// owns. A date is a screen for a human to read, never a gate. flag-retranslation.mjs
+// replaces a translation with the English, and a run that writes prints its own way
+// back when it finishes.
 //
-// THE PARSE CONTROL ABOVE readResx IS NOT DEFENSIVE PROGRAMMING AND MUST NOT BE
+// THE PARSE CONTROL IN readResx IS NOT DEFENSIVE PROGRAMMING AND MUST NOT BE
 // SIMPLIFIED INTO A WARNING. This file's regex wants <value> on the same
 // whitespace run as <data>, so anything else landing between them drops that
 // entry silently: a <comment> moved above its <value> is valid resx, is what the
@@ -57,7 +53,8 @@
 // move this file out of it.
 //
 // Usage (from the repo root):
-//   node scripts/check-translation-freshness.mjs            check, exit 1 on stale
+//   node scripts/check-translation-freshness.mjs            check, exit 1 on a stale,
+//                                                           GONE or ORPHANED entry
 //   node scripts/check-translation-freshness.mjs --record <Key> [<Key> ...]
 //                                                           stamp keys as translated now
 //   node scripts/check-translation-freshness.mjs --record-unverified <Key> [<Key> ...]
@@ -71,9 +68,8 @@ import { LEDGER, UNVERIFIED, digest, readLedger, englishFor, recordedFreshness }
 const RES = 'src/InstallerClean.Core/Resources';
 const NEUTRAL = `${RES}/Strings.resx`;
 
-// Parse a resx into key -> raw <value> body. Controlled against a raw count of
-// '<data ' occurrences, because a regex requiring <value> on the same line as
-// <data> silently drops every multi-line entry and this file has 19 of them.
+// Parse a resx into key -> raw <value> body. An entry the regex cannot match is
+// still a '<data' occurrence, so a partial read shows as the two counts differing.
 function readResx(path) {
   const xml = readFileSync(path, 'utf8');
   // <data\b rather than '<data ' so a tab after the tag name is not counted as a
@@ -103,11 +99,15 @@ const ledger = readLedger();
 
 // EVERY KEY THIS LANGUAGE HAS A CLAIM TO MAKE ABOUT, and it is three sets rather than
 // the neutral's alone. The neutral's keys are what every satellite is measured against.
-// A satellite's own overrides are keys the neutral will never hold, and walking only
-// the neutral is why they have never been recorded and are never checked. And a key
-// this language is STAMPED for is walked whether it is still there or not, which is
-// what lets an override that has been deleted be reported as gone rather than
-// disappearing with the walk that would have found it.
+// A satellite's own overrides are keys the neutral never holds, so a walk over the
+// neutral alone would not reach them. And an override this language is STAMPED for is
+// walked whether the satellite still holds it or not, which is what lets a deleted one
+// be reported as GONE rather than disappearing with the walk that would have found it.
+//
+// A stamped key that answers for no form the neutral holds is not walked. There is no
+// English to measure it against, and no sentence the English holds is left without its
+// translation, so it is neither stale nor GONE. The pass over the ledger after the walk
+// reports it as ORPHANED.
 const keysFor = (sat, lang) => {
   const out = new Set(neutral.keys());
   for (const k of sat.keys())
@@ -133,9 +133,9 @@ const recordAll = args.includes('--record-all-current');
 // flag is never read as the shorter one.
 if (recordIdx !== -1 || unverifiedIdx !== -1 || recordAll) {
   const asUnverified = unverifiedIdx !== -1;
-  // --record-all-current TAKES THE OVERRIDES TOO, and until it did they were the one
-  // population no seed could reach. The union is built across every satellite because
-  // which language declares which override is that language's own decision.
+  // --record-all-current TAKES THE OVERRIDES TOO, which the neutral's keys never
+  // include. The union is built across every satellite because which language
+  // declares which override is that language's own decision.
   //
   // TWO SETS AND NOT ONE, BECAUSE THEY ARE DIFFERENT QUANTITIES. The key list wants
   // DISTINCT KEYS, one per name, and the figure printed at the end wants KEY-SLOTS,
@@ -155,9 +155,9 @@ if (recordIdx !== -1 || unverifiedIdx !== -1 || recordAll) {
     : args.slice((asUnverified ? unverifiedIdx : recordIdx) + 1);
 
   // A NAMED KEY IS ACCEPTED WHERE THE NEUTRAL HOLDS IT OR WHERE IT ANSWERS FOR A FORM
-  // THE NEUTRAL HOLDS. The second is what an override is, and rejecting it was why no
-  // override has ever carried an entry: satellite-only by construction, so
-  // neutral.has is false for every one of them and always will be.
+  // THE NEUTRAL HOLDS. The second is what an override is: satellite-only by
+  // construction, so neutral.has is false for every one of them, and a test on
+  // neutral.has alone would refuse every override by name.
   const unknown = keys.filter((k) => englishFor(k, neutral) === undefined);
   if (!keys.length || unknown.length) {
     console.error(unknown.length ? `Neither in the neutral resx nor answering for a form that is: ${unknown.join(', ')}` : 'Usage: --record <Key> [<Key> ...] | --record-unverified <Key> [<Key> ...]');
@@ -179,8 +179,8 @@ if (recordIdx !== -1 || unverifiedIdx !== -1 || recordAll) {
     }
   }
   writeFileSync(LEDGER, JSON.stringify(ledger, null, 2) + '\n', 'utf8');
-  // BOTH POPULATIONS SIDE BY SIDE. A widened walk that reached fewer overrides than
-  // the satellites hold would report a smaller number and read exactly like a clean
+  // BOTH POPULATIONS SIDE BY SIDE. A run that stamped fewer overrides than the
+  // satellites hold would report a smaller number and read exactly like a clean
   // run, so the count of overrides available is printed beside the count stamped.
   console.log(`RECORDED: ${keys.length} key(s), ${stamped} key-slot(s) stamped ${asUnverified ? 'as never established' : 'against the current neutral'}, across ${satFiles.length} satellite(s).`);
   console.log(`  of those, ${overridesStamped} override key-slot(s) stamped, out of ${overrideSlots.size} the satellites declare (${overrides.size} distinct override key(s)).`);
@@ -189,12 +189,14 @@ if (recordIdx !== -1 || unverifiedIdx !== -1 || recordAll) {
 
 const stale = [];
 const deleted = [];
+const visited = new Set();
 let checked = 0, fresh = 0, unverified = 0, absent = 0, notInLedger = 0, overridesWalked = 0;
 
 for (const f of satFiles) {
   const lang = langOf(f);
   const sat = readResx(`${RES}/${f}`);
   for (const key of keysFor(sat, lang)) {
+    visited.add(`${lang}\u0000${key}`);
     const recorded = ledger.keys?.[key]?.[lang];
     if (!neutral.has(key)) overridesWalked++;
     // AN ENTRY STANDING OVER A KEY THAT IS NOT THERE IS A TRANSLATION THAT HAS
@@ -218,37 +220,57 @@ for (const f of satFiles) {
   }
 }
 
+// EVERY LEDGER ENTRY IS READ, AND ONE THE WALK DID NOT VISIT IS ORPHANED. That is an
+// entry for a key the neutral does not hold and that answers for no form it holds,
+// such as a key taken out of the English, or an entry for a language with no
+// satellite. Either is a claim about a translation this gate cannot check. The test is
+// what the walk visited rather than a second statement of which keys it takes, so a
+// change to keysFor moves both together.
+const satLangs = new Set(satFiles.map(langOf));
+const orphaned = [];
+for (const [key, langs] of Object.entries(ledger.keys ?? {}))
+  for (const lang of Object.keys(langs ?? {}))
+    if (!visited.has(`${lang}\u0000${key}`)) orphaned.push({ lang, key });
+
 const byLang = new Map();
 for (const s of stale) byLang.set(s.lang, [...(byLang.get(s.lang) || []), s.key]);
 for (const [lang, keys] of [...byLang].sort()) {
   console.log(`${lang}: ${keys.length} stale (the English moved since this was translated): ${keys.sort().join(', ')}`);
 }
 
-// Members and not a count, on both lists, because a number says nothing about
+// Members and not a count, on every list, because a number says nothing about
 // which language lost which sentence.
 const goneByLang = new Map();
 for (const d of deleted) goneByLang.set(d.lang, [...(goneByLang.get(d.lang) || []), d.key]);
 for (const [lang, keys] of [...goneByLang].sort()) {
   console.log(`${lang}: ${keys.length} GONE (translated once, now absent from this satellite): ${keys.sort().join(', ')}`);
 }
+const orphanedByLang = new Map();
+for (const o of orphaned) orphanedByLang.set(o.lang, [...(orphanedByLang.get(o.lang) || []), o.key]);
+for (const [lang, keys] of [...orphanedByLang].sort()) {
+  const why = satLangs.has(lang)
+    ? 'the English holds no such key, nor a form it answers for'
+    : 'no satellite for this language';
+  console.log(`${lang}: ${keys.length} ORPHANED (${why}): ${keys.sort().join(', ')}`);
+}
 
 // The totals line is printed ALWAYS, beside the filtered list and never instead
 // of it. A silent zero over an empty set reads exactly like a clean result.
 console.log(
   `TOTALS: ${satFiles.length} satellite(s), ${neutral.size} neutral key(s); ` +
-  `${checked} key-slot(s) checked, ${fresh} fresh, ${stale.length} STALE, ${deleted.length} GONE, ` +
+  `${checked} key-slot(s) checked, ${fresh} fresh, ${stale.length} STALE, ${deleted.length} GONE, ${orphaned.length} ORPHANED, ` +
   `${unverified} unverified (recorded as never established), ` +
   `${notInLedger} not in the ledger (no claim made), ${absent} absent from the satellite.`
 );
 // PRINTED BESIDE THE WALK'S OWN TOTAL AND NEVER INSTEAD OF IT. The overrides are the
-// population this walk was widened to reach, so a widening that reached fewer of them
+// population a walk over the neutral alone misses, so a walk that reached fewer of them
 // than the satellites hold would report a smaller number and look exactly like a run
 // over a tree that has fewer. The second figure is counted from the files rather than
 // from the walk, which is what makes the pair worth reading.
 //
-// BOTH ARE KEY-SLOTS, LANGUAGE BY LANGUAGE, AND SAYING SO IS THE POINT. Counted as
-// distinct KEYS the two are different quantities and a reader comparing them would be
-// comparing 25 against 99 and drawing a conclusion from the gap. Walked can exceed
+// BOTH ARE KEY-SLOTS, LANGUAGE BY LANGUAGE, AND SAYING SO IS THE POINT. A count of
+// distinct KEYS beside a count of slots would be two different quantities, and a
+// reader would draw a conclusion from the gap between them. Walked can exceed
 // declared by exactly the slots a language is stamped for and no longer holds, which
 // is the GONE line above.
 const declared = new Set();
@@ -259,7 +281,6 @@ console.log(`OVERRIDES: ${overridesWalked} key-slot(s) walked, ${declared.size} 
 if (notInLedger > 0) {
   console.log(`NOTE: ${notInLedger} key-slot(s) carry no ledger entry, so this run says NOTHING about them. It reports drift from the seed forward and makes no claim about any translation predating it.`);
 }
-// UNJUDGEABLE FAILS. A stamp standing on a key that answers for nothing is a claim
-// about a translation nobody can check, and leaving it green would let the ledger
-// carry entries the check has quietly stopped reading.
-process.exit(stale.length || deleted.length ? 1 : 0);
+// A STALE, GONE or ORPHANED entry fails the run, so on a pass every entry in the ledger
+// is either fresh against the English or stamped unverified.
+process.exit(stale.length || deleted.length || orphaned.length ? 1 : 0);
