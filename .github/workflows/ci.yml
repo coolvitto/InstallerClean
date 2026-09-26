@@ -431,16 +431,19 @@ jobs:
         run: node scripts/check-superseded-english.mjs
 
       # The one thing about a translation nothing else asks: whether it has
-      # fallen behind its English. The gate above fires when a satellite value
-      # equals the CURRENT neutral, resx parity compares key presence and
-      # numeric placeholder arity, and cross-key rules enforce named tokens. A
-      # satellite holding the PREVIOUS English of a rewritten key matches
-      # nothing any of them compares it against.
+      # fallen behind its English. Still-English fires when a satellite value
+      # equals the CURRENT neutral, the gate above when it equals a FORMER one,
+      # resx parity compares key presence and numeric placeholder arity, and
+      # cross-key rules enforce named tokens. A satellite holding a TRANSLATION
+      # of the previous English of a rewritten key matches nothing any of them
+      # compares it against.
       #
       # IT ANSWERS FROM A LEDGER, so what it can say depends on what the ledger
-      # carries: a key-slot the ledger holds is reported and fails the build once
-      # the English has moved past it, and a key-slot outside the ledger is named
-      # in a NOTE line and is one the run makes no claim about.
+      # carries. A key-slot the ledger holds is reported and fails the build once
+      # the English has moved past it. So does an entry the English gives
+      # nothing to measure against, such as one for a key taken out of it, and
+      # so does one for a language with no satellite. A key-slot outside the
+      # ledger is named in a NOTE line and is one the run makes no claim about.
       - name: Check translations against the freshness ledger
         if: '!cancelled()'
         run: node scripts/check-translation-freshness.mjs

@@ -2,15 +2,16 @@
 // check-translation-freshness.mjs: fail when a satellite is still carrying a
 // translation of a SUPERSEDED English value.
 //
-// WHY THIS EXISTS AND WHY NOTHING ELSE CATCHES IT. Three gates guard the
-// satellites and none of them asks whether a translation is out of date.
+// WHY THIS EXISTS AND WHY NOTHING ELSE CATCHES IT. The other gates on the
+// satellites do not ask whether a translation is out of date.
 // check-still-english.mjs fires when a satellite value EQUALS the current
-// neutral, check-resx-parity.mjs compares key presence and NUMERIC placeholder
-// arity, and check-cross-key-rules.mjs enforces named-token and heading rules.
-// A satellite holding the PREVIOUS English of a key whose neutral has since
+// neutral, check-superseded-english.mjs when it equals a FORMER one,
+// check-resx-parity.mjs compares key presence and NUMERIC placeholder arity, and
+// check-cross-key-rules.mjs enforces named-token and heading rules. A satellite
+// holding a TRANSLATION of the previous English of a key whose neutral has since
 // been rewritten equals nothing any of them compares it against: the key is
-// present, the arity usually matches, and the value is not the current English.
-// It passes all three silently, in every language, for as long as nobody looks.
+// present, the arity usually matches, and the value is neither the current
+// English nor a former one. It passes all of them silently, in every language.
 //
 // flag-retranslation.mjs is what sets a key's translations back to the English once
 // its English has moved, and it acts only when somebody runs it. This is the
