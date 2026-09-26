@@ -21,14 +21,10 @@ public enum MessageKind
 /// <see cref="MessageWindow"/> on the UI thread, owned by the main window when
 /// there is one.
 ///
-/// One entry point so no message reaches the user as a stock
-/// <c>MessageBox</c> by default: a light-grey Win32 dialog with no owner, in
-/// an app whose every other surface is a dark card. That would make the
-/// moments the app looks least like itself the moments it has just failed
-/// while running elevated inside C:\Windows\Installer, which is exactly when a
-/// nervous user needs it to look like the app they trusted. The stock box
-/// survives only as the last-resort fallback in <see cref="ShowCore"/>, for
-/// when the themed window itself cannot be built.
+/// Every message goes through here so that none reaches the user as a stock
+/// <c>MessageBox</c>, a light-grey Win32 dialog, in an app whose every other
+/// surface is a dark card. The stock box is used only as the fallback in
+/// <see cref="ShowCore"/>, for when the themed window itself cannot be built.
 /// </summary>
 internal static class MessageDialog
 {
@@ -63,13 +59,14 @@ internal static class MessageDialog
         }
         catch (Exception ex)
         {
-            // The last-resort crash handler shows a message when the app is
-            // already broken, and a theme resource is one of the things that can
-            // have broken it (a StaticResource whose runtime type does not match
-            // the consuming property has taken this app down before). Building a
-            // themed window then throws from inside the handler and the user gets
-            // no dialog at all, just a hard exit. The stock box needs none of the
-            // app's own resources, so it still paints.
+            // App's crash handlers show their message through here with the app
+            // already failing, and a broken theme resource is one of the things
+            // that can have failed it. A StaticResource whose runtime type does
+            // not match the property it fills throws when WPF loads or applies
+            // it, and MessageWindow is built from the same theme. The stock box
+            // needs none of the app's own resources, so it still paints. Remove
+            // this fallback, or give it anything from the theme, and a failure in
+            // the theme shows the user no message at all.
             CrashLog.TryWrite(ex);
             MessageBox.Show(message, caption, MessageBoxButton.OK, IconFor(kind));
         }
