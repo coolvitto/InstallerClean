@@ -408,7 +408,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean 无法确定缓存中的哪些文件属于这里安装的程序，因此没有提供全部 {0} 个{1}（{2}），而是把它们保留了下来。`,
   'Cli.DestinationChangedMidBatch': `InstallerClean 已无法确认备份文件夹，因此停了下来。请检查 {0}，然后重新运行该命令。`,
   'Cli.Help.Summary': `移除没有任何已安装程序仍然需要的 .msi 和 .msp 缓存文件。`,
-  'Cli.Help.Elevation': `需要管理员命令提示符，否则 Windows 不会启动它。`,
+  'Cli.Help.Elevation': `需要管理员命令提示符，否则不会扫描。`,
   'Error.InstallerLockUnavailableTitle': `没有删除任何文件`,
   'Error.MoveInstallerLockUnavailableTitle': `没有移动任何文件`,
   'Error.InstallerLockUnavailable': `InstallerClean 未能取得 Windows Installer 用来防止两个程序同时更改已安装软件的锁，因此无法排除某个文件在中途变成必需的可能，也没有删除任何内容。请重试，若一直如此请重启 Windows。`,
@@ -463,6 +463,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `缺失 {0} 个`,
   'Summary.RegisteredWindow.Missing.Singular': `缺失 {0} 个`,
   'UpdateCheck.Failed.Unknown.NoLog': `检查因未知原因失败。无法写入崩溃日志。`,
+  'Startup.AdminRightsNeededTitle': `需要管理员权限`,
+  'Startup.AdminRightsNeededBody': `InstallerClean 需要管理员权限才能看到这台电脑上安装的每个程序，但它当前没有以管理员身份运行，所以不会扫描。没有做任何更改。\n\n请以管理员身份重新运行 InstallerClean。`,
+  'Cli.AdminRightsNeeded': `InstallerClean 需要管理员权限才能看到这台电脑上安装的每个程序，但它当前没有以管理员身份运行，所以不会扫描。没有做任何更改。请从管理员命令提示符重新运行。`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

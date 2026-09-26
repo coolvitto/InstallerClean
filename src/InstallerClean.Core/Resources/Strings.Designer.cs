@@ -153,11 +153,13 @@ public static class Strings
     public static string BrowserLaunch_ClipboardFailed => Get("BrowserLaunch.ClipboardFailed");
     public static string BrowserLaunch_ClipboardOk => Get("BrowserLaunch.ClipboardOk");
     public static string BrowserLaunch_FailedTitle => Get("BrowserLaunch.FailedTitle");
+    public static string Cli_AdminRightsNeeded => Get("Cli.AdminRightsNeeded");
     public static string Cli_Cancelled => Get("Cli.Cancelled");
     public static string Cli_Cancelling => Get("Cli.Cancelling");
     public static string Cli_DeletedFiles => Get("Cli.DeletedFiles");
     public static string Cli_DeletingFiles => Get("Cli.DeletingFiles");
     public static string Cli_DestinationChangedMidBatch => Get("Cli.DestinationChangedMidBatch");
+    public static string Cli_EventLogAdminRightsNeeded => Get("Cli.EventLogAdminRightsNeeded");
     public static string Cli_EventLogBadArguments => Get("Cli.EventLogBadArguments");
     public static string Cli_EventLogCancelledNoWork => Get("Cli.EventLogCancelledNoWork");
     public static string Cli_EventLogCancelledPartial => Get("Cli.EventLogCancelledPartial");
@@ -403,6 +405,8 @@ public static class Strings
     public static string Section_Registered_Details => Get("Section.Registered.Details");
     public static string Section_Registered_Patches => Get("Section.Registered.Patches");
     public static string Section_SayThanks => Get("Section.SayThanks");
+    public static string Startup_AdminRightsNeededBody => Get("Startup.AdminRightsNeededBody");
+    public static string Startup_AdminRightsNeededTitle => Get("Startup.AdminRightsNeededTitle");
     public static string Startup_AlreadyRunningBody => Get("Startup.AlreadyRunningBody");
     public static string Startup_AlreadyRunningTitle => Get("Startup.AlreadyRunningTitle");
     public static string Startup_ErrorTitle => Get("Startup.ErrorTitle");

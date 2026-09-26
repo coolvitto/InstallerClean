@@ -1043,12 +1043,13 @@
   <data name="Confirm.MoveSameDrive" xml:space="preserve"><value>그 폴더는 같은 드라이브에 있어서, 폴더를 삭제하기 전까지는 공간이 돌아오지 않습니다. 공간을 바로 확보하려면 다른 드라이브의 폴더를 선택하세요.</value></data>
 
   <!-- Error messages -->
-  <!-- Both manifests declare requireAdministrator, so the process is
-       always elevated: it is never started at all if the user declines the
-       UAC prompt. An access-denied therefore never means "you are not an
-       administrator", and telling the user to run as administrator hands
-       them the one instruction they have already followed. The key names
-       predate that correction; what they say is what matters. -->
+  <!-- Both hosts refuse to scan in a process without administrator rights
+       (AdministratorRights; Startup.AdminRightsNeededBody and
+       Cli.AdminRightsNeeded are what they show instead), so wherever these two
+       and Error.MsiAccessDenied are shown, whatever their key names suggest, the
+       process has the rights. An access-denied here therefore never means "you
+       are not an administrator", and telling the user to run as administrator
+       hands them the one instruction they have already followed. -->
   <data name="Error.AdminRequiredTitle" xml:space="preserve"><value>액세스 거부됨</value></data>
   <data name="Error.AdminRequiredBody" xml:space="preserve"><value>Windows가 InstallerClean의 접근을 거부해서 작업을 멈췄습니다. 아무것도 제거되지 않았습니다.
 
@@ -1414,6 +1415,13 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
   <data name="Startup.FailedToStart" xml:space="preserve"><value>시작하지 못했습니다 ({0}). 자세한 내용을 기록한 위치:
 {1}</value></data>
   <data name="Startup.FailedToStart.NoLog" xml:space="preserve"><value>시작하지 못했습니다 ({0}). 크래시 로그를 기록할 수 없었습니다.</value></data>
+  <!-- Shown when the window starts in a process without administrator rights
+       (AdministratorRights), before anything scans. The app closes when it is
+       dismissed. The command line says the same in Cli.AdminRightsNeeded. -->
+  <data name="Startup.AdminRightsNeededTitle" xml:space="preserve"><value>관리자 권한 필요</value></data>
+  <data name="Startup.AdminRightsNeededBody" xml:space="preserve"><value>InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다.
+
+InstallerClean을 관리자 권한으로 다시 실행하세요.</value></data>
 
   <!-- File picker -->
   <data name="FilePicker.ChooseDestinationTitle" xml:space="preserve"><value>이동할 파일의 대상 폴더 선택</value></data>
@@ -2040,6 +2048,12 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
        can't acquire the single-instance mutex, so an RMM consumer of
        the Application channel sees a record of every scheduled-job
        firing whether or not it was able to run. -->
+  <!-- Stdout when a /s, /d or /m run is refused because the process holds no
+       administrator rights (AdministratorRights). Nothing has been scanned. The
+       window says the same in Startup.AdminRightsNeededBody. -->
+  <data name="Cli.AdminRightsNeeded" xml:space="preserve"><value>InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다. 관리자 명령 프롬프트에서 다시 실행하세요.</value></data>
+  <!-- 0 = mode arg ("/s", "/d" or "/m"). Audit entry for the refusal above;
+       the run exits 1. -->
   <!-- 0 = the offending token (original case). Audit entry written when
        the CLI is invoked with an unrecognised or malformed argument, so a
        scheduled task with a fat-fingered flag leaves an Application-channel
@@ -2091,11 +2105,12 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
        touches nothing anything needs is an adjective inside two of the six
        usage rows, which is not the same as saying it. -->
   <data name="Cli.Help.Summary" xml:space="preserve"><value>설치된 어떤 프로그램도 더는 필요로 하지 않는 .msi/.msp 파일을 제거합니다.</value></data>
-  <!-- Running it from an ordinary prompt is the commonest way to get this wrong,
-       and the tool cannot say so at the time: Windows refuses to start a process
-       that requires administrator, so nothing of this program runs. The help is
-       the only place it can be said. -->
-  <data name="Cli.Help.Elevation" xml:space="preserve"><value>관리자 명령 프롬프트가 필요하며, 아니면 Windows가 실행하지 않습니다.</value></data>
+  <!-- Running it from an ordinary prompt is the commonest way to get this wrong.
+       There Windows refuses to start a process that requires administrator, so
+       nothing of this program runs and the help is where it is said. A process
+       started without the rights anyway is refused by the tool itself, with
+       Cli.AdminRightsNeeded. -->
+  <data name="Cli.Help.Elevation" xml:space="preserve"><value>관리자 명령 프롬프트가 필요하며, 아니면 검사하지 않습니다.</value></data>
   <data name="Cli.Help.Usage" xml:space="preserve"><value>사용법:</value></data>
   <data name="Cli.Help.Help" xml:space="preserve"><value>  installerclean-cli --help     이 도움말 표시 (/?, -h도 사용 가능)</value></data>
   <data name="Cli.Help.Version" xml:space="preserve"><value>  installerclean-cli --version  버전 출력 (-v도 사용 가능)</value></data>
@@ -2116,12 +2131,13 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
   <data name="Cli.Help.MoveScheduledNote" xml:space="preserve"><value>폴더는 사용자별 저장. 예약 또는 SYSTEM 실행에는 /m 경로 필요.</value></data>
   <data name="Cli.Help.ExitCodesHeader" xml:space="preserve"><value>종료 코드:</value></data>
   <!-- 0 IS NOT A STATEMENT THAT WORK HAPPENED AND NOT A STATEMENT THAT NONE IS
-       LEFT. Five runs exit 0: /? and /version, which print and stop; a /s scan
-       that found files and listed them, which can leave an administrator plenty
-       to do; a /s scan that found none; and a /d or /m batch in which every file
-       was processed without error. The sentence has to be true of all five, so it
-       says what they share, which is that the run did what it was asked and
-       nothing in it failed. Anyone tightening it checks it against the five. -->
+       LEFT. Five runs exit 0: the help and version flags (/? and -v), which print
+       and stop; a /s scan that found files and listed them, which can leave an
+       administrator plenty to do; a /s scan that found none; and a /d or /m batch
+       in which every file was processed without error. The sentence has to be true
+       of all five, so it says what they share, which is that the run did what it
+       was asked and nothing in it failed. Anyone tightening it checks it against
+       the five. -->
   <data name="Cli.Help.ExitCodeOk" xml:space="preserve"><value>  0   성공: 요청한 일을 했고 실패한 것이 없음</value></data>
   <!-- The runs that end on this code are not one kind of thing: a refusal is
        among them, and CliExitCode.Error says in its own capitals that a refusal

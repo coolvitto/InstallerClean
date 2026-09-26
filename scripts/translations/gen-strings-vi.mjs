@@ -501,7 +501,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean không thể chắc chắn những tệp nào trong bộ nhớ đệm thuộc về các chương trình đã cài ở đây, nên đã giữ lại toàn bộ {0} {1} ({2}) thay vì đề xuất chúng.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean không còn xác nhận được thư mục sao lưu, nên đã dừng lại. Hãy kiểm tra {0}, rồi chạy lại lệnh.`,
   'Cli.Help.Summary': `Bỏ các tệp .msi và .msp trong bộ đệm mà không chương trình đã cài nào cần.`,
-  'Cli.Help.Elevation': `Cần dấu nhắc quản trị viên; nếu không Windows sẽ không khởi chạy.`,
+  'Cli.Help.Elevation': `Cần dấu nhắc quản trị viên; nếu không sẽ không quét.`,
   'Error.InstallerLockUnavailableTitle': `Không có tệp nào bị xóa`,
   'Error.MoveInstallerLockUnavailableTitle': `Không có tệp nào được chuyển`,
   'Error.InstallerLockUnavailable': `InstallerClean không lấy được khóa mà Windows Installer dùng để ngăn hai chương trình cùng lúc thay đổi phần mềm đã cài, nên không thể loại trừ khả năng một tệp trở nên cần thiết giữa chừng, và không có gì bị xóa. Hãy thử lại, và khởi động lại Windows nếu việc này cứ tiếp diễn.`,
@@ -556,6 +556,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} thiếu`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} thiếu`,
   'UpdateCheck.Failed.Unknown.NoLog': `Việc kiểm tra thất bại vì một lý do không xác định. Không thể ghi nhật ký sự cố.`,
+  'Startup.AdminRightsNeededTitle': `Cần quyền quản trị viên`,
+  'Startup.AdminRightsNeededBody': `InstallerClean cần quyền quản trị viên để thấy mọi chương trình được cài trên máy này, nhưng hiện không chạy với tư cách quản trị viên, nên sẽ không quét. Không có gì bị thay đổi.\n\nHãy chạy lại InstallerClean với tư cách quản trị viên.`,
+  'Cli.AdminRightsNeeded': `InstallerClean cần quyền quản trị viên để thấy mọi chương trình được cài trên máy này, nhưng hiện không chạy với tư cách quản trị viên, nên sẽ không quét. Không có gì bị thay đổi. Hãy chạy lại từ dấu nhắc quản trị viên.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

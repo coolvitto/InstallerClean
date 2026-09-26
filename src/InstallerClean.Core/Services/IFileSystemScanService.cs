@@ -24,8 +24,8 @@ public interface IFileSystemScanService
     /// position the current phase has reached and, where the phase knows it, the
     /// total it is working towards (see <see cref="ScanProgressUpdate"/>). What
     /// share of a bar a phase is worth belongs to whatever draws the bar.
-    /// Throws <see cref="UnauthorizedAccessException"/> if the process
-    /// cannot read the MSI database (typically: not elevated), or
+    /// Throws <see cref="UnauthorizedAccessException"/> if Windows
+    /// refuses the process access to the Windows Installer records, or
     /// <see cref="InvalidOperationException"/> if Windows Installer
     /// returns no registered products at all (an empty database is
     /// usually a sign of a deeper Windows-side problem, surfaced as

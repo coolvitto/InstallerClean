@@ -427,7 +427,7 @@ Ayrıntılar şuraya yazıldı:
   'Cli.NothingOffered.Plural': `InstallerClean, önbellekteki dosyalardan hangisinin buradaki yüklü programlara ait olduğundan emin olamadı, bu yüzden tüm {0} {1} ({2}) sunulmak yerine geri tutuldu.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean yedek klasörünü artık doğrulayamadı, bu yüzden durdu. {0} konumunu denetleyin, sonra komutu yeniden çalıştırın.`,
   'Cli.Help.Summary': `Yüklü hiçbir programın artık gerek duymadığı .msi/.msp dosyalarını siler.`,
-  'Cli.Help.Elevation': `Yönetici komut istemi gerektirir; Windows aksi halde başlatmaz.`,
+  'Cli.Help.Elevation': `Yönetici komut istemi gerektirir; aksi halde tarama yapmaz.`,
   'Error.InstallerLockUnavailableTitle': `Hiçbir dosya silinmedi`,
   'Error.MoveInstallerLockUnavailableTitle': `Hiçbir dosya taşınmadı`,
   'Error.InstallerLockUnavailable': `InstallerClean, Windows Installer'ın iki programın yüklü yazılımı aynı anda değiştirmesini engellemek için kullandığı kilidi alamadı, bu yüzden bir dosyanın işin ortasında gerekli hale gelmeyeceğini kesinleştiremedi ve hiçbir şey silinmedi. Yeniden deneyin, sürerse Windows'u yeniden başlatın.`,
@@ -482,6 +482,9 @@ Ayrıntılar şuraya yazıldı:
   'Summary.RegisteredWindow.Missing.Plural': `{0} eksik`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} eksik`,
   'UpdateCheck.Failed.Unknown.NoLog': `Denetim bilinmeyen bir nedenle başarısız oldu. Çökme günlüğü yazılamadı.`,
+  'Startup.AdminRightsNeededTitle': `Yönetici hakları gerekli`,
+  'Startup.AdminRightsNeededBody': `InstallerClean'in bu bilgisayarda yüklü her programı görebilmesi için yönetici hakları gerekir; şu anda yönetici olarak çalışmıyor, bu yüzden tarama yapmayacak. Hiçbir şey değiştirilmedi.\n\nInstallerClean'i yönetici olarak yeniden çalıştırın.`,
+  'Cli.AdminRightsNeeded': `InstallerClean'in bu bilgisayarda yüklü her programı görebilmesi için yönetici hakları gerekir; şu anda yönetici olarak çalışmıyor, bu yüzden tarama yapmayacak. Hiçbir şey değiştirilmedi. Bir yönetici komut isteminden yeniden çalıştırın.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

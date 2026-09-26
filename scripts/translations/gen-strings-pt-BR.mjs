@@ -503,7 +503,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `O InstallerClean não conseguiu ter certeza de quais arquivos em cache pertencem aos programas instalados aqui, então reteve todos os {0} {1} ({2}) em vez de oferecê-los.`,
   'Cli.DestinationChangedMidBatch': `O InstallerClean não pôde mais confirmar a pasta de backup, então parou. Verifique {0} e execute o comando de novo.`,
   'Cli.Help.Summary': `Remove arquivos .msi/.msp em cache que nenhum programa instalado precisa.`,
-  'Cli.Help.Elevation': `Exige um prompt como administrador; o Windows não vai iniciá-lo.`,
+  'Cli.Help.Elevation': `Exige um prompt como administrador; sem ele, não faz a análise.`,
   'Error.InstallerLockUnavailableTitle': `Nada foi excluído`,
   'Error.MoveInstallerLockUnavailableTitle': `Nada foi movido`,
   'Error.InstallerLockUnavailable': `O InstallerClean não conseguiu obter o bloqueio que o Windows Installer usa para impedir que dois programas alterem software instalado ao mesmo tempo, então não pôde descartar que um arquivo se tornasse necessário no meio do caminho, e nada foi excluído. Tente de novo, e reinicie o Windows se continuar acontecendo.`,
@@ -558,6 +558,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} ausentes`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} ausente`,
   'UpdateCheck.Failed.Unknown.NoLog': `A verificação falhou por um motivo desconhecido. Não foi possível gravar o crash.log.`,
+  'Startup.AdminRightsNeededTitle': `São necessários privilégios de administrador`,
+  'Startup.AdminRightsNeededBody': `O InstallerClean precisa de privilégios de administrador para ver todos os programas instalados neste PC e não está sendo executado como administrador, então não vai fazer a análise. Nada foi alterado.\n\nExecute o InstallerClean novamente como administrador.`,
+  'Cli.AdminRightsNeeded': `O InstallerClean precisa de privilégios de administrador para ver todos os programas instalados neste PC e não está sendo executado como administrador, então não vai fazer a análise. Nada foi alterado. Execute-o novamente a partir de um prompt como administrador.`,
 };
 
 // Satellite-only .One override(s). NOT in the neutral; appended before </root>.

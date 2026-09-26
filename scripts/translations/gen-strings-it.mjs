@@ -431,7 +431,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean non è riuscito a stabilire con certezza quali file nella cache appartengono ai programmi installati qui, perciò ha trattenuto tutti i {0} {1} ({2}) invece di proporli.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean non è più riuscito a confermare la cartella di backup, quindi si è fermato. Controlla {0}, poi esegui di nuovo il comando.`,
   'Cli.Help.Summary': `Rimuove i file .msi/.msp in cache che nessun programma installato usa più.`,
-  'Cli.Help.Elevation': `Richiede un prompt come amministratore; Windows non lo avvierà.`,
+  'Cli.Help.Elevation': `Richiede un prompt come amministratore; senza, non esegue la scansione.`,
   'Error.InstallerLockUnavailableTitle': `Nessun file eliminato`,
   'Error.MoveInstallerLockUnavailableTitle': `Nessun file spostato`,
   'Error.InstallerLockUnavailable': `InstallerClean non è riuscito a prendere il blocco che Windows Installer usa per impedire a due programmi di modificare il software installato nello stesso momento, quindi non ha potuto escludere che un file diventasse necessario a metà strada, e non è stato eliminato nulla. Riprova, e riavvia Windows se continua a succedere.`,
@@ -486,6 +486,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} mancanti`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} mancante`,
   'UpdateCheck.Failed.Unknown.NoLog': `Il controllo non è riuscito per un motivo sconosciuto. Non è stato possibile scrivere il file crash.log.`,
+  'Startup.AdminRightsNeededTitle': `Servono i diritti di amministratore`,
+  'Startup.AdminRightsNeededBody': `InstallerClean ha bisogno dei diritti di amministratore per vedere tutti i programmi installati su questo PC e non è in esecuzione come amministratore, quindi non eseguirà la scansione. Non è stato modificato nulla.\n\nEsegui di nuovo InstallerClean come amministratore.`,
+  'Cli.AdminRightsNeeded': `InstallerClean ha bisogno dei diritti di amministratore per vedere tutti i programmi installati su questo PC e non è in esecuzione come amministratore, quindi non eseguirà la scansione. Non è stato modificato nulla. Eseguilo di nuovo da un prompt come amministratore.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -1043,12 +1043,13 @@
   <data name="Confirm.MoveSameDrive" xml:space="preserve"><value>Эта папка на том же диске, поэтому место не вернётся, пока вы её не удалите. Выберите папку на другом диске, если хотите получить место сразу.</value></data>
 
   <!-- Error messages -->
-  <!-- Both manifests declare requireAdministrator, so the process is
-       always elevated: it is never started at all if the user declines the
-       UAC prompt. An access-denied therefore never means "you are not an
-       administrator", and telling the user to run as administrator hands
-       them the one instruction they have already followed. The key names
-       predate that correction; what they say is what matters. -->
+  <!-- Both hosts refuse to scan in a process without administrator rights
+       (AdministratorRights; Startup.AdminRightsNeededBody and
+       Cli.AdminRightsNeeded are what they show instead), so wherever these two
+       and Error.MsiAccessDenied are shown, whatever their key names suggest, the
+       process has the rights. An access-denied here therefore never means "you
+       are not an administrator", and telling the user to run as administrator
+       hands them the one instruction they have already followed. -->
   <data name="Error.AdminRequiredTitle" xml:space="preserve"><value>Доступ запрещён</value></data>
   <data name="Error.AdminRequiredBody" xml:space="preserve"><value>Windows отказал InstallerClean в доступе, поэтому работа была остановлена. Ничего не было удалено.
 
@@ -1414,6 +1415,13 @@ InstallerClean уже был запущен от имени администра
   <data name="Startup.FailedToStart" xml:space="preserve"><value>Не удалось запустить ({0}). Подробности записаны в:
 {1}</value></data>
   <data name="Startup.FailedToStart.NoLog" xml:space="preserve"><value>Не удалось запустить ({0}). Не удалось записать журнал сбоев.</value></data>
+  <!-- Shown when the window starts in a process without administrator rights
+       (AdministratorRights), before anything scans. The app closes when it is
+       dismissed. The command line says the same in Cli.AdminRightsNeeded. -->
+  <data name="Startup.AdminRightsNeededTitle" xml:space="preserve"><value>Нужны права администратора</value></data>
+  <data name="Startup.AdminRightsNeededBody" xml:space="preserve"><value>InstallerClean нужны права администратора, чтобы видеть все программы, установленные на этом ПК, а он запущен не от имени администратора, поэтому сканировать не будет. Ничего не изменено.
+
+Запустите InstallerClean снова от имени администратора.</value></data>
 
   <!-- File picker -->
   <data name="FilePicker.ChooseDestinationTitle" xml:space="preserve"><value>Выберите папку назначения для перемещённых файлов</value></data>
@@ -1987,6 +1995,11 @@ InstallerClean уже был запущен от имени администра
        can't acquire the single-instance mutex, so an RMM consumer of
        the Application channel sees a record of every scheduled-job
        firing whether or not it was able to run. -->
+  <!-- Stdout when a /s, /d or /m run is refused because the process holds no
+       administrator rights (AdministratorRights). Nothing has been scanned. The
+       window says the same in Startup.AdminRightsNeededBody. -->
+  <!-- 0 = mode arg ("/s", "/d" or "/m"). Audit entry for the refusal above;
+       the run exits 1. -->
   <!-- 0 = the offending token (original case). Audit entry written when
        the CLI is invoked with an unrecognised or malformed argument, so a
        scheduled task with a fat-fingered flag leaves an Application-channel
@@ -2036,10 +2049,11 @@ InstallerClean уже был запущен от имени администра
        Windows system folder; without this line the only statement that it
        touches nothing anything needs is an adjective inside two of the six
        usage rows, which is not the same as saying it. -->
-  <!-- Running it from an ordinary prompt is the commonest way to get this wrong,
-       and the tool cannot say so at the time: Windows refuses to start a process
-       that requires administrator, so nothing of this program runs. The help is
-       the only place it can be said. -->
+  <!-- Running it from an ordinary prompt is the commonest way to get this wrong.
+       There Windows refuses to start a process that requires administrator, so
+       nothing of this program runs and the help is where it is said. A process
+       started without the rights anyway is refused by the tool itself, with
+       Cli.AdminRightsNeeded. -->
   <!-- ONE value carrying TWO printed lines, and the &#10; is where the English
        breaks rather than where every language must. It was three keys
        hard-wrapped at English word boundaries, which forced each language to
@@ -2050,12 +2064,13 @@ InstallerClean уже был запущен от имени администра
        reader has been doing for twenty years, and that the GUI sits alongside
        in InstallerClean.exe, which is untrue of the command-line download. -->
   <!-- 0 IS NOT A STATEMENT THAT WORK HAPPENED AND NOT A STATEMENT THAT NONE IS
-       LEFT. Five runs exit 0: /? and /version, which print and stop; a /s scan
-       that found files and listed them, which can leave an administrator plenty
-       to do; a /s scan that found none; and a /d or /m batch in which every file
-       was processed without error. The sentence has to be true of all five, so it
-       says what they share, which is that the run did what it was asked and
-       nothing in it failed. Anyone tightening it checks it against the five. -->
+       LEFT. Five runs exit 0: the help and version flags (/? and -v), which print
+       and stop; a /s scan that found files and listed them, which can leave an
+       administrator plenty to do; a /s scan that found none; and a /d or /m batch
+       in which every file was processed without error. The sentence has to be true
+       of all five, so it says what they share, which is that the run did what it
+       was asked and nothing in it failed. Anyone tightening it checks it against
+       the five. -->
   <!-- The runs that end on this code are not one kind of thing: a refusal is
        among them, and CliExitCode.Error says in its own capitals that a refusal
        is not a failure and shares the code anyway. So the line says what they
@@ -2142,7 +2157,7 @@ InstallerClean уже был запущен от имени администра
   <data name="Cli.NothingOfferedPerFile.Plural" xml:space="preserve"><value>InstallerClean ни об одном из найденных им файлов в кэше не смог установить, что он не нужен, поэтому удержал все {0} {1} ({2}), вместо того чтобы предложить их.</value></data>
   <data name="Cli.DestinationChangedMidBatch" xml:space="preserve"><value>InstallerClean больше не смог подтвердить папку резервных копий и остановился. Проверьте {0}, затем запустите команду снова.</value></data>
   <data name="Cli.Help.Summary" xml:space="preserve"><value>Убирает .msi и .msp из кэша, не нужные ни одной установленной программе.</value></data>
-  <data name="Cli.Help.Elevation" xml:space="preserve"><value>Нужна командная строка администратора; иначе Windows её не запустит.</value></data>
+  <data name="Cli.Help.Elevation" xml:space="preserve"><value>Нужна командная строка администратора; без неё сканирования не будет.</value></data>
   <data name="Cli.InstallerLockUnavailable" xml:space="preserve"><value>Ошибка: InstallerClean не смог взять блокировку Windows Installer, которая не даёт двум программам одновременно менять установленное ПО, поэтому не смог исключить, что файл понадобится на полпути. Ничего не удалено. Попробуйте ещё раз, а если повторяется — перезагрузите Windows.</value></data>
   <data name="Cli.MoveInstallerLockUnavailable" xml:space="preserve"><value>Ошибка: InstallerClean не смог взять блокировку Windows Installer, которая не даёт двум программам одновременно менять установленное ПО, поэтому не смог исключить, что файл понадобится на полпути. Ничего не перемещено. Попробуйте ещё раз, а если повторяется — перезагрузите Windows.</value></data>
   <data name="Cli.SupersededHeldBack.Singular" xml:space="preserve"><value>InstallerClean не смог с уверенностью определить, что единственный замещённый файл больше не нужен, поэтому удержал его.</value></data>
@@ -2165,4 +2180,5 @@ InstallerClean уже был запущен от имени администра
   <data name="Cli.MoveCancelledRestoreHint" xml:space="preserve"><value>Это легко отменить. Переместите их из {0} обратно в {InstallerFolder}, и всё вернётся как было.</value></data>
   <data name="Cli.MoveInstallerLockAccessRefused" xml:space="preserve"><value>Ошибка: Windows отказал InstallerClean в праве проверить, занят ли Windows Installer, поэтому он не смог исключить, что файл понадобится в процессе. Ничего не было перемещено.</value></data>
   <data name="Cli.PendingRebootBlocked.RegistryCheckUnreadable" xml:space="preserve"><value>Ошибка: InstallerClean не смог прочитать одно из значений реестра, которые проверяет перед тем, как трогать {InstallerFolder}, поэтому не может исключить операцию Windows Installer, выполняющуюся сейчас или поставленную в очередь до следующей перезагрузки. /m и /d заблокированы. Перезагрузите Windows и попробуйте снова. Если чтение по-прежнему не удаётся, это не та машина, которую InstallerClean может очистить.</value></data>
+  <data name="Cli.AdminRightsNeeded" xml:space="preserve"><value>InstallerClean нужны права администратора, чтобы видеть все программы, установленные на этом ПК, а он запущен не от имени администратора, поэтому сканировать не будет. Ничего не изменено. Запустите его снова из командной строки администратора.</value></data>
 </root>

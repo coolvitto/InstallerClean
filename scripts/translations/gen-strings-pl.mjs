@@ -540,7 +540,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean nie zdołał ustalić z pewnością, które pliki w pamięci podręcznej należą do zainstalowanych tu programów, więc zatrzymał wszystkie {0} {1} ({2}), zamiast je zaproponować.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean nie mógł już potwierdzić folderu kopii zapasowej, więc zatrzymał się. Sprawdź {0}, a potem uruchom polecenie ponownie.`,
   'Cli.Help.Summary': `Usuwa .msi i .msp z cache, zbędne każdemu zainstalowanemu programowi.`,
-  'Cli.Help.Elevation': `Wymaga wiersza polecenia administratora; inaczej Windows go nie uruchomi.`,
+  'Cli.Help.Elevation': `Wymaga wiersza polecenia administratora; inaczej nie skanuje.`,
   'Error.InstallerLockUnavailableTitle': `Niczego nie usunięto`,
   'Error.MoveInstallerLockUnavailableTitle': `Niczego nie przeniesiono`,
   'Error.InstallerLockUnavailable': `InstallerClean nie zdołał przejąć blokady, którą Instalator Windows powstrzymuje dwa programy przed jednoczesną zmianą zainstalowanego oprogramowania, więc nie mógł wykluczyć, że plik stanie się potrzebny w połowie pracy, i niczego nie usunięto. Spróbuj ponownie, a jeśli to się powtarza, uruchom system ponownie.`,
@@ -595,6 +595,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} brakujących`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} brakujący`,
   'UpdateCheck.Failed.Unknown.NoLog': `Sprawdzanie nie powiodło się z nieznanej przyczyny. Nie udało się zapisać dziennika awarii.`,
+  'Startup.AdminRightsNeededTitle': `Wymagane uprawnienia administratora`,
+  'Startup.AdminRightsNeededBody': `InstallerClean potrzebuje uprawnień administratora, żeby widzieć każdy program zainstalowany na tym komputerze, a nie działa jako administrator, więc nie przeprowadzi skanowania. Nic nie zostało zmienione.\n\nUruchom InstallerClean ponownie jako administrator.`,
+  'Cli.AdminRightsNeeded': `InstallerClean potrzebuje uprawnień administratora, żeby widzieć każdy program zainstalowany na tym komputerze, a nie działa jako administrator, więc nie przeprowadzi skanowania. Nic nie zostało zmienione. Uruchom go ponownie z wiersza polecenia administratora.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

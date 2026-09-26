@@ -50,6 +50,7 @@ public class DialogHeadingBodyTests
         { Strings.Error_MoveStoppedTitle, Strings.Error_DestinationChangedMidBatch },
         { Strings.Error_SettingNotSavedTitle, Strings.Error_SettingNotSavedBody },
         { Strings.Startup_AlreadyRunningTitle, Strings.Startup_AlreadyRunningBody },
+        { Strings.Startup_AdminRightsNeededTitle, Strings.Startup_AdminRightsNeededBody },
         { Strings.Error_AdminRequiredTitle, Strings.Error_AdminRequiredBody },
     };
 

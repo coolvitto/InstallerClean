@@ -1926,26 +1926,18 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// it is unread.
     /// </remarks>
     /// <remarks>
-    /// THE "NOT INSTALLED" ANSWER DEPENDS ON THE PROCESS BEING ELEVATED, AND THAT
-    /// DEPENDENCY LIVES IN A FILE NOTHING HERE REFERENCES. Both hosts declare
-    /// <c>requireAdministrator</c> in their app manifests, and the question is put with
-    /// the Everyone SID across all contexts. An administrator may query product and
-    /// patch data for any instance and any user on the computer; a caller who may not
-    /// is told ERROR_UNKNOWN_PRODUCT about a per-user product belonging to another
-    /// account, which this method reads as a positive "the machine does not hold it".
+    /// THE "NOT INSTALLED" ANSWER IS AN ADMINISTRATOR'S. The question is put with the
+    /// Everyone SID across all contexts, which Microsoft documents as needing
+    /// administrator privileges, and both hosts refuse to scan in a process without them
+    /// (<see cref="Helpers.AdministratorRights"/>). An administrator may enumerate the
+    /// products installed for every account on the computer, which is what lets a code
+    /// the answer leaves out be read as installed for no account. ERROR_ACCESS_DENIED, the
+    /// return Microsoft documents for a caller without the rights, is not on
+    /// <see cref="IsProductNotInstalled"/>'s list, so it makes the code unaskable.
     ///
-    /// THAT IS THE ONE PLACE A FALSE NEGATIVE HERE BECOMES A FILE ON THE OFFER. A
-    /// product dropped from the per-product condition's set cannot contribute its
-    /// removable patch, so a cached patch it could still reach for can be judged clean.
-    /// The manifests carry the other half of this note.
-    ///
-    /// NO GUARD ASSERTS IT AND ONE WOULD NOT HELP MUCH. Checking elevation at startup
-    /// is easy and would catch a manifest change, but elevation is not the property
-    /// that matters: what matters is whether this call answered completely, and nothing
-    /// distinguishes "not installed" from "not visible to you" in the return. A machine
-    /// with no per-user product of another account is unaffected either way, and there
-    /// is no way to ask whether such a product exists without the visibility in
-    /// question.
+    /// A NEW CALLER RUNS BEHIND THAT CHECK TOO. No caller adds a product this answer
+    /// leaves out to the sets the per-product condition judges a cached patch against,
+    /// so the answer has to be one that sees every account's products.
     /// </remarks>
     /// <remarks>
     /// STATIC AND SHARED RATHER THAN COPIED, because

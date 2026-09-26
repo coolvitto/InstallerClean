@@ -435,7 +435,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean no pudo determinar con certeza qué archivos en caché pertenecen a los programas instalados aquí, así que ha retenido todos los {0} {1} ({2}) en lugar de ofrecerlos.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean ya no pudo confirmar la carpeta de copia de seguridad, así que se detuvo. Comprueba {0} y vuelve a ejecutar el comando.`,
   'Cli.Help.Summary': `Quita archivos .msi/.msp en caché que ningún programa instalado necesita.`,
-  'Cli.Help.Elevation': `Requiere símbolo del sistema como administrador; Windows no lo iniciará.`,
+  'Cli.Help.Elevation': `Requiere símbolo del sistema como administrador; sin él no analiza.`,
   'Error.InstallerLockUnavailableTitle': `No se eliminó nada`,
   'Error.MoveInstallerLockUnavailableTitle': `No se movió nada`,
   'Error.InstallerLockUnavailable': `InstallerClean no pudo tomar el bloqueo que usa Windows Installer para impedir que dos programas cambien el software instalado a la vez, así que no pudo descartar que un archivo pasara a ser necesario a mitad de camino, y no se ha eliminado nada. Inténtalo de nuevo, y reinicia Windows si sigue ocurriendo.`,
@@ -490,6 +490,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} ausentes`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} ausente`,
   'UpdateCheck.Failed.Unknown.NoLog': `La comprobación falló por un motivo desconocido. No se pudo escribir el archivo crash.log.`,
+  'Startup.AdminRightsNeededTitle': `Se necesitan permisos de administrador`,
+  'Startup.AdminRightsNeededBody': `InstallerClean necesita permisos de administrador para ver todos los programas instalados en este PC, y no se está ejecutando como administrador, así que no hará el análisis. No se ha cambiado nada.\n\nVuelve a ejecutar InstallerClean como administrador.`,
+  'Cli.AdminRightsNeeded': `InstallerClean necesita permisos de administrador para ver todos los programas instalados en este PC, y no se está ejecutando como administrador, así que no hará el análisis. No se ha cambiado nada. Vuelve a ejecutarlo desde un símbolo del sistema como administrador.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -498,7 +498,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean이 캐시에 있는 어떤 파일이 여기 설치된 프로그램에 속하는지 확실히 알 수 없어서, {1} {0}개({2}) 전부를 제시하지 않고 보류했습니다.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean이 백업 폴더를 더 이상 확인할 수 없어서, 중단했습니다. {0}을(를) 확인한 다음 명령을 다시 실행하세요.`,
   'Cli.Help.Summary': `설치된 어떤 프로그램도 더는 필요로 하지 않는 .msi/.msp 파일을 제거합니다.`,
-  'Cli.Help.Elevation': `관리자 명령 프롬프트가 필요하며, 아니면 Windows가 실행하지 않습니다.`,
+  'Cli.Help.Elevation': `관리자 명령 프롬프트가 필요하며, 아니면 검사하지 않습니다.`,
   'Error.InstallerLockUnavailableTitle': `삭제된 파일 없음`,
   'Error.MoveInstallerLockUnavailableTitle': `이동된 파일 없음`,
   'Error.InstallerLockUnavailable': `두 프로그램이 설치된 소프트웨어를 동시에 변경하지 못하도록 Windows Installer가 사용하는 잠금을 InstallerClean이 가져오지 못해서, 작업 도중에 어떤 파일이 필요해지지 않는다고 확신할 수 없었고 아무것도 삭제하지 않았습니다. 다시 시도해 보시고, 계속 이러면 Windows를 다시 시작하세요.`,
@@ -553,6 +553,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0}개 누락`,
   'Summary.RegisteredWindow.Missing.Singular': `{0}개 누락`,
   'UpdateCheck.Failed.Unknown.NoLog': `알 수 없는 이유로 확인에 실패했습니다. 크래시 로그를 기록할 수 없었습니다.`,
+  'Startup.AdminRightsNeededTitle': `관리자 권한 필요`,
+  'Startup.AdminRightsNeededBody': `InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다.\n\nInstallerClean을 관리자 권한으로 다시 실행하세요.`,
+  'Cli.AdminRightsNeeded': `InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다. 관리자 명령 프롬프트에서 다시 실행하세요.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

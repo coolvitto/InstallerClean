@@ -318,6 +318,8 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Startup error | 起動エラー |
 | Failed to start ({0}). Details written to:<br>{1} | 起動に失敗しました ({0})。詳細は以下に書き込まれました：<br>{1} |
 | Failed to start ({0}). The crash log could not be written. | 起動に失敗しました ({0})。クラッシュログを書き込めませんでした。 |
+| Administrator rights needed | 管理者権限が必要です |
+| InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed.<br><br>Run InstallerClean again as administrator. | InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。<br><br>InstallerClean を管理者としてもう一度実行してください。 |
 | # crash.log captures unhandled exceptions from InstallerClean.<br># Under elevation the framework's exception messages can include<br># file paths from the running session (including other users'<br># profiles enumerated by Windows Installer queries). Network-<br># failure messages from the update check or result-log POST can<br># include the destination URL and the resolved IP / proxy address.<br># Entries about unreadable Windows Installer records can include a<br># Windows account SID (S-1-5-21-...) and the product codes of<br># installed software.<br># Redact all three classes of detail before attaching this file to<br># a public bug report.<br> | # crash.log には InstallerClean の未処理例外が記録されます。<br># 昇格した状態では、フレームワークの例外メッセージに実行中セッションの<br># ファイルパスが含まれることがあります(Windows Installer のクエリが<br># 列挙した他のユーザーのプロファイルを含む)。更新確認や結果ログの送信で<br># のネットワーク障害メッセージには、宛先 URL や解決された IP アドレス・<br># プロキシアドレスが含まれることがあります。読み取れない Windows<br># Installer の登録情報に関する項目には、Windows アカウントの SID<br># (S-1-5-21-...) やインストール済みソフトウェアの製品コードが含まれる<br># ことがあります。<br># このファイルを公開のバグ報告に添付する前に、三種類すべてを削除して<br># ください。<br> |
 
 ## Tooltips (hover text)
@@ -490,10 +492,11 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | It's simple to undo. Move them back from {0} into {InstallerFolder} and everything will be back to how it was. | 元に戻すのは簡単です。{0} から {InstallerFolder} に戻せば、すべて元どおりになります。 |
 | InstallerClean could no longer confirm the backup folder, so it went no further. Check {0}, then run the command again. | InstallerClean はバックアップフォルダーを確認できなくなったため、停止しました。{0} を確認してから、コマンドをもう一度実行してください。 |
 | Another InstallerClean process holds the single-instance lock (GUI or another CLI run). Exit 75 (transient); safe to retry later. | 別の InstallerClean プロセスが単一インスタンスロックを保持しています (GUIまたは別のCLI実行)。終了コード75 (一時的)。後で再試行しても安全です。 |
+| InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed. Run it again from an administrator prompt. | InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。管理者権限のプロンプトからもう一度実行してください。 |
 | Note: Event Log writing failed. Check Application log permissions or Group Policy. | 注意：イベントログの書き込みに失敗しました。Application ログのアクセス許可またはグループポリシーを確認してください。 |
 | InstallerClean - clean up {InstallerFolder} | InstallerClean - {InstallerFolder} をクリーンアップ |
 | Removes cached .msi and .msp files that no installed program still needs. | どのインストール済みプログラムも必要としない .msi/.msp を削除します。 |
-| Needs an elevated (administrator) prompt; Windows will not start it. | 管理者権限のプロンプトが必要です。Windows はそれ以外では起動しません。 |
+| Needs an elevated (administrator) prompt and won't scan without one. | 管理者権限のプロンプトが必要です。それ以外ではスキャンしません。 |
 | Usage: | 使用方法： |
 |   installerclean-cli --help     Show this help (also accepts /?, -h) |   installerclean-cli --help     このヘルプを表示 (/?、-hも受け付けます) |
 |   installerclean-cli --version  Print the version (also accepts -v) |   installerclean-cli --version  バージョンを表示 (-vも受け付けます) |

@@ -1,3 +1,4 @@
+using InstallerClean.Helpers;
 using InstallerClean.Models;
 using InstallerClean.Services;
 using InstallerClean.Tests.Helpers;
@@ -33,19 +34,22 @@ public class InstallerQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRegisteredPackagesAsync_without_elevation_throws_unauthorized()
+    public async Task GetRegisteredPackagesAsync_is_refused_access_exactly_when_the_process_lacks_administrator_rights()
     {
-        // Non-elevated processes get AccessDenied from MsiEnumProductsEx
-        // with the all-users SID. This is the expected behaviour.
+        // The products are enumerated across every account with the Everyone SID.
+        // Microsoft documents ERROR_ACCESS_DENIED for a caller without administrator
+        // privileges, and the product walk raises it as LocalisedAccessException.
+        // Each half is asserted in the process that can reach it: a test run with
+        // the rights takes the first, and one without them takes the second.
         var svc = new InstallerQueryService();
 
         var ex = await Record.ExceptionAsync(() => svc.GetRegisteredPackagesAsync());
 
-        // If running elevated (e.g. in CI with admin), the call succeeds.
-        // If not elevated, it throws a UnauthorizedAccessException-derived
-        // type (LocalisedAccessException carrying a resx-sourced message).
-        if (ex is not null)
-            Assert.IsAssignableFrom<UnauthorizedAccessException>(ex);
+        if (AdministratorRights.Held())
+            Assert.False(ex is UnauthorizedAccessException,
+                $"Refused access with administrator rights: {ex?.GetType().Name}");
+        else
+            Assert.IsType<LocalisedAccessException>(ex);
     }
 
     [Fact]
@@ -64,16 +68,11 @@ public class InstallerQueryServiceTests
         }
     }
 
-    // The tests below exercise the API on a real-elevated host. No count here:
-    // one has to be true of however many there are, and a number in a comment
-    // over a list is a sentence that goes stale the next time the list moves.
-    // Each is marked Skip so a non-elevated CI run reports them as
-    // visibly skipped rather than passing without asserting; remove
-    // the Skip parameter and run elevated on Windows to exercise.
-    private const string ElevatedSkipReason =
-        "Manual: requires elevated Windows host. Remove [Fact(Skip)] to run.";
-
-    [Fact(Skip = ElevatedSkipReason)]
+    // The tests below put the real question to Windows Installer and hold what
+    // comes back. Each runs in a process with administrator rights and is
+    // reported skipped in one without them, rather than passing without
+    // asserting.
+    [AdministratorFact]
     public async Task GetRegisteredPackagesAsync_returns_readonly_list_when_elevated()
     {
         var svc = new InstallerQueryService();
@@ -83,7 +82,7 @@ public class InstallerQueryServiceTests
         Assert.NotNull(packages);
     }
 
-    [Fact(Skip = ElevatedSkipReason)]
+    [AdministratorFact]
     public async Task GetRegisteredPackagesAsync_all_paths_non_empty_when_elevated()
     {
         var svc = new InstallerQueryService();
@@ -93,7 +92,7 @@ public class InstallerQueryServiceTests
             Assert.False(string.IsNullOrWhiteSpace(p.LocalPackagePath)));
     }
 
-    [Fact(Skip = ElevatedSkipReason)]
+    [AdministratorFact]
     public async Task GetRegisteredPackagesAsync_paths_unique_case_insensitive_when_elevated()
     {
         var svc = new InstallerQueryService();
@@ -106,7 +105,7 @@ public class InstallerQueryServiceTests
         Assert.Equal(packages.Count, uniquePaths.Count);
     }
 
-    [Fact(Skip = ElevatedSkipReason)]
+    [AdministratorFact]
     public async Task GetRegisteredPackagesAsync_removable_only_when_superseded_when_elevated()
     {
         var svc = new InstallerQueryService();

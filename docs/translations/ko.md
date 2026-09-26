@@ -318,6 +318,8 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Startup error | 시작 오류 |
 | Failed to start ({0}). Details written to:<br>{1} | 시작하지 못했습니다 ({0}). 자세한 내용을 기록한 위치:<br>{1} |
 | Failed to start ({0}). The crash log could not be written. | 시작하지 못했습니다 ({0}). 크래시 로그를 기록할 수 없었습니다. |
+| Administrator rights needed | 관리자 권한 필요 |
+| InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed.<br><br>Run InstallerClean again as administrator. | InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다.<br><br>InstallerClean을 관리자 권한으로 다시 실행하세요. |
 | # crash.log captures unhandled exceptions from InstallerClean.<br># Under elevation the framework's exception messages can include<br># file paths from the running session (including other users'<br># profiles enumerated by Windows Installer queries). Network-<br># failure messages from the update check or result-log POST can<br># include the destination URL and the resolved IP / proxy address.<br># Entries about unreadable Windows Installer records can include a<br># Windows account SID (S-1-5-21-...) and the product codes of<br># installed software.<br># Redact all three classes of detail before attaching this file to<br># a public bug report.<br> | # crash.log에는 InstallerClean의 처리되지 않은 예외가 기록됩니다.<br># 권한이 상승된 상태에서는 프레임워크의 예외 메시지에 실행 중인<br># 세션의 파일 경로가 포함될 수 있습니다(Windows Installer 쿼리가<br># 열거한 다른 사용자의 프로필 포함). 업데이트 확인이나 결과 로그<br># 전송의 네트워크 실패 메시지에는 대상 URL과 확인된 IP 또는 프록시<br># 주소가 포함될 수 있습니다. 읽을 수 없는 Windows Installer 기록에<br># 대한 항목에는 Windows 계정 SID(S-1-5-21-...)와 설치된 소프트웨어의<br># 제품 코드가 포함될 수 있습니다.<br># 이 파일을 공개 버그 신고에 첨부하기 전에 세 가지 정보를 모두<br># 지우세요.<br> |
 
 ## Tooltips (hover text)
@@ -490,10 +492,11 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | It's simple to undo. Move them back from {0} into {InstallerFolder} and everything will be back to how it was. | 되돌리기는 간단합니다. {0}에서 {InstallerFolder}로 다시 옮기면 모든 것이 원래대로 돌아갑니다. |
 | InstallerClean could no longer confirm the backup folder, so it went no further. Check {0}, then run the command again. | InstallerClean이 백업 폴더를 더 이상 확인할 수 없어서, 중단했습니다. {0}을(를) 확인한 다음 명령을 다시 실행하세요. |
 | Another InstallerClean process holds the single-instance lock (GUI or another CLI run). Exit 75 (transient); safe to retry later. | 다른 InstallerClean 프로세스가 단일 인스턴스 잠금을 보유하고 있습니다(GUI 또는 다른 CLI 실행). 종료 코드 75(일시적); 나중에 다시 시도해도 안전합니다. |
+| InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed. Run it again from an administrator prompt. | InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다. 관리자 명령 프롬프트에서 다시 실행하세요. |
 | Note: Event Log writing failed. Check Application log permissions or Group Policy. | 참고: 이벤트 로그 쓰기에 실패했습니다. 응용 프로그램 로그 권한 또는 그룹 정책을 확인하세요. |
 | InstallerClean - clean up {InstallerFolder} | InstallerClean - {InstallerFolder} 정리 |
 | Removes cached .msi and .msp files that no installed program still needs. | 설치된 어떤 프로그램도 더는 필요로 하지 않는 .msi/.msp 파일을 제거합니다. |
-| Needs an elevated (administrator) prompt; Windows will not start it. | 관리자 명령 프롬프트가 필요하며, 아니면 Windows가 실행하지 않습니다. |
+| Needs an elevated (administrator) prompt and won't scan without one. | 관리자 명령 프롬프트가 필요하며, 아니면 검사하지 않습니다. |
 | Usage: | 사용법: |
 |   installerclean-cli --help     Show this help (also accepts /?, -h) |   installerclean-cli --help     이 도움말 표시 (/?, -h도 사용 가능) |
 |   installerclean-cli --version  Print the version (also accepts -v) |   installerclean-cli --version  버전 출력 (-v도 사용 가능) |

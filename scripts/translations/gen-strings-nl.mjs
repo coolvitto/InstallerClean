@@ -482,7 +482,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean kon niet met zekerheid vaststellen welke bestanden in de cache bij de hier geïnstalleerde programma's horen, en heeft daarom alle {0} {1} ({2}) achtergehouden in plaats van ze aan te bieden.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean kon de back-upmap niet meer bevestigen en is gestopt. Controleer {0} en voer de opdracht opnieuw uit.`,
   'Cli.Help.Summary': `Verwijdert .msi/.msp die geen geïnstalleerd programma meer nodig heeft.`,
-  'Cli.Help.Elevation': `Vereist een prompt als administrator; Windows start het anders niet.`,
+  'Cli.Help.Elevation': `Vereist een prompt als administrator; anders scant het niet.`,
   'Error.InstallerLockUnavailableTitle': `Er is niets verwijderd`,
   'Error.MoveInstallerLockUnavailableTitle': `Er is niets verplaatst`,
   'Error.InstallerLockUnavailable': `InstallerClean kon de vergrendeling niet krijgen waarmee Windows Installer voorkomt dat twee programma's tegelijk geïnstalleerde software wijzigen, en kon dus niet uitsluiten dat een bestand halverwege alsnog nodig werd, dus er is niets verwijderd. Probeer het opnieuw, en herstart Windows als het zich blijft voordoen.`,
@@ -537,6 +537,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} ontbreken`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} ontbreekt`,
   'UpdateCheck.Failed.Unknown.NoLog': `De controle is om een onbekende reden mislukt. Het crashlog kon niet worden weggeschreven.`,
+  'Startup.AdminRightsNeededTitle': `Administratorrechten nodig`,
+  'Startup.AdminRightsNeededBody': `InstallerClean heeft administratorrechten nodig om elk programma te zien dat op deze pc is geïnstalleerd, en draait niet als administrator, dus het scant niet. Er is niets gewijzigd.\n\nVoer InstallerClean opnieuw uit als administrator.`,
+  'Cli.AdminRightsNeeded': `InstallerClean heeft administratorrechten nodig om elk programma te zien dat op deze pc is geïnstalleerd, en draait niet als administrator, dus het scant niet. Er is niets gewijzigd. Voer het opnieuw uit vanuit een prompt als administrator.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

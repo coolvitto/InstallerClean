@@ -430,7 +430,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean は、キャッシュ内のどのファイルがここにインストールされたプログラムのものかを確実には判断できなかったため、{0} 個の{1}({2})をすべて提示せずに保留しました。`,
   'Cli.DestinationChangedMidBatch': `InstallerClean はバックアップフォルダーを確認できなくなったため、停止しました。{0} を確認してから、コマンドをもう一度実行してください。`,
   'Cli.Help.Summary': `どのインストール済みプログラムも必要としない .msi/.msp を削除します。`,
-  'Cli.Help.Elevation': `管理者権限のプロンプトが必要です。Windows はそれ以外では起動しません。`,
+  'Cli.Help.Elevation': `管理者権限のプロンプトが必要です。それ以外ではスキャンしません。`,
   'Error.InstallerLockUnavailableTitle': `何も削除されませんでした`,
   'Error.MoveInstallerLockUnavailableTitle': `何も移動されませんでした`,
   'Error.InstallerLockUnavailable': `二つのプログラムが同時にインストール済みソフトウェアを変更しないよう Windows Installer が使うロックを InstallerClean が取得できなかったため、途中でファイルが必要になる可能性を排除できず、何も削除していません。もう一度お試しください。繰り返す場合は Windows を再起動してください。`,
@@ -485,6 +485,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} 件が見つかりません`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} 件が見つかりません`,
   'UpdateCheck.Failed.Unknown.NoLog': `確認が不明な理由で失敗しました。クラッシュログを書き込めませんでした。`,
+  'Startup.AdminRightsNeededTitle': `管理者権限が必要です`,
+  'Startup.AdminRightsNeededBody': `InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。\n\nInstallerClean を管理者としてもう一度実行してください。`,
+  'Cli.AdminRightsNeeded': `InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。管理者権限のプロンプトからもう一度実行してください。`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,
@@ -567,6 +570,8 @@ const STRIPPED = new Set([
   'Cli.EventLogCancelledPartial',
   'Cli.EventLogMoveDestinationInsideInstaller',
   'Cli.EventLogPendingRebootBlocked',
+  // A machine Cli key that postdates the PR, by the rule in the header.
+  'Cli.EventLogAdminRightsNeeded',
 ]);
 let stripped = 0;
 text = text.replace(/[^\S\n]*<data name="(Cli\.[^"]*)"[\s\S]*?<\/data>\n?/g,

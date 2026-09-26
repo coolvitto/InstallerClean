@@ -5,7 +5,7 @@ namespace InstallerClean.Helpers;
 /// <summary>
 /// Writes Application-channel entries for a CLI run, so sysadmins running
 /// InstallerClean under Task Scheduler can audit what happened without trawling
-/// stdout redirects. A run writes at most one summary entry: /? and /version write
+/// stdout redirects. A run writes at most one summary entry: /? and --version write
 /// none, an argless or malformed invocation writes one, and a scan, delete or move
 /// run writes one for its outcome. Beside that last kind a run may also write
 /// notices the scan's own findings call for. Every one of them comes through here.
@@ -83,9 +83,11 @@ internal static class EventLogWriter
     /// </summary>
     private static bool EnsureSourceMappedToApplicationLog()
     {
-        // First-run registration requires admin; the app.manifest's
-        // requireAdministrator guarantees this caller has it. Subsequent
-        // runs short-circuit via SourceExists.
+        // First-run registration requires administrator rights. Every run that
+        // scans has them (AdministratorRights). A run that stops before it scans
+        // may not, the refusal to run without them among them, and there a lookup
+        // or a registration Windows refuses throws to the outer catch, which marks
+        // the log unavailable. Once registered, runs short-circuit via SourceExists.
         //
         // SourceExists then CreateEventSource is a check-then-act pair,
         // not atomic: a different process can register the source against

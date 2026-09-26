@@ -398,9 +398,9 @@ public partial class ScanViewModel : ObservableObject
     internal ScanFailure DescribeScanFailure(Exception ex) => ex switch
     {
         // LocalisedAccessException before UnauthorizedAccessException: it derives
-        // from it and carries a precise, safe-to-echo resx message (e.g. "Access
-        // denied enumerating installed products"), where the BCL type only earns
-        // the generic "run as administrator" guidance.
+        // from it and carries a precise, safe-to-echo resx message naming what
+        // Windows refused, where the BCL type only earns the general message that
+        // Windows refused access.
         LocalisedAccessException =>
             new(ex.Message, Strings.Error_AdminRequiredTitle, IsError: false, Strings.Status_ScanAccessDenied),
         UnauthorizedAccessException =>

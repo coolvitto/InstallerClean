@@ -554,7 +554,7 @@ const MAP = {
   'CrashLog.PrivacyHeader': `# crash.log captures unhandled exceptions from InstallerClean.\n# Under elevation the framework's exception messages can include\n# file paths from the running session (including other users'\n# profiles enumerated by Windows Installer queries). Network-\n# failure messages from the update check or result-log POST can\n# include the destination URL and the resolved IP / proxy address.\n# Entries about unreadable Windows Installer records can include a\n# Windows account SID (S-1-5-21-...) and the product codes of\n# installed software.\n# Redact all three classes of detail before attaching this file to\n# a public bug report.\n`,
   'Cli.Help.Header': `InstallerClean - clean up {InstallerFolder}`,
   'Cli.Help.Summary': `Removes cached .msi and .msp files that no installed program still needs.`,
-  'Cli.Help.Elevation': `Needs an elevated (administrator) prompt; Windows will not start it.`,
+  'Cli.Help.Elevation': `Needs an elevated (administrator) prompt and won't scan without one.`,
   'Cli.Help.Usage': `Usage:`,
   'Cli.Help.Help': `  installerclean-cli --help     Show this help (also accepts /?, -h)`,
   'Cli.Help.Version': `  installerclean-cli --version  Print the version (also accepts -v)`,
@@ -626,6 +626,9 @@ const MAP = {
   'Body.PendingReboot.RegistryCheckUnreadable': `InstallerClean couldn't read one of the Windows settings it checks before touching {InstallerFolder}, so it can't tell whether an installer operation is running or waiting for a restart. Restart Windows and Re-scan. If the setting still won't read, this isn't a machine InstallerClean can clean.`,
   'Cli.PendingRebootBlocked.RegistryCheckUnreadable': `Error: InstallerClean couldn't read one of the registry values it checks before touching {InstallerFolder}, so it can't rule out a Windows Installer operation in flight or queued for the next restart. /m and /d are blocked. Restart Windows and try again. If the read still fails, this isn't a machine InstallerClean can clean.`,
   'Cli.WithheldReasons.DeclaredPatchUnestablished': `  Either a patch file wouldn't say which patch it is, or it wouldn't say which programs it's for, or Windows wouldn't say in full which programs have that patch.`,
+  'Startup.AdminRightsNeededTitle': `Administrator rights needed`,
+  'Startup.AdminRightsNeededBody': `InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed.\n\nRun InstallerClean again as administrator.`,
+  'Cli.AdminRightsNeeded': `InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed. Run it again from an administrator prompt.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

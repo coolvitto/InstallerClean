@@ -15,22 +15,19 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-      <!-- requireAdministrator IS LOAD-BEARING FOR A SAFETY CONDITION AND NOT ONLY
-           FOR WRITE ACCESS, which is the half nobody would guess from here. The scan
-           asks Windows Installer whether a product a patch file declares is installed,
-           and treats ERROR_UNKNOWN_PRODUCT as a positive answer of "this machine does
-           not hold it", which is correct and is what stops an irrelevant declared target
-           withholding the whole class. A caller that cannot see a per-user product
-           belonging to another account is told exactly that about a product that IS
-           there. The query is made with the Everyone SID across all contexts, and an
-           administrator may query product and patch data for any instance and any user
-           on the computer; a non-administrator may not.
+      <!-- requireAdministrator asks Windows to start the tool with administrator rights.
+           Moving and deleting need them to write to the Installer folder, and the scan
+           needs them to read Windows Installer's records: it asks about products and
+           patches across every account on the machine, which Microsoft documents as
+           needing administrator privileges, and it reads a product missing from the
+           answer as installed for no account.
 
-           So dropping this to asInvoker would not merely fail a write later on. It would
-           turn a positive answer into a false one inside the condition that decides
-           whether a cached patch is still needed, with a green build and no test going
-           red. The other end of this is commented at
-           InstallerQueryService.ResolveProductInstances. -->
+           Windows can still start the tool without the rights, a compatibility setting
+           being one way, so Program.Run also checks its own token (AdministratorRights)
+           and refuses to scan without them. Set to asInvoker, the tool would refuse an
+           administrator under UAC running it from a prompt that is not elevated,
+           because an administrator's process started without elevation carries the
+           Administrators group deny-only. -->
         <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
       </requestedPrivileges>
     </security>

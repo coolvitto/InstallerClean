@@ -522,7 +522,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean n'a pas pu déterminer avec certitude quels fichiers en cache appartiennent aux programmes installés ici, il a donc retenu l'ensemble des {0} {1} ({2}) au lieu de les proposer.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean n'a plus pu confirmer le dossier de sauvegarde, il s'est donc arrêté. Vérifiez {0}, puis relancez la commande.`,
   'Cli.Help.Summary': `Retire les .msi et .msp en cache dont aucun programme installé n'a besoin.`,
-  'Cli.Help.Elevation': `Exige une invite de commandes administrateur ; Windows ne le lancera pas.`,
+  'Cli.Help.Elevation': `Exige une invite de commandes administrateur ; sinon, aucune analyse.`,
   'Error.InstallerLockUnavailableTitle': `Rien n'a été supprimé`,
   'Error.MoveInstallerLockUnavailableTitle': `Rien n'a été déplacé`,
   'Error.InstallerLockUnavailable': `InstallerClean n'a pas pu prendre le verrou que Windows Installer utilise pour empêcher deux programmes de modifier les logiciels installés en même temps, il n'a donc pas pu exclure qu'un fichier devienne nécessaire en cours de route, et rien n'a été supprimé. Réessayez, et redémarrez Windows si cela persiste.`,
@@ -577,6 +577,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} manquants`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} manquant`,
   'UpdateCheck.Failed.Unknown.NoLog': `La vérification a échoué pour une raison inconnue. Le crash.log n'a pas pu être écrit.`,
+  'Startup.AdminRightsNeededTitle': `Droits d'administrateur requis`,
+  'Startup.AdminRightsNeededBody': `InstallerClean a besoin des droits d'administrateur pour voir tous les programmes installés sur ce PC, et il ne s'exécute pas en tant qu'administrateur, il ne lancera donc pas d'analyse. Rien n'a été modifié.\n\nRelancez InstallerClean en tant qu'administrateur.`,
+  'Cli.AdminRightsNeeded': `InstallerClean a besoin des droits d'administrateur pour voir tous les programmes installés sur ce PC, et il ne s'exécute pas en tant qu'administrateur, il ne lancera donc pas d'analyse. Rien n'a été modifié. Relancez-le depuis une invite de commandes administrateur.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -521,7 +521,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean не зміг упевнено визначити, які файли в кеші належать встановленим тут програмам, тож затримав усі {0} {1} ({2}), замість того щоб запропонувати їх.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean більше не зміг підтвердити папку резервних копій і зупинився. Перевірте {0}, потім запустіть команду ще раз.`,
   'Cli.Help.Summary': `Прибирає .msi і .msp з кешу, не потрібні жодній встановленій програмі.`,
-  'Cli.Help.Elevation': `Потрібен командний рядок адміністратора; інакше Windows не запустить.`,
+  'Cli.Help.Elevation': `Потрібен командний рядок адміністратора; інакше сканування не буде.`,
   'Error.InstallerLockUnavailableTitle': `Нічого не видалено`,
   'Error.MoveInstallerLockUnavailableTitle': `Нічого не переміщено`,
   'Error.InstallerLockUnavailable': `InstallerClean не зміг узяти блокування, яким Windows Installer не дає двом програмам одночасно змінювати встановлене ПЗ, тож не зміг виключити, що файл знадобиться на півдорозі, і нічого не видалено. Спробуйте ще раз, а якщо повторюється — перезавантажте Windows.`,
@@ -576,6 +576,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} відсутніх`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} відсутній`,
   'UpdateCheck.Failed.Unknown.NoLog': `Перевірка не вдалася з невідомої причини. Не вдалося записати журнал збоїв.`,
+  'Startup.AdminRightsNeededTitle': `Потрібні права адміністратора`,
+  'Startup.AdminRightsNeededBody': `InstallerClean потрібні права адміністратора, щоб бачити всі програми, встановлені на цьому ПК, а його запущено не від імені адміністратора, тож сканування не буде. Нічого не змінено.\n\nЗапустіть InstallerClean знову від імені адміністратора.`,
+  'Cli.AdminRightsNeeded': `InstallerClean потрібні права адміністратора, щоб бачити всі програми, встановлені на цьому ПК, а його запущено не від імені адміністратора, тож сканування не буде. Нічого не змінено. Запустіть його знову з командного рядка адміністратора.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

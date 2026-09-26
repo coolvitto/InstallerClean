@@ -172,6 +172,16 @@ internal static class Program
         // drives the EventLog mode label and the /d-or-/m mutex check.
         var arg = args[0].ToLowerInvariant();
 
+        // A run without administrator rights is refused here, before the Ctrl+C
+        // handler and the single-instance mutex, so it scans nothing and meets no
+        // other InstallerClean process. The manifest asks Windows for the rights,
+        // and Windows can still start the tool without them, a compatibility setting
+        // being one way, so the tool asks its own token; AdministratorRights says
+        // what the scan needs them for. Help and --version return above and need no
+        // rights.
+        if (!AdministratorRights.Held())
+            return RefuseWithoutAdministratorRights(arg);
+
         // Cancel handler before mutex: a Ctrl+C in the gap should
         // print "Cancelling..." rather than terminate via the default
         // handler.
@@ -1451,6 +1461,44 @@ internal static class Program
         MachineContract.WriteEventLog(CliEventClass.TransientSkip,
             () => InstallerLockUnavailableEventLogLine(arg));
         return ExitTransient;
+    }
+
+    /// <summary>
+    /// The Application-channel line for a <c>/s</c>, <c>/d</c> or <c>/m</c> run
+    /// refused for want of administrator rights. One line covers all three flags and
+    /// <c>{0}</c> names which one ran.
+    /// </summary>
+    /// <remarks>
+    /// Built outside the en-GB scope, like <see cref="InstallerLockUnavailableEventLogLine"/>:
+    /// the caller wraps it, so the line renders English in production and in the
+    /// ambient culture anywhere else.
+    /// </remarks>
+    internal static string AdminRightsNeededEventLogLine(string arg) =>
+        string.Format(Strings.Cli_EventLogAdminRightsNeeded, arg);
+
+    /// <summary>
+    /// Reports a <c>/s</c>, <c>/d</c> or <c>/m</c> run refused because the process
+    /// holds no administrator rights, and returns the exit code for it.
+    /// </summary>
+    /// <remarks>
+    /// HardError and ExitError, on <see cref="CliExitCode.Error"/>'s own rule: the
+    /// rights a process runs with change only when somebody starts it differently, so
+    /// a scheduler retrying on the transient code would be refused on every run.
+    ///
+    /// It returns before the work loop's cleanup, so it prints the note on an
+    /// unwritable Application channel itself, as the mutex refusal does.
+    ///
+    /// The event-log line it writes (<see cref="AdminRightsNeededEventLogLine"/>) is
+    /// reachable separately and this method is not, for the reason
+    /// <see cref="EmitInstallerLockUnavailable"/> gives.
+    /// </remarks>
+    private static int RefuseWithoutAdministratorRights(string arg)
+    {
+        Console.WriteLine(Strings.Cli_AdminRightsNeeded);
+        MachineContract.WriteEventLog(CliEventClass.HardError,
+            () => AdminRightsNeededEventLogLine(arg));
+        NoteEventLogUnavailable();
+        return ExitError;
     }
 
     /// <summary>

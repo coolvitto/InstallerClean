@@ -318,6 +318,8 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Startup error | 启动错误 |
 | Failed to start ({0}). Details written to:<br>{1} | 启动失败（{0}）。详情已写入：<br>{1} |
 | Failed to start ({0}). The crash log could not be written. | 启动失败（{0}）。无法写入崩溃日志。 |
+| Administrator rights needed | 需要管理员权限 |
+| InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed.<br><br>Run InstallerClean again as administrator. | InstallerClean 需要管理员权限才能看到这台电脑上安装的每个程序，但它当前没有以管理员身份运行，所以不会扫描。没有做任何更改。<br><br>请以管理员身份重新运行 InstallerClean。 |
 | # crash.log captures unhandled exceptions from InstallerClean.<br># Under elevation the framework's exception messages can include<br># file paths from the running session (including other users'<br># profiles enumerated by Windows Installer queries). Network-<br># failure messages from the update check or result-log POST can<br># include the destination URL and the resolved IP / proxy address.<br># Entries about unreadable Windows Installer records can include a<br># Windows account SID (S-1-5-21-...) and the product codes of<br># installed software.<br># Redact all three classes of detail before attaching this file to<br># a public bug report.<br> | # crash.log 记录 InstallerClean 未处理的异常。<br># 在提升权限的情况下，框架的异常消息可能包含当前会话中的文件路径<br>#（包括 Windows Installer 查询所枚举的其他用户的配置文件）。更新<br># 检查或结果日志上传的网络故障消息，可能包含目标 URL 以及解析出的<br># IP 或代理地址。关于无法读取的 Windows Installer 记录的条目，可能<br># 包含 Windows 账户 SID（S-1-5-21-...）以及已安装软件的产品代码。<br># 把此文件附到公开的错误报告之前，请先删除这三类信息。<br> |
 
 ## Tooltips (hover text)
@@ -490,10 +492,11 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | It's simple to undo. Move them back from {0} into {InstallerFolder} and everything will be back to how it was. | 撤销很简单。把它们从 {0} 移回 {InstallerFolder}，一切就会恢复原样。 |
 | InstallerClean could no longer confirm the backup folder, so it went no further. Check {0}, then run the command again. | InstallerClean 已无法确认备份文件夹，因此停了下来。请检查 {0}，然后重新运行该命令。 |
 | Another InstallerClean process holds the single-instance lock (GUI or another CLI run). Exit 75 (transient); safe to retry later. | 另一个 InstallerClean 进程正持有单实例锁（GUI 或另一次 CLI 运行）。退出代码 75（暂时性）；稍后可安全重试。 |
+| InstallerClean needs administrator rights to see every program installed on this PC, and it isn't running as administrator, so it won't scan. Nothing has been changed. Run it again from an administrator prompt. | InstallerClean 需要管理员权限才能看到这台电脑上安装的每个程序，但它当前没有以管理员身份运行，所以不会扫描。没有做任何更改。请从管理员命令提示符重新运行。 |
 | Note: Event Log writing failed. Check Application log permissions or Group Policy. | 注意：事件日志写入失败。请检查应用程序日志的权限或组策略。 |
 | InstallerClean - clean up {InstallerFolder} | InstallerClean - 清理 {InstallerFolder} |
 | Removes cached .msi and .msp files that no installed program still needs. | 移除没有任何已安装程序仍然需要的 .msi 和 .msp 缓存文件。 |
-| Needs an elevated (administrator) prompt; Windows will not start it. | 需要管理员命令提示符，否则 Windows 不会启动它。 |
+| Needs an elevated (administrator) prompt and won't scan without one. | 需要管理员命令提示符，否则不会扫描。 |
 | Usage: | 用法： |
 |   installerclean-cli --help     Show this help (also accepts /?, -h) |   installerclean-cli --help     显示此帮助（也接受 /?、-h） |
 |   installerclean-cli --version  Print the version (also accepts -v) |   installerclean-cli --version  显示版本号（也接受 -v） |

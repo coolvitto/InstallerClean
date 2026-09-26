@@ -520,7 +520,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean tidak bisa memastikan file mana dalam cache yang menjadi milik program-program yang terpasang di sini, jadi seluruh {0} {1} ({2}) ditahan alih-alih ditawarkan.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean tidak bisa lagi memastikan folder cadangan, jadi berhenti. Periksa {0}, lalu jalankan perintahnya lagi.`,
   'Cli.Help.Summary': `Menghapus file .msi/.msp cache yang tak lagi dibutuhkan program terpasang.`,
-  'Cli.Help.Elevation': `Perlu prompt administrator; Windows tidak akan menjalankannya.`,
+  'Cli.Help.Elevation': `Perlu prompt administrator; tanpanya tidak akan memindai.`,
   'Error.InstallerLockUnavailableTitle': `Tidak ada yang dihapus`,
   'Error.MoveInstallerLockUnavailableTitle': `Tidak ada yang dipindahkan`,
   'Error.InstallerLockUnavailable': `InstallerClean tidak bisa mengambil kunci yang dipakai Windows Installer untuk mencegah dua program mengubah perangkat lunak terpasang sekaligus, jadi tidak bisa memastikan sebuah file tidak menjadi diperlukan di tengah jalan, dan tidak ada yang dihapus. Coba lagi, dan mulai ulang Windows kalau terus terjadi.`,
@@ -575,6 +575,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} hilang`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} hilang`,
   'UpdateCheck.Failed.Unknown.NoLog': `Pemeriksaan gagal karena alasan yang tidak diketahui. Log kerusakan tidak bisa ditulis.`,
+  'Startup.AdminRightsNeededTitle': `Perlu hak administrator`,
+  'Startup.AdminRightsNeededBody': `InstallerClean perlu hak administrator untuk melihat setiap program yang terpasang di PC ini, dan saat ini tidak berjalan sebagai administrator, jadi tidak akan memindai. Tidak ada yang diubah.\n\nJalankan InstallerClean lagi sebagai administrator.`,
+  'Cli.AdminRightsNeeded': `InstallerClean perlu hak administrator untuk melihat setiap program yang terpasang di PC ini, dan saat ini tidak berjalan sebagai administrator, jadi tidak akan memindai. Tidak ada yang diubah. Jalankan lagi dari prompt administrator.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

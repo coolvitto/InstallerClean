@@ -136,6 +136,41 @@ public partial class App : Application
             new FrameworkPropertyMetadata(
                 XmlLanguage.GetLanguage(SupportedLanguages.Active(Localisation.UiCulture))));
 
+        // A process without administrator rights is told so and closes, before
+        // anything scans. The manifest asks Windows for the rights, and Windows can
+        // still start the app without them, a compatibility setting being one way,
+        // so the app asks its own token; AdministratorRights says what the scan
+        // needs them for.
+        //
+        // After the language, so the message is in the one the user chose, and
+        // before the single-instance mutex, so such a launch is refused the same way
+        // whether or not another instance is running.
+        //
+        // Before the handlers below are hooked, so the check carries its own catch.
+        // The check throws where Windows will not open or duplicate the token, or
+        // answer the membership question, and then the app shows the dialog the
+        // startup catch shows, with the crash log, and closes without scanning.
+        bool administrator;
+        try
+        {
+            administrator = AdministratorRights.Held();
+        }
+        catch (Exception ex)
+        {
+            ShowFailedToStart(ex);
+            Shutdown();
+            return;
+        }
+        if (!administrator)
+        {
+            MessageDialog.Show(
+                Strings.Startup_AdminRightsNeededBody,
+                Strings.Startup_AdminRightsNeededTitle,
+                MessageKind.Warning);
+            Shutdown();
+            return;
+        }
+
         // Single-instance pattern: open the mutex without taking
         // ownership, acquire via WaitOne(0), release explicitly in
         // OnExit. A process that crashes mid-run hands the mutex to
@@ -388,15 +423,26 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            var crash = CrashLog.TryWrite(ex);
-            var typeName = ex.GetType().Name;
-            var body = crash.Written
-                ? string.Format(Strings.Startup_FailedToStart, typeName, crash.Path)
-                : string.Format(Strings.Startup_FailedToStart_NoLog, typeName);
-            MessageDialog.Show(body, Strings.Startup_ErrorTitle, MessageKind.Error);
+            ShowFailedToStart(ex);
             splash?.Close();
             Shutdown();
         }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="ex"/> to the crash log and shows the dialog saying the
+    /// app failed to start, naming the exception's type and, where the log was
+    /// written, its path. The caller closes the app. Type name only, for the reason
+    /// the unhandled-exception handler gives.
+    /// </summary>
+    private static void ShowFailedToStart(Exception ex)
+    {
+        var crash = CrashLog.TryWrite(ex);
+        var typeName = ex.GetType().Name;
+        var body = crash.Written
+            ? string.Format(Strings.Startup_FailedToStart, typeName, crash.Path)
+            : string.Format(Strings.Startup_FailedToStart_NoLog, typeName);
+        MessageDialog.Show(body, Strings.Startup_ErrorTitle, MessageKind.Error);
     }
 
     /// <summary>

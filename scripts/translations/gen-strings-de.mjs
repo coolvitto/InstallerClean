@@ -516,7 +516,7 @@ const MAP = {
   'Cli.NothingOffered.Plural': `InstallerClean konnte nicht sicher feststellen, welche zwischengespeicherten Dateien zu den hier installierten Programmen gehören, und hat deshalb alle {0} {1} ({2}) zurückgehalten, statt sie anzubieten.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean konnte den Sicherungsordner nicht mehr bestätigen und hat deshalb angehalten. Prüfe {0} und führe den Befehl dann erneut aus.`,
   'Cli.Help.Summary': `Entfernt .msi-/.msp-Dateien, die kein installiertes Programm mehr braucht.`,
-  'Cli.Help.Elevation': `Nur mit Administratorrechten; Windows startet es sonst gar nicht.`,
+  'Cli.Help.Elevation': `Nur mit Administratorrechten; ohne sie scannt es nicht.`,
   'Error.InstallerLockUnavailableTitle': `Nichts gelöscht`,
   'Error.MoveInstallerLockUnavailableTitle': `Nichts verschoben`,
   'Error.InstallerLockUnavailable': `InstallerClean konnte die Sperre nicht übernehmen, mit der Windows Installer verhindert, dass zwei Programme gleichzeitig installierte Software ändern, und konnte deshalb nicht ausschließen, dass eine Datei mittendrin doch gebraucht wird. Es wurde nichts gelöscht. Versuche es noch einmal und starte Windows neu, wenn es weiterhin auftritt.`,
@@ -571,6 +571,9 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} fehlen`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} fehlt`,
   'UpdateCheck.Failed.Unknown.NoLog': `Die Prüfung ist aus unbekanntem Grund fehlgeschlagen. Das Absturzprotokoll konnte nicht geschrieben werden.`,
+  'Startup.AdminRightsNeededTitle': `Administratorrechte erforderlich`,
+  'Startup.AdminRightsNeededBody': `InstallerClean braucht Administratorrechte, um alle auf diesem PC installierten Programme zu sehen, läuft aber nicht als Administrator und scannt deshalb nicht. Es wurde nichts verändert.\n\nFühre InstallerClean erneut als Administrator aus.`,
+  'Cli.AdminRightsNeeded': `InstallerClean braucht Administratorrechte, um alle auf diesem PC installierten Programme zu sehen, läuft aber nicht als Administrator und scannt deshalb nicht. Es wurde nichts verändert. Führe es erneut in einer Eingabeaufforderung als Administrator aus.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

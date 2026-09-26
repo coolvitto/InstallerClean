@@ -1043,12 +1043,13 @@
   <data name="Confirm.MoveSameDrive" xml:space="preserve"><value>そのフォルダーは同じドライブにあるため、削除するまで容量は戻りません。すぐに容量が必要な場合は、別のドライブのフォルダーを選んでください。</value></data>
 
   <!-- Error messages -->
-  <!-- Both manifests declare requireAdministrator, so the process is
-       always elevated: it is never started at all if the user declines the
-       UAC prompt. An access-denied therefore never means "you are not an
-       administrator", and telling the user to run as administrator hands
-       them the one instruction they have already followed. The key names
-       predate that correction; what they say is what matters. -->
+  <!-- Both hosts refuse to scan in a process without administrator rights
+       (AdministratorRights; Startup.AdminRightsNeededBody and
+       Cli.AdminRightsNeeded are what they show instead), so wherever these two
+       and Error.MsiAccessDenied are shown, whatever their key names suggest, the
+       process has the rights. An access-denied here therefore never means "you
+       are not an administrator", and telling the user to run as administrator
+       hands them the one instruction they have already followed. -->
   <data name="Error.AdminRequiredTitle" xml:space="preserve"><value>アクセスが拒否されました</value></data>
   <data name="Error.AdminRequiredBody" xml:space="preserve"><value>Windows が InstallerClean のアクセスを拒否したため、処理を中止しました。何も削除していません。
 
@@ -1414,6 +1415,13 @@ InstallerClean はすでに管理者として実行されていたため、同�
   <data name="Startup.FailedToStart" xml:space="preserve"><value>起動に失敗しました ({0})。詳細は以下に書き込まれました：
 {1}</value></data>
   <data name="Startup.FailedToStart.NoLog" xml:space="preserve"><value>起動に失敗しました ({0})。クラッシュログを書き込めませんでした。</value></data>
+  <!-- Shown when the window starts in a process without administrator rights
+       (AdministratorRights), before anything scans. The app closes when it is
+       dismissed. The command line says the same in Cli.AdminRightsNeeded. -->
+  <data name="Startup.AdminRightsNeededTitle" xml:space="preserve"><value>管理者権限が必要です</value></data>
+  <data name="Startup.AdminRightsNeededBody" xml:space="preserve"><value>InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。
+
+InstallerClean を管理者としてもう一度実行してください。</value></data>
 
   <!-- File picker -->
   <data name="FilePicker.ChooseDestinationTitle" xml:space="preserve"><value>移動ファイルの移動先フォルダーを選択</value></data>
@@ -2049,6 +2057,12 @@ InstallerClean はすでに管理者として実行されていたため、同�
        the Application channel sees a record of every scheduled-job
        firing whether or not it was able to run. -->
   <data name="Cli.EventLogMutexBlocked" xml:space="preserve"><value>{0}モードはスキップされました：GUI または別の CLI 実行が既に単一インスタンスミューテックスを保持しています。</value></data>
+  <!-- Stdout when a /s, /d or /m run is refused because the process holds no
+       administrator rights (AdministratorRights). Nothing has been scanned. The
+       window says the same in Startup.AdminRightsNeededBody. -->
+  <data name="Cli.AdminRightsNeeded" xml:space="preserve"><value>InstallerClean がこの PC にインストールされているすべてのプログラムを確認するには管理者権限が必要ですが、管理者として実行されていないため、スキャンしません。何も変更していません。管理者権限のプロンプトからもう一度実行してください。</value></data>
+  <!-- 0 = mode arg ("/s", "/d" or "/m"). Audit entry for the refusal above;
+       the run exits 1. -->
   <!-- 0 = the offending token (original case). Audit entry written when
        the CLI is invoked with an unrecognised or malformed argument, so a
        scheduled task with a fat-fingered flag leaves an Application-channel
@@ -2106,11 +2120,12 @@ InstallerClean はすでに管理者として実行されていたため、同�
        touches nothing anything needs is an adjective inside two of the six
        usage rows, which is not the same as saying it. -->
   <data name="Cli.Help.Summary" xml:space="preserve"><value>どのインストール済みプログラムも必要としない .msi/.msp を削除します。</value></data>
-  <!-- Running it from an ordinary prompt is the commonest way to get this wrong,
-       and the tool cannot say so at the time: Windows refuses to start a process
-       that requires administrator, so nothing of this program runs. The help is
-       the only place it can be said. -->
-  <data name="Cli.Help.Elevation" xml:space="preserve"><value>管理者権限のプロンプトが必要です。Windows はそれ以外では起動しません。</value></data>
+  <!-- Running it from an ordinary prompt is the commonest way to get this wrong.
+       There Windows refuses to start a process that requires administrator, so
+       nothing of this program runs and the help is where it is said. A process
+       started without the rights anyway is refused by the tool itself, with
+       Cli.AdminRightsNeeded. -->
+  <data name="Cli.Help.Elevation" xml:space="preserve"><value>管理者権限のプロンプトが必要です。それ以外ではスキャンしません。</value></data>
   <data name="Cli.Help.Usage" xml:space="preserve"><value>使用方法：</value></data>
   <data name="Cli.Help.Help" xml:space="preserve"><value>  installerclean-cli --help     このヘルプを表示 (/?、-hも受け付けます)</value></data>
   <data name="Cli.Help.Version" xml:space="preserve"><value>  installerclean-cli --version  バージョンを表示 (-vも受け付けます)</value></data>
@@ -2131,12 +2146,13 @@ InstallerClean はすでに管理者として実行されていたため、同�
   <data name="Cli.Help.MoveScheduledNote" xml:space="preserve"><value>フォルダーはユーザーごと。予約実行や SYSTEM には /m PATH が必要。</value></data>
   <data name="Cli.Help.ExitCodesHeader" xml:space="preserve"><value>終了コード：</value></data>
   <!-- 0 IS NOT A STATEMENT THAT WORK HAPPENED AND NOT A STATEMENT THAT NONE IS
-       LEFT. Five runs exit 0: /? and /version, which print and stop; a /s scan
-       that found files and listed them, which can leave an administrator plenty
-       to do; a /s scan that found none; and a /d or /m batch in which every file
-       was processed without error. The sentence has to be true of all five, so it
-       says what they share, which is that the run did what it was asked and
-       nothing in it failed. Anyone tightening it checks it against the five. -->
+       LEFT. Five runs exit 0: the help and version flags (/? and -v), which print
+       and stop; a /s scan that found files and listed them, which can leave an
+       administrator plenty to do; a /s scan that found none; and a /d or /m batch
+       in which every file was processed without error. The sentence has to be true
+       of all five, so it says what they share, which is that the run did what it
+       was asked and nothing in it failed. Anyone tightening it checks it against
+       the five. -->
   <data name="Cli.Help.ExitCodeOk" xml:space="preserve"><value>  0   成功：求められた処理を行い、失敗は何もなかった</value></data>
   <!-- The runs that end on this code are not one kind of thing: a refusal is
        among them, and CliExitCode.Error says in its own capitals that a refusal

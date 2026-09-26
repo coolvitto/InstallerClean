@@ -475,6 +475,8 @@ const MAP = {
   'Summary.RegisteredWindow.Missing.Plural': `{0} отсутствуют`,
   'Summary.RegisteredWindow.Missing.Singular': `{0} отсутствует`,
   'UpdateCheck.Failed.Unknown.NoLog': `Проверка не удалась по неизвестной причине. Не удалось записать журнал сбоев.`,
+  'Startup.AdminRightsNeededTitle': `Нужны права администратора`,
+  'Startup.AdminRightsNeededBody': `InstallerClean нужны права администратора, чтобы видеть все программы, установленные на этом ПК, а он запущен не от имени администратора, поэтому сканировать не будет. Ничего не изменено.\n\nЗапустите InstallerClean снова от имени администратора.`,
 };
 
 // Russian CLDR-category overrides beyond the neutral one/other split. They do NOT
@@ -602,7 +604,7 @@ const CLI = {
   'Cli.NothingOfferedPerFile.Plural': `InstallerClean ни об одном из найденных им файлов в кэше не смог установить, что он не нужен, поэтому удержал все {0} {1} ({2}), вместо того чтобы предложить их.`,
   'Cli.DestinationChangedMidBatch': `InstallerClean больше не смог подтвердить папку резервных копий и остановился. Проверьте {0}, затем запустите команду снова.`,
   'Cli.Help.Summary': `Убирает .msi и .msp из кэша, не нужные ни одной установленной программе.`,
-  'Cli.Help.Elevation': `Нужна командная строка администратора; иначе Windows её не запустит.`,
+  'Cli.Help.Elevation': `Нужна командная строка администратора; без неё сканирования не будет.`,
   'Cli.InstallerLockUnavailable': `Ошибка: InstallerClean не смог взять блокировку Windows Installer, которая не даёт двум программам одновременно менять установленное ПО, поэтому не смог исключить, что файл понадобится на полпути. Ничего не удалено. Попробуйте ещё раз, а если повторяется — перезагрузите Windows.`,
   'Cli.MoveInstallerLockUnavailable': `Ошибка: InstallerClean не смог взять блокировку Windows Installer, которая не даёт двум программам одновременно менять установленное ПО, поэтому не смог исключить, что файл понадобится на полпути. Ничего не перемещено. Попробуйте ещё раз, а если повторяется — перезагрузите Windows.`,
   'Cli.SupersededHeldBack.Singular': `InstallerClean не смог с уверенностью определить, что единственный замещённый файл больше не нужен, поэтому удержал его.`,
@@ -634,6 +636,7 @@ const CLI = {
   'Cli.MoveCancelledRestoreHint': `Это легко отменить. Переместите их из {0} обратно в {InstallerFolder}, и всё вернётся как было.`,
   'Cli.MoveInstallerLockAccessRefused': `Ошибка: Windows отказал InstallerClean в праве проверить, занят ли Windows Installer, поэтому он не смог исключить, что файл понадобится в процессе. Ничего не было перемещено.`,
   'Cli.PendingRebootBlocked.RegistryCheckUnreadable': `Ошибка: InstallerClean не смог прочитать одно из значений реестра, которые проверяет перед тем, как трогать {InstallerFolder}, поэтому не может исключить операцию Windows Installer, выполняющуюся сейчас или поставленную в очередь до следующей перезагрузки. /m и /d заблокированы. Перезагрузите Windows и попробуйте снова. Если чтение по-прежнему не удаётся, это не та машина, которую InstallerClean может очистить.`,
+  'Cli.AdminRightsNeeded': `InstallerClean нужны права администратора, чтобы видеть все программы, установленные на этом ПК, а он запущен не от имени администратора, поэтому сканировать не будет. Ничего не изменено. Запустите его снова из командной строки администратора.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,
