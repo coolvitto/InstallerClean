@@ -92,6 +92,19 @@ namespace InstallerClean.Models;
 /// and only touches rows still carrying <paramref name="IsRemovable"/>, so it passes over a
 /// row this flag has already taken.
 /// </param>
+/// <param name="WithheldOnRecordedPathUnestablished">
+/// The scan-wide withholding took this row's removable verdict away on a scan where a
+/// recorded path could not be settled
+/// (<see cref="EnumerationCensus.AnyRecordedPathUnestablished"/>). Set by that one loop and
+/// nowhere else, so a row an earlier pass had already withheld never carries it.
+///
+/// IT DOES NOT SAY THAT WAS THE ONLY REASON. The same loop also withholds on a scan that
+/// could not account for every installed product, and a row withheld while both held
+/// carries this flag. What it records is that this condition held when the row lost its
+/// verdict, which is what lets the opt-in report count the files this condition holds back
+/// whatever else fired: see <see cref="ScanResult.SupersededRecordedPathUnestablishedCount"/>.
+/// It decides nothing.
+/// </param>
 public record RegisteredPackage(
     string LocalPackagePath,
     string ProductName,
@@ -103,7 +116,8 @@ public record RegisteredPackage(
     ProductPatchSet ProductPatchSetVerdict = ProductPatchSet.Unestablished,
     long FileSizeBytes = 0,
     bool FileExists = true,
-    bool WithheldOnUnreadableFile = false)
+    bool WithheldOnUnreadableFile = false,
+    bool WithheldOnRecordedPathUnestablished = false)
 {
     /// <summary>
     /// Windows holds a record naming this file and the file is not there. The one

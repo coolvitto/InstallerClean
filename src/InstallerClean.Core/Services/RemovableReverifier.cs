@@ -117,12 +117,12 @@ public sealed class RemovableReverifier : IRemovableReverifier
         // NOT EVERY ROW HERE CARRIES A CLAIM, and telling them apart is the whole
         // of what this map is for. A patch whose State or Uninstallable read failed
         // lands here having established nothing either way: non-removable for want
-        // of a verdict rather than on one, so reporting it as a program reclaiming
-        // the file would name a cause that did not occur. The withheld kind is a
-        // third: a superseded patch whose product's patch set this run could not
-        // establish is non-removable for want of a reading rather than on one. Every
-        // kind can be in one batch, which is why the cause is carried per path and
-        // not per run.
+        // of a verdict rather than on one, so its file is held as records that could
+        // not be read, not as a program reclaiming it. The withheld kind is a third,
+        // held the same way: a superseded patch whose removable verdict this run took
+        // away because it could not establish something the offer needs, not because
+        // it found a claim. Every kind can be in one batch, which is why the cause is
+        // carried per path and not per run.
         //
         // A STILL-REMOVABLE SUPERSEDED PATCH IS DELIBERATELY NOT IN THIS MAP, and that
         // is the one entry whose absence is the point. The map is what condemns a

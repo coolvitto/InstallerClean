@@ -343,8 +343,10 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// the four normalisation refusals do, on one rule in one place rather than a
     /// second quiet copy of one:
     /// FileSystemScanService withholds the whole walk-derived offer where
-    /// <c>EnumerationCensus.AnyRecordedPathUnestablished</c> answers true, and that
-    /// property is where every population is added to the question.
+    /// <c>EnumerationCensus.AnyRecordedPathUnestablished</c> answers true, this
+    /// service's scan-wide withholding takes every superseded row off the offer on the
+    /// same answer, and that property is where every population is added to the
+    /// question.
     ///
     /// THE ATTEMPTS COUNT IS MEASUREMENT AND NOT A RULE. Nothing withholds on it. It
     /// is what makes the five readable, since a scan that asked about no path reports
@@ -1067,14 +1069,72 @@ public sealed class InstallerQueryService : IInstallerQueryService
 
         var packages = claimed.Values.ToList();
 
+        // The run's whole path census: this loop's, plus the fallback's own. Taken
+        // before the withholding below, which asks it whether any recorded path went
+        // unsettled; nothing that withholding changes is counted in it.
+        var paths = new PathCensus();
+        paths.Add(pathCensus);
+        paths.Add(fallback.Paths);
+
+        // The tallies rather than the term computed from them: the never-claimed
+        // figure is floored and biased low, so it is not the count its name would
+        // claim, and it is reproducible from these.
+        var census = new EnumerationCensus(
+            unreadableProducts,
+            unreadableRows,
+            fallback.ProductKeys,
+            fallback.UnclaimedProductFiles,
+            fallback.UnclaimedPatchFiles,
+            fallback.NonStringLocalPackageValues,
+            unreadablePatchStates,
+            products.Count,
+            patchClaims.Count,
+            packages.Count(p => HasLongLeafStem(p.LocalPackagePath)),
+            missed.Recovered.Count,
+            // The two halves of unresolvedProducts, apart. The arithmetic
+            // above adds them because it needs what could not be settled, and
+            // that superordinate is true of both; no narrower sentence is, so
+            // nothing that names a cause may carry the sum.
+            missed.Unresolved,
+            fallback.UnparseableProductKeyNames,
+            // Counted off the merged rows rather than at the read site, which
+            // is what makes it a different number from the pairing count
+            // above: several products' failed reads on one shared patch are
+            // one row here and several there.
+            packages.Count(p => p.VerdictUnreadable),
+            instanceProducts,
+            instanceTypeUnreadable,
+            fallback.ProductPatchKeys,
+            fallback.ProductPatchRegistrations,
+            fallback.ProductsWithRemovablePatch,
+            fallback.ProductsWithPatchSetUnestablished,
+            // BOTH HALVES OF THE SCAN, ADDED. The API loop and the registry
+            // fallback each normalise the paths they read and neither can see
+            // the other's, so a census taken from either alone would report a
+            // fraction of the machine as the whole of it. Added here rather
+            // than shared as one object through both, so the fallback stays a
+            // function of its own inputs.
+            paths.ResolverAttempts,
+            paths.ResolverNotAPath,
+            paths.ResolverNoExistingAncestor,
+            paths.ResolverOpenRefused,
+            paths.ResolverFinalNameUnavailable,
+            paths.ResolverFaulted,
+            paths.NormalisationRefusedAtExpansion,
+            paths.NormalisationRefusedAtPrefixStrip,
+            paths.NormalisationRefusedAtFullPath,
+            paths.NormalisationRefusedAtEmbeddedNull,
+            paths.FlaggedSpellings,
+            fallback.Failures);
+
         // LIVE, AND ON NO ACCOUNT TO BE DELETED AS DEAD MACHINERY. A superseded row
         // on a machine whose patch sets read clean arrives here still carrying
         // IsRemovable, and this loop is what takes it off the offer when the scan
-        // lost a claim.
+        // lost a claim or met a recorded path it could not settle.
         //
         // One product whose LocalPackage read fails is enough to fire it: that
         // product is counted in withheldProducts, and the loop takes every superseded
-        // row off the offer.
+        // row off the offer. So is one recorded path the scan could not settle.
         //
         // NOT TO BE CONFUSED WITH THE REFUSAL GATE ABOVE, which weighs the same
         // count and is very much alive; see its own note for why.
@@ -1096,10 +1156,30 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // cached file, so knowing who lost it narrows nothing. Scan-wide is the
         // finest granularity the information supports either way.
         //
+        // A RECORDED PATH THE SCAN COULD NOT SETTLE WITHHOLDS THE CLASS AS WELL, for
+        // the reason it withholds the walk-derived offer: nothing says which file the
+        // claim it came from names. Claims meet on a row by their normalised path, so
+        // a claim kept in a spelling nothing resolves sits on a row of its own, and
+        // the row for the file it means never hears from it. That claim can be a
+        // second registration of a superseded patch, holding it applied under another
+        // product, or any other registration aimed at the patch's file. The
+        // per-pairing pass skips every pairing the product loop has already read,
+        // wherever its claim landed, and the per-product condition asks about patch
+        // sets, so neither brings such a claim back to the file. The claim names a
+        // file the scan cannot place, so it can be any of them, and scan-wide is again
+        // the finest granularity there is.
+        //
+        // IT IS ASKED THROUGH EnumerationCensus.AnyRecordedPathUnestablished, the
+        // property the walk-derived withholding asks, so a population added to the
+        // census reaches both halves of the offer. A row it withholds carries
+        // WithheldOnRecordedPathUnestablished, whether or not the unaccounted-products
+        // condition held too, and the opt-in report counts those rows.
+        //
         // This loop moves only the removable class, the superseded patches, and only
         // on a scan that lost a claim, found a cached file no product it reached
-        // claimed, or could not settle a product the registry names. The walk half is
-        // decided elsewhere, on conditions of its own.
+        // claimed, could not settle a product the registry names, or could not settle
+        // a recorded path. The walk half is decided elsewhere, on conditions of its
+        // own, the last of these among them.
         //
         // AND IT TOUCHES NOTHING ELSE, WHICH IS A DECISION RATHER THAN THE ABSENCE OF
         // ONE. A second arm here, clearing the unread-file marker on a row something
@@ -1115,84 +1195,48 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // warn, and a run that came up short somewhere ELSE would print an alarm about
         // a file this scan had positively established nothing could reach for.
         //
-        // AND THE COUNT THIS LOOP FIRES ON DOES NOT NAME THAT ROW'S RISK. Its terms are
-        // a read that failed on a product this loop DID return, a product the registry
-        // saw and the enumeration did not whose own file is present, and a product the
-        // registry names that this scan could not settle. None of them is "a holder of
-        // this patch went unseen", which is the condition that would bear on this
-        // file. The count is a sign of a degraded machine, not a per-file verdict.
+        // AND THE PRODUCT COUNT THIS LOOP FIRES ON DOES NOT NAME THAT ROW'S RISK. Its
+        // terms are a read that failed on a product this loop DID return, a product the
+        // registry saw and the enumeration did not whose own file is present, and a
+        // product the registry names that this scan could not settle. None of them is
+        // "a holder of this patch went unseen", which is the condition that would bear
+        // on this file. The count is a sign of a degraded machine, not a per-file
+        // verdict.
+        //
+        // A RECORDED PATH THE SCAN COULD NOT SETTLE CAN BE THAT HOLDER, and the split
+        // still needs nothing from this loop, because the holder is a row of its own.
+        // Where the superseded file has gone, the registration kept in the unsettled
+        // spelling names that same absent file, or names nothing, so its row reads
+        // missing as well, and the split reports a missing row that is not a
+        // superseded or obsoleted patch whatever its verdict. The warning names that
+        // holder's program through its own row.
         //
         // THE WITHHOLDING ITSELF IS WHAT ANSWERS FOR SUCH A MACHINE: a run that could
-        // not account for a product offers no superseded patch at all. A file already
-        // gone is not kept by printing a sentence about it.
+        // not account for a product, or could not settle a recorded path, offers no
+        // superseded patch at all. A file already gone is not kept by printing a
+        // sentence about it.
         //
-        // THE SPLIT HAS A ROUTE TO THIS STATE. A run whose machine-wide patch
-        // enumeration did not answer downgrades every removable path with no marker
-        // set (see ConfirmRemovableAgainstEveryProduct), so a missing superseded row on
-        // such a run reaches the split withheld and unmarked and is reported. That run
-        // failed to establish something about the patch itself.
-        if (withheldProducts > 0)
+        // A WITHHELD ROW WITH NO MARKER IS REPORTED BY THE SPLIT WHERE ITS FILE HAS
+        // GONE. Every row this loop withholds is one. So is every removable path on a
+        // run whose machine-wide patch enumeration did not answer, which downgrades
+        // them with no marker set (see ConfirmRemovableAgainstEveryProduct), that run
+        // having failed to establish something about the patch itself. A superseded
+        // file that read cleanly when the pass above opened it, and had gone by the
+        // time the scan looked for it on the disk, is one way such a row reaches the
+        // split from this loop.
+        var pathUnestablished = census.AnyRecordedPathUnestablished;
+        if (withheldProducts > 0 || pathUnestablished)
             for (var i = 0; i < packages.Count; i++)
                 if (packages[i].IsRemovable)
-                    packages[i] = packages[i] with { IsRemovable = false, RemovableWithheld = true };
-
-        // The run's whole path census: this loop's, plus the fallback's own.
-        var paths = new PathCensus();
-        paths.Add(pathCensus);
-        paths.Add(fallback.Paths);
+                    packages[i] = packages[i] with
+                    {
+                        IsRemovable = false,
+                        RemovableWithheld = true,
+                        WithheldOnRecordedPathUnestablished = pathUnestablished,
+                    };
 
         return new InstallerQueryResult(packages.AsReadOnly(), withheldProducts, patchClaims.AsReadOnly(),
-            // The tallies rather than the term computed from them: the
-            // never-claimed figure is floored and biased low, so it is not the
-            // count its name would claim, and it is reproducible from these.
-            new EnumerationCensus(
-                unreadableProducts,
-                unreadableRows,
-                fallback.ProductKeys,
-                fallback.UnclaimedProductFiles,
-                fallback.UnclaimedPatchFiles,
-                fallback.NonStringLocalPackageValues,
-                unreadablePatchStates,
-                products.Count,
-                patchClaims.Count,
-                packages.Count(p => HasLongLeafStem(p.LocalPackagePath)),
-                missed.Recovered.Count,
-                // The two halves of unresolvedProducts, apart. The arithmetic
-                // above adds them because it needs what could not be settled, and
-                // that superordinate is true of both; no narrower sentence is, so
-                // nothing that names a cause may carry the sum.
-                missed.Unresolved,
-                fallback.UnparseableProductKeyNames,
-                // Counted off the merged rows rather than at the read site, which
-                // is what makes it a different number from the pairing count
-                // above: several products' failed reads on one shared patch are
-                // one row here and several there.
-                packages.Count(p => p.VerdictUnreadable),
-                instanceProducts,
-                instanceTypeUnreadable,
-                fallback.ProductPatchKeys,
-                fallback.ProductPatchRegistrations,
-                fallback.ProductsWithRemovablePatch,
-                fallback.ProductsWithPatchSetUnestablished,
-                // BOTH HALVES OF THE SCAN, ADDED. The API loop and the registry
-                // fallback each normalise the paths they read and neither can see
-                // the other's, so a census taken from either alone would report a
-                // fraction of the machine as the whole of it. Added here rather
-                // than shared as one object through both, so the fallback stays a
-                // function of its own inputs.
-                paths.ResolverAttempts,
-                paths.ResolverNotAPath,
-                paths.ResolverNoExistingAncestor,
-                paths.ResolverOpenRefused,
-                paths.ResolverFinalNameUnavailable,
-                paths.ResolverFaulted,
-                paths.NormalisationRefusedAtExpansion,
-                paths.NormalisationRefusedAtPrefixStrip,
-                paths.NormalisationRefusedAtFullPath,
-                paths.NormalisationRefusedAtEmbeddedNull,
-                paths.FlaggedSpellings,
-                fallback.Failures),
-            ListedInstallations(products, missed.Recovered));
+            census, ListedInstallations(products, missed.Recovered));
         }
         finally
         {
@@ -1304,8 +1348,8 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// enumeration, and an enumeration that returns ERROR_NO_MORE_ITEMS early is
     /// indistinguishable from one that finished: <see cref="EnumeratePatches"/>
     /// treats it as a clean end at any index, so nothing is marked incomplete,
-    /// no product is counted unreadable, and the scan-wide withholding never
-    /// runs.
+    /// no product is counted unreadable, and nothing the truncation leaves behind
+    /// fires the scan-wide withholding.
     ///
     /// NOTHING ELSE CATCHES IT, which is why this exists rather than a counter.
     /// The registry fallback recovers lost PATHS and never lost VERDICTS, and its
@@ -2193,21 +2237,21 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// There is no third case, so a reader asking whether a claim's location was
     /// proved has an answer rather than a case analysis.
     ///
-    /// WHAT THE COUNTED HALF THEN BUYS IS THE WALK-DERIVED OFFER, AND THAT HALF
-    /// ALONE. A counted failure arms
+    /// WHAT THE COUNTED HALF THEN BUYS IS THE WHOLE OFFER. A counted failure arms
     /// <c>EnumerationCensus.AnyRecordedPathUnestablished</c>, which keeps back every
-    /// candidate the walk found and no registration claims; the registered side of
-    /// the scan is decided elsewhere and is not keyed on it. So the surfaces that
-    /// read a registration's own recorded path go on reading the string this method
-    /// returned, proved or counted: the correlation gate, the missing-from-disk
-    /// counts and the registered-files window.
+    /// candidate the walk found and no registration claims, and every superseded row
+    /// still on the offer when <see cref="GetRegisteredPackagesCore"/> reaches its
+    /// scan-wide withholding. Neither is narrowed to the claim that failed, because
+    /// nothing says which file it names. The census leaves the string this method
+    /// returned as it is, proved or counted, and the surfaces that read a
+    /// registration's own recorded path go on reading it: the correlation gate, the
+    /// missing-from-disk counts and the registered-files window.
     ///
     /// EACH OF THOSE TAKES AN UNPROVEN SPELLING IN THE DIRECTION THAT KEEPS MORE
-    /// BACK, which is why the ask is worth making even though it settles the offer
-    /// on one side only. A claim whose spelling names no walked file lowers the
-    /// correlation count, which moves the scan towards refusing outright; one whose
-    /// file is not found where the claim says raises the missing count, which is a
-    /// warning rather than an offer.
+    /// BACK. A claim whose spelling names no walked file lowers the correlation
+    /// count, which moves the scan towards refusing outright; one whose file is not
+    /// found where the claim says raises the missing count, which is a warning
+    /// rather than an offer.
     ///
     /// THE ASK COSTS A HANDLE PER REGISTRATION, on the smaller side of a cost the
     /// scan already pays. <c>CandidateGuard.CheckSafeToRemove</c> calls
@@ -2242,11 +2286,11 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// A PATH THE KERNEL DECLINES TO RESOLVE is kept in the spelling Windows gave and
     /// matches nothing the walk produces, so the refusal is counted and
     /// <c>EnumerationCensus.AnyRecordedPathUnestablished</c> withholds the whole
-    /// walk-derived offer on it: nothing says WHICH candidate the unresolved claim
-    /// meant, so no narrower set can be held back. Resolving a final path is
-    /// <see cref="InstallerCacheHelpers.TryResolveFinalPath"/>, which answers yes or
-    /// no; expanding an environment variable has no failure to report, and what it
-    /// does with a variable the machine has never heard of is pinned by a test.
+    /// walk-derived offer and every superseded row on it: nothing says WHICH file the
+    /// unresolved claim meant, so no narrower set can be held back. Resolving a final
+    /// path is <see cref="InstallerCacheHelpers.TryResolveFinalPath"/>, which answers
+    /// yes or no; expanding an environment variable has no failure to report, and what
+    /// it does with a variable the machine has never heard of is pinned by a test.
     /// </summary>
     private static string NormaliseLocalPackagePath(string value, PathCensus census)
     {
@@ -2356,12 +2400,13 @@ public sealed class InstallerQueryService : IInstallerQueryService
             //
             // AND THE FACT IS CARRIED OUT RATHER THAN ENDING HERE, WHICH IS WHAT
             // KEEPS THE FILE. What leaves this method is a claim that cannot match
-            // anything the folder walk produces, so on its own it would leave the
-            // file it means unclaimed and on the offer. The refusal recorded on the
-            // next line is what stops that: it reaches
+            // anything the folder walk produces or meet the row of the file it means,
+            // so on its own it would leave that file unclaimed and on the offer, or
+            // leave a superseded row naming it on the offer. The refusal recorded on
+            // the next line is what stops that: it reaches
             // <c>EnumerationCensus.AnyRecordedPathUnestablished</c>, which withholds
-            // the whole walk-derived offer, so no file is offered on the strength of
-            // a claim nobody could read.
+            // the whole walk-derived offer and every superseded row, so nothing is
+            // offered while a claim nobody could read stands.
             census.RecordNormalisationRefusal(stage);
             return value;
         }

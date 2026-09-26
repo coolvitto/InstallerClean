@@ -11,8 +11,9 @@ namespace InstallerClean.Services;
 /// ALL FIVE WITHHOLD, ON THE ONE THING TRUE OF EVERY MEMBER: the resolver was asked
 /// about a recorded path and did not answer. A registration whose spelling the
 /// filesystem would not settle is compared in a form the folder walk never produces,
-/// so any candidate in the list can be the cached file it names, and which one it is
-/// cannot be established. That holds for every member alike.
+/// so any candidate in the list, and any superseded row on the offer, can be the cached
+/// file it names, and which one it is cannot be established. That holds for every
+/// member alike.
 ///
 /// ALL FIVE WITHHOLD ALIKE, THE TWO ORDINARY MACHINE STATES INCLUDED. Where the app
 /// can detect that one of its own checks did not answer, it offers nothing that scan,

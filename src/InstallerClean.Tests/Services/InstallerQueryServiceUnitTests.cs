@@ -1626,6 +1626,311 @@ public class InstallerQueryServiceUnitTests
         Assert.Contains(result.Packages, r => r.LocalPackagePath == @"C:\Windows\Installer\b.msi");
     }
 
+    // ---- A recorded path the scan could not settle withholds the removable class too ----
+    //
+    // Claims meet on a row by their normalised path, so a registration kept in a spelling
+    // nothing resolves sits on a row of its own, and the row for the file it means never
+    // hears from it. Which file such a claim names cannot be established, so the scan-wide
+    // withholding takes every superseded row off the offer, as it does on a scan that could
+    // not account for every installed product.
+    //
+    // THE UNSETTLED VALUES HERE CARRY AN EMBEDDED NULL, which the normalisation refuses
+    // before the resolver is asked, so they are unsettled wherever the suite runs. Rows are
+    // picked by patch state rather than by path, because an ordinary value comes back in
+    // whatever spelling the machine running the suite resolves it to.
+
+    private const string SharedPatch = @"C:\Windows\Installer\shared.msp";
+    private const string SharedPatchUnsettled = "C:\\Windows\\Installer\\shared\0.msp";
+    private const string UnrelatedPackageUnsettled = "C:\\Windows\\Installer\\c\0.msi";
+
+    /// <summary>
+    /// The row was a superseded patch on the offer until the scan-wide withholding took its
+    /// verdict while a recorded path was unsettled, and it carries the flag the opt-in
+    /// report counts it by.
+    /// </summary>
+    private static void AssertWithheldOnAnUnsettledPath(RegisteredPackage row)
+    {
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+        Assert.True(row.WithheldOnRecordedPathUnestablished);
+        Assert.Equal(2, row.PatchState);
+    }
+
+    /// <summary>
+    /// One superseded patch on product A, and product C whose own cached package is
+    /// recorded as <paramref name="cPackage"/>.
+    /// </summary>
+    private static FakeMsiApi ASupersededPatchBesideProductC(string cPackage)
+    {
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+        msi.AddProduct("{C}");
+        msi.SetProductProperty("{C}", "LocalPackage", cPackage);
+        return msi;
+    }
+
+    [Fact]
+    public async Task A_second_registration_of_a_superseded_patch_in_an_unsettled_spelling_withholds_it()
+    {
+        // The patch is superseded under A, and applied and not uninstallable under B, and
+        // both registrations name one cached file. B's value is kept in a spelling nothing
+        // resolves, so its claim lands on a row of its own and A's row carries no sign of
+        // it. The per-pairing pass skips (P, B), the product loop having read it already.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddProduct("{B}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+        msi.AddPatch("{B}", "{P}", localPackage: SharedPatchUnsettled, state: "1", uninstallable: "0");
+
+        var result = await RunHealthy(msi);
+
+        AssertWithheldOnAnUnsettledPath(Assert.Single(result.Packages, r => r.PatchState == 2));
+        Assert.Single(result.Packages, r => r.PatchState == 1);
+        Assert.True(result.Census.AnyRecordedPathUnestablished);
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task The_same_machine_with_that_registration_spelled_ordinarily_merges_it_onto_the_patch()
+    {
+        // THE MUST-MISS FOR THE TEST ABOVE, differing in B's one value: B's registration
+        // names the same cached file in an ordinary spelling. Its claim meets A's on one
+        // row, and the patch B holds applied keeps that row off the offer as a live claim
+        // rather than as a withholding.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddProduct("{B}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+        msi.AddPatch("{B}", "{P}", localPackage: SharedPatch, state: "1", uninstallable: "0");
+
+        var result = await RunHealthy(msi);
+
+        Assert.DoesNotContain(result.Packages, r => r.PatchState == 2);
+        var row = Assert.Single(result.Packages, r => r.PatchState == 1);
+        Assert.False(row.IsRemovable);
+        Assert.False(row.RemovableWithheld);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+        Assert.False(result.Census.AnyRecordedPathUnestablished);
+    }
+
+    [Fact]
+    public async Task An_unsettled_value_on_an_unrelated_product_withholds_the_superseded_patch()
+    {
+        // Nothing ties C's registration to the patch, and nothing needs to: its claim names
+        // a file the scan cannot place, which can be the patch's file as easily as any
+        // other.
+        var result = await RunHealthy(ASupersededPatchBesideProductC(UnrelatedPackageUnsettled));
+
+        AssertWithheldOnAnUnsettledPath(Assert.Single(result.Packages, r => r.PatchState == 2));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task The_same_unrelated_product_in_an_ordinary_spelling_withholds_nothing()
+    {
+        // THE MUST-MISS FOR THE TEST ABOVE: C's value spelled ordinarily.
+        var result = await RunHealthy(ASupersededPatchBesideProductC(@"C:\Windows\Installer\c.msi"));
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        AssertOffered(row, expectedState: 2);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+    }
+
+    [Fact]
+    public async Task A_value_the_resolver_refuses_withholds_the_superseded_patch()
+    {
+        // The volume-GUID spelling here names a volume the machine running the suite does
+        // not have, so the resolver cannot settle it. That is a refusal from a different
+        // population from the embedded nulls above, and the withholding asks both.
+        var result = await RunHealthy(ASupersededPatchBesideProductC(
+            @"\\?\Volume{9c3a1d2e-0000-0000-0000-100000000000}\Windows\Installer\c.msi"));
+
+        AssertWithheldOnAnUnsettledPath(Assert.Single(result.Packages, r => r.PatchState == 2));
+        Assert.True(result.Census.PathResolverRefusedTotal > 0);
+    }
+
+    [Fact]
+    public async Task A_refusal_only_the_registry_side_counted_withholds_the_superseded_patch()
+    {
+        // The registry fallback normalises the values it reads with a census of its own,
+        // and the withholding asks the two censuses added together, so a refusal counted on
+        // that side alone withholds as one the enumeration counted does.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+
+        var result = await new InstallerQueryService(msi, (_, _) =>
+            {
+                var registrySide = new InstallerQueryService.PathCensus();
+                registrySide.RecordNormalisationRefusal(InstallerQueryService.NormalisationStage.EmbeddedNull);
+                return new InstallerQueryService.FallbackRead(0, 0,
+                    ProductPatchSets: HealthyPatchSets(msi), Paths: registrySide);
+            })
+            .GetRegisteredPackagesAsync();
+
+        AssertWithheldOnAnUnsettledPath(Assert.Single(result.Packages, r => r.PatchState == 2));
+    }
+
+    [Fact]
+    public async Task The_same_machine_whose_registry_side_refused_nothing_offers_the_patch()
+    {
+        // THE MUST-MISS FOR THE TEST ABOVE: the registry side hands over a census of its
+        // own with nothing refused in it.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+
+        var result = await new InstallerQueryService(msi, (_, _) =>
+                new InstallerQueryService.FallbackRead(0, 0,
+                    ProductPatchSets: HealthyPatchSets(msi), Paths: new InstallerQueryService.PathCensus()))
+            .GetRegisteredPackagesAsync();
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        AssertOffered(row, expectedState: 2);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+    }
+
+    [Fact]
+    public async Task A_row_withheld_while_both_conditions_held_carries_the_flag()
+    {
+        // D's patch list is abandoned, so the scan could not account for every installed
+        // product either. The flag records that this condition held when the row lost its
+        // verdict, whatever else did, so the opt-in report still counts the file here.
+        var msi = ASupersededPatchBesideProductC(UnrelatedPackageUnsettled);
+        msi.AddProduct("{D}");
+        msi.SetProductProperty("{D}", "LocalPackage", @"C:\Windows\Installer\d.msi");
+        msi.PatchEnumResult["{D}"] = InvalidParameter;
+
+        var result = await RunHealthy(msi);
+
+        AssertWithheldOnAnUnsettledPath(Assert.Single(result.Packages, r => r.PatchState == 2));
+        Assert.Equal(1, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task A_row_withheld_on_an_unaccounted_product_alone_does_not_carry_the_flag()
+    {
+        // The same machine with C's value spelled ordinarily: the row is withheld on the
+        // unaccounted product alone.
+        var msi = ASupersededPatchBesideProductC(@"C:\Windows\Installer\c.msi");
+        msi.AddProduct("{D}");
+        msi.SetProductProperty("{D}", "LocalPackage", @"C:\Windows\Installer\d.msi");
+        msi.PatchEnumResult["{D}"] = InvalidParameter;
+
+        var result = await RunHealthy(msi);
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        AssertWithheldByADegradedEnumeration(row, expectedState: 2);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+        Assert.Equal(1, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task A_row_an_earlier_check_withheld_does_not_carry_the_flag()
+    {
+        // A's patch set is unestablished, so the per-product condition withholds the row
+        // before the scan-wide withholding runs, which then finds no verdict left to take.
+        var msi = ASupersededPatchBesideProductC(UnrelatedPackageUnsettled);
+
+        var result = await RunWithPatchSets(msi,
+            ("{A}", ProductPatchSet.Unestablished), ("{C}", ProductPatchSet.AllNonRemovable));
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
+        Assert.True(result.Census.AnyRecordedPathUnestablished);
+    }
+
+    [Fact]
+    public async Task A_superseded_patch_file_that_would_not_read_keeps_its_marker_on_such_a_scan()
+    {
+        // WHERE THE SUPERSEDED FILE HAS GONE. A cached file that is not there does not
+        // read, so the per-pairing pass withholds its row with the unread-file marker set,
+        // before the scan-wide withholding runs. The row keeps the marker, does not carry
+        // the flag, and the missing-files split leaves it out on the marker. B's
+        // registration of the same file, in the unsettled spelling, is a row of its own
+        // naming the same absent file, and an applied row whose file is missing is always
+        // counted, so the warning names B's program through that row.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddProduct("{B}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+        msi.AddPatch("{B}", "{P}", localPackage: SharedPatchUnsettled, state: "1", uninstallable: "0");
+
+        var result = await new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, 0, ProductPatchSets: HealthyPatchSets(msi)),
+                identityReader: new OnePatchFileUnread("shared.msp"))
+            .GetRegisteredPackagesAsync();
+
+        var superseded = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.True(superseded.RemovableWithheld);
+        Assert.True(superseded.WithheldOnUnreadableFile);
+        Assert.False(superseded.WithheldOnRecordedPathUnestablished);
+        Assert.False(MissingFilesReport.Affected(superseded with { FileExists = false }));
+
+        var applied = Assert.Single(result.Packages, r => r.PatchState == 1);
+        Assert.True(MissingFilesReport.Affected(applied with { FileExists = false }));
+    }
+
+    /// <summary>
+    /// A package reader under which the file whose name ends in <paramref name="leaf"/>
+    /// yields nothing, as a cached file that is not there yields nothing, and every other
+    /// file reads as a patch naming no product.
+    /// </summary>
+    private sealed class OnePatchFileUnread(string leaf) : IPackageIdentityReader
+    {
+        public PackageIdentity? Read(string filePath, bool isPatch, out string detail)
+        {
+            detail = string.Empty;
+            return filePath.EndsWith(leaf, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : new PackageIdentity(string.Empty, isPatch, Array.Empty<string>());
+        }
+    }
+
+    /// <summary>
+    /// The real query service over <paramref name="msi"/> with the registry answering for
+    /// every product as an ordinary machine's does, for the re-verify to run.
+    /// </summary>
+    private static InstallerQueryService HealthyQuery(FakeMsiApi msi) =>
+        new(msi, (_, _) => new InstallerQueryService.FallbackRead(0, 0, ProductPatchSets: HealthyPatchSets(msi)));
+
+    [Fact]
+    public async Task The_check_before_a_Move_or_Delete_drops_a_superseded_patch_on_such_a_machine()
+    {
+        // The re-verify runs the same enumeration, meets the same unsettled value and
+        // withholds the row the same way, so the file comes out of the batch under the
+        // cause a withheld row supports. The candidate is the path the enumeration gives
+        // the row, which is the path the scan offered.
+        var msi = ASupersededPatchBesideProductC(UnrelatedPackageUnsettled);
+        var query = HealthyQuery(msi);
+        var candidate = Assert.Single(
+            (await query.GetRegisteredPackagesAsync()).Packages, r => r.PatchState == 2).LocalPackagePath;
+
+        var result = await new RemovableReverifier(query, msi).ReverifyAsync(new[] { candidate });
+
+        Assert.Empty(result.Surviving);
+        Assert.Equal(new[] { candidate }, result.Dropped);
+        Assert.Equal(new HeldBackReasons(RecordsUnreadable: 1), result.Reasons);
+    }
+
+    [Fact]
+    public async Task The_same_check_where_every_recorded_path_settles_keeps_the_patch_in_the_batch()
+    {
+        // THE MUST-MISS FOR THE TEST ABOVE: C's value spelled ordinarily.
+        var msi = ASupersededPatchBesideProductC(@"C:\Windows\Installer\c.msi");
+        var query = HealthyQuery(msi);
+        var candidate = Assert.Single(
+            (await query.GetRegisteredPackagesAsync()).Packages, r => r.PatchState == 2).LocalPackagePath;
+
+        var result = await new RemovableReverifier(query, msi).ReverifyAsync(new[] { candidate });
+
+        Assert.Equal(new[] { candidate }, result.Surviving);
+        Assert.Empty(result.Dropped);
+    }
+
     // ---- Both sources degraded at once refuses the scan ----
     //
     // Withholding the removable class answers a claim the API loop lost because

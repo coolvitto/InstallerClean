@@ -74,7 +74,8 @@ public class ResultLogEntryTests
         WithheldContainmentRefusedCount: 0,
         WithheldContainmentUnestablishedCount: 0,
         SupersededContainmentRefusedCount: 0,
-        SupersededContainmentUnestablishedCount: 0);
+        SupersededContainmentUnestablishedCount: 0,
+        SupersededRecordedPathUnestablishedCount: 0);
 
     private static MachineInfo SampleMachine() => new(
         ShortNameCreation: ShortNameCreationLabels.NoVolumes,
@@ -277,6 +278,9 @@ public class ResultLogEntryTests
                 // Superseded rows the containment check kept back, by its verdict. They
                 // are registered rows and no part of the split above.
                 "supersededContainmentRefusedCount", "supersededContainmentUnestablishedCount",
+                // Superseded rows withheld on a recorded path the scan could not settle:
+                // a sub-count of withheldPatchCount, never added to it.
+                "supersededRecordedPathUnestablishedCount",
             ],
             root.GetProperty("scan").EnumerateObject().Select(p => p.Name));
 
@@ -811,8 +815,16 @@ public class ResultLogEntryTests
         var withheld = Enumerable.Range(1, 6)
             .Select(i => new OrphanedFile($@"C:\w{i}.msi", 11, false, false, false, "Withheld"))
             .ToList();
+        // Two of the four are superseded rows withheld on an unsettled recorded path, the
+        // first with its file on disk and the second with its file gone, so the count read
+        // off these rows is 1: a figure no other member here carries, and one the on-disk
+        // test has to hold at 1 rather than 2.
         var registered = Enumerable.Range(1, 4)
-            .Select(i => new RegisteredPackage($@"C:\r{i}.msi", $"Product {i}", $"{{code-{i}}}"))
+            .Select(i => i <= 2
+                ? new RegisteredPackage($@"C:\r{i}.msp", $"Product {i}", $"{{code-{i}}}",
+                    PatchState: 2, RemovableWithheld: true, FileExists: i == 1,
+                    WithheldOnRecordedPathUnestablished: true)
+                : new RegisteredPackage($@"C:\r{i}.msi", $"Product {i}", $"{{code-{i}}}"))
             .ToList();
 
         var scan = new ScanResult(
@@ -869,6 +881,7 @@ public class ResultLogEntryTests
         Assert.Equal(30, info.WithheldContainmentUnestablishedCount);
         Assert.Equal(32, info.SupersededContainmentRefusedCount);
         Assert.Equal(33, info.SupersededContainmentUnestablishedCount);
+        Assert.Equal(1, info.SupersededRecordedPathUnestablishedCount);
     }
 
     [Fact]

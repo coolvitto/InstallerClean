@@ -760,34 +760,36 @@ public sealed class FileSystemScanService : IFileSystemScanService
             // with nothing pointing back at this.
             //
             // AND A WITHHELD ROW FIRES TOO, WITH ONE EXCEPTION, which turns on what the
-            // flag means. It means the enumeration was short of a product, so the whole
-            // class is withheld, and it ALSO means this product's patch set could not be
-            // established. Such a row fires, and the second reading is why: where the
-            // app cannot say that nothing could reach for the file, it has not
-            // established that the absence is harmless, so the benign side is closed
-            // to it.
+            // flag means. It means the scan could not establish something the offer
+            // needs, whether about this patch or about the machine as a whole. Such a row
+            // fires: where the app cannot say that nothing could reach for the file, it
+            // has not established that the absence is harmless, so the benign side is
+            // closed to it.
             //
             // THE EXCEPTION IS A ROW WITHHELD ONLY BECAUSE ITS PATCH FILE COULD NOT BE
             // READ, and for a row that has reached this branch the file is GONE, so that
             // read is a read of the very file whose absence is the subject. It could not
             // have succeeded for anybody, and it fails identically whatever removed the
-            // file, so treating it as a reason to warn had the app raise an alarm about a
-            // file the same scan had positively established nothing could reach for.
+            // file, so the row is judged on its verdict alone, and a file the same scan
+            // positively established nothing could reach for raises no alarm.
             //
-            // THAT EXCEPTION HOLDS ON A RUN THAT CAME UP SHORT ELSEWHERE. A scan-wide
-            // withholding that cleared this marker on any run that lost a claim would
-            // put the row back under the banner on the strength of a count whose terms
-            // are all about OTHER products. The residual such a count reaches for is
-            // real and is answered where answering still changes an outcome: such a run
-            // removes no superseded patch at all.
+            // THAT EXCEPTION HOLDS ON A RUN THAT CAME UP SHORT ELSEWHERE, and the
+            // scan-wide withholding leaves the marker alone. Clearing it on a run that
+            // lost a claim would put the row back under the banner on the strength of a
+            // count whose terms are all about OTHER products. A recorded path the run
+            // could not settle is a registration with a row of its own, and that row is
+            // judged here on its own terms. What either condition reaches for is
+            // answered where answering still changes an outcome: such a run removes no
+            // superseded patch at all.
             //
             // WHAT STILL FIRES FROM THE WITHHELD SIDE. A row whose patch set could not be
             // established carries an Unestablished verdict, so the state-and-verdict test
-            // reports it without the flag being consulted. And a run whose machine-wide
-            // patch enumeration did not answer downgrades every removable path with no
-            // marker set, so such a row reaches here withheld and unmarked and is
-            // reported. See MissingFilesReport.Affected, which owns the expression; this
-            // comment explains the branch and must never grow a second copy of it.
+            // reports it without the flag being consulted. And a row withheld with no
+            // marker set reaches here withheld and unmarked and is reported: every row
+            // the scan-wide withholding took is one, and so is every removable path on a
+            // run whose machine-wide patch enumeration did not answer. See
+            // MissingFilesReport.Affected, which owns the expression; this comment
+            // explains the branch and must never grow a second copy of it.
             if (exists)
             {
                 stillUsedBytes += size;
@@ -1034,11 +1036,11 @@ public sealed class FileSystemScanService : IFileSystemScanService
         return new ScanResult(removable.AsReadOnly(), stillUsed, stillUsedBytes,
             missingAffected, missingUnaffected,
             // WITHHELD COUNTS WHAT THE WITHHOLDING COST THIS RUN: superseded rows on
-            // disk that the scan would have offered had it been able to establish that
-            // nothing on any product sharing them could roll back onto the file.
-            // Counted off the kept rows rather than tallied, on the same reasoning as
-            // the three counts above it, and over the rows whose file is still there,
-            // which is the half the partition member below deliberately does not share.
+            // disk whose removable verdict the scan took away because it could not
+            // establish something the offer needs. Counted off the kept rows rather than
+            // tallied, on the same reasoning as the three counts above it, and over the
+            // rows whose file is still there, which is the half the partition member
+            // below deliberately does not share.
             query.UnaccountedProductCount, withheldCost,
             query.Census,
             // Read after the classification is settled, so a probe that threw

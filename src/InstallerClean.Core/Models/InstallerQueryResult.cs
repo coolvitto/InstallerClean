@@ -10,14 +10,16 @@ namespace InstallerClean.Models;
 /// <see cref="RegisteredPackage.IsRemovable"/> only where Windows reported the patch
 /// SUPERSEDED, the patch positively declared itself non-removable, and every product
 /// it is registered under was established to hold no patch that could be uninstalled
-/// and roll back onto its file. An obsoleted patch never carries it, being off the
+/// and roll back onto its file, on a scan that accounted for every installed product
+/// and settled every recorded path. An obsoleted patch never carries it, being off the
 /// offer for policy rather than for safety, and neither does a row whose State or
 /// Uninstallable read failed.
 /// </param>
 /// <param name="UnaccountedProductCount">
-/// Installed products this enumeration did not account for. The trigger for
-/// withholding the removable class, and the figure the command line's
-/// Application-log notice about that withholding carries.
+/// Installed products this enumeration did not account for. One of the two triggers
+/// for withholding the removable class, the other being
+/// <see cref="EnumerationCensus.AnyRecordedPathUnestablished"/>, and the figure the
+/// command line's Application-log notice carries.
 ///
 /// THREE contributors, and only the first is a failure to read: a product whose
 /// row came back but whose LocalPackage value, or one of whose patch rows, would
@@ -64,11 +66,13 @@ namespace InstallerClean.Models;
 /// that does not enumerate patches.
 /// </param>
 /// <param name="Census">
-/// What the enumeration measured about itself and about the machine. The scan and the
-/// check made just before a Move or Delete decide from it, with the registration side's
-/// identity reads, whether the walk-derived offer is withheld wholesale (see
-/// <see cref="WithholdingLegs"/>). The scan carries it into its own result, where the
-/// opt-in report reads it and the command line names the withholding legs that fired.
+/// What the enumeration measured about itself and about the machine. The enumeration
+/// decides from it whether the superseded rows are withheld, before
+/// <see cref="Packages"/> is returned. The scan and the check made just before a Move or
+/// Delete decide from it, with the registration side's identity reads, whether the
+/// walk-derived offer is withheld wholesale (see <see cref="WithholdingLegs"/>). The
+/// scan carries it into its own result, where the opt-in report reads it and the
+/// command line names the withholding legs that fired.
 /// Default on a result built by anything that does not enumerate, which reads as a
 /// census nobody took rather than as a machine where every term was zero; only a real
 /// enumeration's result should be read for these.
@@ -517,8 +521,10 @@ public readonly record struct EnumerationCensus(
 
     /// <summary>
     /// Whether this scan met any recorded path it could not settle, over every
-    /// population above. THE ONE THING THE WITHHOLDING ASKS, and the reason it is
-    /// here rather than in the service that acts on it.
+    /// population above. THE ONE THING BOTH WITHHOLDINGS ON IT ASK: the walk-derived
+    /// offer's, through <see cref="WithholdingLegs"/>, and the superseded rows', in the
+    /// enumeration's scan-wide withholding. That is the reason it is here rather than
+    /// in either service that acts on it.
     ///
     /// A rule that named the populations itself would be one edit away from silently
     /// not acting on a population added later: the build stays green, the new counter

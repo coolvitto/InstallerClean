@@ -57,18 +57,18 @@ namespace InstallerClean.Models;
 /// this count only where Windows reports the patch superseded or obsoleted, AND the
 /// per-product condition positively established that nothing on any product sharing
 /// it could be uninstalled and roll back onto its file, AND this scan did not
-/// withhold that row's verdict. Everything else is in here: a product's own cached
-/// package, an applied patch, a patch whose state no read established, a path only
-/// the registry fallback named, every superseded row whose product condition could
-/// not be settled, and every row a scan that lost a claim held back.
+/// withhold that row's verdict, unless it was withheld on a failed read of its own
+/// patch file. Everything else is in here: a product's own cached package, an
+/// applied patch, a patch whose state no read established, a path only the registry
+/// fallback named, every superseded row whose product condition could not be
+/// settled, and every row withheld on anything else, the scan-wide withholding's
+/// included.
 ///
-/// THE THIRD CONJUNCT ARRIVED LAST AND IT CLOSES A SILENCE. A run that lost a claim
-/// anywhere withholds the whole removable class, and it does that to rows the
-/// per-product pass had already judged clean, so such a row carries the withheld flag
-/// and an AllNonRemovable verdict at once. Read on the verdict alone it left this
-/// count, and the notice, and the program's name, all of which simply did not appear.
-/// A scan that has just declined to rely on a verdict may not then rely on it to stay
-/// quiet.
+/// THE THIRD CONJUNCT KEEPS A WITHHELD ROW IN THE COUNT. The scan-wide withholding
+/// takes the verdict off rows the per-product pass had already judged clean, so such
+/// a row carries the withheld flag and an AllNonRemovable verdict at once. A scan that
+/// has declined to rely on that verdict does not rely on it to leave the row out of
+/// this count, the notice or the program's name.
 ///
 /// IT STATES NO CAUSE AND NOTHING BUILT ON IT MAY EITHER. One cause named for a set
 /// that can have several is false of some of its members, and this
@@ -119,11 +119,12 @@ namespace InstallerClean.Models;
 /// no installed product still needed them.
 ///
 /// WHAT THE WITHHOLDING COST THIS RUN: rows Windows reports superseded whose
-/// file is on disk and which declared themselves non-removable, held back because a
-/// read established nothing. Obsoleted rows are NOT in it; they are not withheld,
-/// they are simply not offered, and they have their own count. The predicate settles
-/// it: nothing reaches the flag without having
-/// carried IsRemovable, and IsRemovablePatch requires state 2. THAT IS A
+/// file is on disk and which declared themselves non-removable, held back because the
+/// scan could not establish something the offer needs, about the patch or about the
+/// machine as a whole. Obsoleted rows are NOT in it; they are not
+/// withheld, they are simply not offered, and they have their own count. The predicate
+/// settles it: nothing reaches the flag without having carried IsRemovable, and
+/// IsRemovablePatch requires state 2. THAT IS A
 /// USER-FACING CLAIM RATHER THAN AN INTERNAL ONE: the command line names the class
 /// in as many words (<c>Cli.SupersededHeldBack</c>), so this count and that noun
 /// have to agree.
@@ -133,8 +134,13 @@ namespace InstallerClean.Models;
 /// <see cref="ProductPatchSet.RemovablePatchPresent"/>, and the downgrade it reaches
 /// passes withheld FALSE, because the scan positively established a live claim
 /// rather than failing to establish anything. Worse() lets it beat Unestablished
-/// where a row meets both, so the mixed case is excluded with it. What is left is
-/// exactly one thing, in Downgrade's own words: a read that established nothing.
+/// where a row meets both, so the mixed case is excluded with it. What is left is the
+/// scan failing to establish something: a read about the patch that established
+/// nothing, in Downgrade's own words, or one of the two conditions on the whole machine
+/// that withhold every such row at once, a product the scan could not account for and
+/// a recorded path it could not settle.
+/// <see cref="SupersededRecordedPathUnestablishedCount"/> counts the rows withheld while
+/// the second held.
 ///
 /// THE ON-DISK QUALIFIER IS THE WHOLE DIFFERENCE FROM
 /// <see cref="RegisteredWithheldCount"/> AND IT IS LOAD-BEARING. A row whose file
@@ -148,8 +154,10 @@ namespace InstallerClean.Models;
 /// <param name="Census">
 /// What the enumeration behind this scan measured about itself and about the
 /// machine, carried straight through from
-/// <see cref="InstallerQueryResult.Census"/>. Instrumentation for the opt-in
-/// report; nothing in the app reads it to decide anything.
+/// <see cref="InstallerQueryResult.Census"/>. The opt-in report reads it, and the
+/// command line names the withholding legs that fired from it
+/// (<see cref="WithholdingLegsFired"/>). The withholdings it drives are decided on the
+/// enumeration's own copy, before this result is built.
 /// </param>
 /// <param name="ShortNameCreation">
 /// The machine's 8dot3 short-name creation policy, one of
@@ -645,6 +653,23 @@ public record ScanResult(
     /// <see cref="SupersededContainmentBytes"/>.
     /// </summary>
     public long SupersededHeldBackBytes => SupersededWithheldBytes + SupersededContainmentBytes;
+
+    /// <summary>
+    /// How many superseded files this scan withheld on a recorded path it could not
+    /// settle: rows carrying
+    /// <see cref="RegisteredPackage.WithheldOnRecordedPathUnestablished"/> whose file is on
+    /// disk. The opt-in report carries it as a count of its own.
+    ///
+    /// A SUB-COUNT OF <see cref="WithheldCount"/>, over the same on-disk test, so it never
+    /// exceeds it. It counts every row the enumeration's scan-wide withholding took while
+    /// that condition held, including a row the unaccounted-products condition withheld at
+    /// the same time, so it answers how many files this condition holds back whatever else
+    /// fired. Giving the other condition precedence would make it read nought on a machine
+    /// meeting both. A row an earlier pass had already withheld is not in it, this
+    /// condition having taken nothing from that row.
+    /// </summary>
+    public int SupersededRecordedPathUnestablishedCount =>
+        RegisteredPackages.Count(p => p.WithheldOnRecordedPathUnestablished && p.FileExists);
 
     /// <summary>
     /// Whether the window's finished screen, on a run that offered nothing, speaks of

@@ -591,9 +591,9 @@ internal static class Program
             // any of the four either.
             //
             // A MACHINE THE SCAN WOULD NOW OFFER NO WALKED FILE ON DOES NOT REFUSE
-            // THE RUN. The re-verify drops the walk-derived half of the batch, each
-            // file counted in heldBack, and the superseded half goes on, as a fresh
-            // scan would offer it.
+            // THE RUN. The re-verify drops the walk-derived half of the batch and any
+            // superseded file a fresh scan would now hold back, each counted in
+            // heldBack, and the rest of the batch goes on.
             var heldBack = reverify.Reasons;
 
             var filePaths = survivingFiles.Select(f => f.FullPath).ToList();

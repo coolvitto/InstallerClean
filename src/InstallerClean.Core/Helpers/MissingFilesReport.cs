@@ -81,12 +81,16 @@ internal static class MissingFilesReport
     ///
     /// SO THE ROW KEEPS THAT VERDICT, on a run that came up short elsewhere as much as on
     /// one that did not. The scan-wide withholding takes the removable verdict off every
-    /// row still carrying one and leaves this marker alone. The count it fires on is
-    /// machine-level, and its terms are a failed read on a product the enumeration DID
-    /// return, a product the registry saw and the enumeration did not, and a registry key
-    /// Windows would not answer about. None of them is "a holder of this patch went
-    /// unseen", so none of them bears on this file. Such a run removes no superseded patch
-    /// at all.
+    /// row still carrying one and leaves this marker alone. It fires on two machine-level
+    /// conditions. The terms of the first are a failed read on a product the enumeration
+    /// DID return, a product the registry saw and the enumeration did not, and a registry
+    /// key Windows would not answer about; none of them is "a holder of this patch went
+    /// unseen", so none of them bears on this file. The second, a recorded path the scan
+    /// could not settle, can be exactly that holder, and the holder is then a row of its
+    /// own: where this file has gone, a registration that means it but is kept in the
+    /// unsettled spelling names the same absent file, or names nothing, so that row reads
+    /// missing too and is judged here on its own terms. An applied row whose file is
+    /// missing is always reported. Such a run removes no superseded patch at all.
     ///
     /// THE EVIDENCE IS OF THE KIND THE OFFER ACTS ON. The verdict that keeps this row out
     /// of the count is the per-product verdict a superseded patch has to carry to be

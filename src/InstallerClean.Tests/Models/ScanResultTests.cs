@@ -728,6 +728,27 @@ public class ScanResultTests
     }
 
     [Fact]
+    public void Superseded_files_withheld_on_an_unsettled_recorded_path_are_counted_where_the_file_is_on_disk()
+    {
+        // Three withheld superseded rows: one the scan-wide withholding took on an unsettled
+        // recorded path with its file on disk, one it took with its file gone, and one an
+        // earlier check withheld. Only the first is a file this condition holds back.
+        var result = new ScanResult([],
+            [
+                WithheldSuperseded("present.msp", onUnsettledPath: true, fileExists: true),
+                WithheldSuperseded("gone.msp", onUnsettledPath: true, fileExists: false),
+                WithheldSuperseded("earlier.msp", onUnsettledPath: false, fileExists: true),
+            ], 0);
+
+        Assert.Equal(1, result.SupersededRecordedPathUnestablishedCount);
+    }
+
+    private static RegisteredPackage WithheldSuperseded(string name, bool onUnsettledPath, bool fileExists) =>
+        new(@"C:\Windows\Installer\" + name, "Product", "{A}",
+            PatchState: 2, RemovableWithheld: true, FileExists: fileExists,
+            WithheldOnRecordedPathUnestablished: onUnsettledPath);
+
+    [Fact]
     public void Files_from_the_walk_the_containment_check_kept_back_are_held_back_per_file()
     {
         // Both containment arms on the withheld list and nothing else. They are counted

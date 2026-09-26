@@ -296,38 +296,12 @@ public class FileSystemScanServiceIntegrationTests : IDisposable
         Assert.Empty(result.WithheldFiles!);
     }
 
-    [Fact]
-    public async Task An_unspellable_recorded_path_does_not_withhold_a_superseded_row()
-    {
-        // The withholding covers the WALK-DERIVED half only. A superseded patch
-        // reaches the offer from its own registration, judged on products through
-        // registry keys read by product and patch code, and the rule withholds the
-        // walk's unclaimed candidates, which a superseded row never is.
-        var superseded = Path.Combine(_fakeInstallerDir, "superseded.msp");
-        File.WriteAllBytes(superseded, new byte[] { 3, 3, 3 });
-
-        var query = Substitute.For<IInstallerQueryService>();
-        query.GetRegisteredPackagesAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
-            .Returns(new InstallerQueryResult(
-                new List<RegisteredPackage>
-                {
-                    new(superseded, "Product", "{P}", PatchState: 2, IsRemovable: true),
-                }.AsReadOnly(),
-                Census: new EnumerationCensus(PathNormalisationRefusedAtFullPathCount: 1)));
-
-        var result = await new FileSystemScanService(query, null, _fakeInstallerDir).ScanAsync();
-
-        Assert.Single(result.RemovableFiles);
-        Assert.Equal("superseded.msp", result.RemovableFiles[0].FileName);
-        Assert.Empty(result.WithheldFiles!);
-    }
-
     /// <summary>
     /// THE WIRE BETWEEN THE TWO ENDS, which nothing exercised. Both ends were
     /// already covered and neither could see this one. The enumeration's end is
     /// pinned by the query service's own fixtures: a real value goes through the
     /// real normalisation and the right counter moves while the other three do not.
-    /// The scan's end is the pair of tests above, driven with a census written by
+    /// The scan's end is the tests above, driven with a census written by
     /// hand. Between them sits one property read on a record built by merging the
     /// API loop's tally with the registry fallback's, and a scan whose census never
     /// reached the rule would look exactly like a machine with nothing to withhold.
@@ -373,6 +347,68 @@ public class FileSystemScanServiceIntegrationTests : IDisposable
 
         Assert.Equal(2, result.RemovableFiles.Count);
         Assert.Empty(result.WithheldFiles!);
+    }
+
+    [Fact]
+    public async Task A_refusal_a_real_enumeration_counted_withholds_a_superseded_patch_too()
+    {
+        // A superseded patch on the disk, on a machine whose registry answers for every
+        // product, beside one other registration recorded in a spelling nothing settles.
+        // The enumeration takes the patch's removable verdict away, and the scan keeps the
+        // file, counts it among the superseded files withheld, and counts it again among
+        // those withheld on that condition.
+        var superseded = Path.Combine(_fakeInstallerDir, "superseded.msp");
+        File.WriteAllBytes(superseded, new byte[] { 3, 3, 3 });
+
+        var enumerated = await EnumerateASupersededPatchBeside(superseded, "C:\\Windows\\Installer\\bad\0name.msi");
+
+        var result = await new FileSystemScanService(
+            QueryReturning(enumerated), null, _fakeInstallerDir).ScanAsync();
+
+        Assert.Empty(result.RemovableFiles);
+        Assert.Equal(1, result.WithheldCount);
+        Assert.Equal(1, result.SupersededRecordedPathUnestablishedCount);
+    }
+
+    [Fact]
+    public async Task The_same_machine_with_every_recorded_path_spelled_offers_the_superseded_patch()
+    {
+        // THE MUST-MISS CONTROL: the other registration spelled ordinarily, and nothing
+        // else different.
+        var superseded = Path.Combine(_fakeInstallerDir, "superseded.msp");
+        File.WriteAllBytes(superseded, new byte[] { 3, 3, 3 });
+
+        var enumerated = await EnumerateASupersededPatchBeside(superseded, @"C:\Windows\Installer\ordinary.msi");
+
+        var result = await new FileSystemScanService(
+            QueryReturning(enumerated), null, _fakeInstallerDir).ScanAsync();
+
+        Assert.Equal("superseded.msp", Assert.Single(result.RemovableFiles).FileName);
+        Assert.Equal(0, result.WithheldCount);
+        Assert.Equal(0, result.SupersededRecordedPathUnestablishedCount);
+    }
+
+    /// <summary>
+    /// A real enumeration, through the scriptable API fake, of product A holding a
+    /// superseded patch whose cached file is <paramref name="patchPath"/>, and product C
+    /// whose own cached package is recorded as <paramref name="otherPackage"/>. The
+    /// registry answers for both products' patch sets as an ordinary machine's does.
+    /// </summary>
+    private static async Task<InstallerQueryResult> EnumerateASupersededPatchBeside(
+        string patchPath, string otherPackage)
+    {
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: patchPath, state: "2", uninstallable: "0");
+        msi.AddProduct("{C}");
+        msi.SetProductProperty("{C}", "LocalPackage", otherPackage);
+        return await new InstallerQueryService(msi, (_, _) => new InstallerQueryService.FallbackRead(0, 0,
+                ProductPatchSets: new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["{A}"] = ProductPatchSet.AllNonRemovable,
+                    ["{C}"] = ProductPatchSet.AllNonRemovable,
+                }))
+            .GetRegisteredPackagesAsync();
     }
 
     /// <summary>

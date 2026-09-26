@@ -5,22 +5,22 @@ using NSubstitute;
 namespace InstallerClean.Tests.Services;
 
 /// <summary>
-/// THE ACT-TIME HALF OF THE SCAN'S WHOLESALE WITHHOLDING, which until 3.0.0 did not
-/// exist at all.
+/// THE ACT-TIME HALF OF THE SCAN'S WHOLESALE WITHHOLDING.
 ///
 /// The scan offers no walk-derived file on a machine whose recorded paths it could not
 /// settle, or one carrying the same program installed twice. This pass re-runs the whole
-/// enumeration immediately before a Move or a Delete and never asked either question, so
+/// enumeration immediately before a Move or a Delete and asks both questions again, so on
 /// a machine that reached one of those states between the list appearing and the button
-/// being pressed acted on a batch the scan itself would by then have refused. Nothing was
-/// wrong with any file in it; the machine had changed underneath it.
+/// being pressed, the walk-derived files leave the batch as the scan would by then have
+/// held them back. Nothing need be wrong with any file in it; the machine has changed
+/// underneath it.
 ///
-/// IT DROPS THE WALK-DERIVED HALF AND NOT THE WHOLE BATCH, which is what the version
-/// removed in 3.0.0 did. That was right when the whole offer was walk-derived. A
-/// superseded registration is offered beside it now, judged by product code and patch
-/// code and untouched by either condition, so refusing those as well would keep back
-/// files the same scan would still offer a moment later. A path no registration names is
-/// the walk-derived half, and that is the test.
+/// IT DROPS THE WALK-DERIVED HALF AND NOT THE WHOLE BATCH. A superseded registration is
+/// judged by its own row in the same enumeration: a recorded path that will not settle
+/// takes the row's removable verdict away there, and the pass drops the file on that row,
+/// while a second instance does not reach it. Refusing the whole batch on a second instance
+/// would keep back superseded files the same scan would still offer a moment later. A path
+/// no registration names is the walk-derived half, and that is the test.
 ///
 /// READ WHAT EACH FIXTURE SETS UP. They differ in the census alone, or in whether a
 /// registration names the path, and nothing else.

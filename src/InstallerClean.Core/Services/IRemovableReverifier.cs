@@ -179,7 +179,9 @@ public enum HeldBackReason
     /// rather than a convenience: a patch's own State or Uninstallable read failing
     /// during the re-verify's enumeration
     /// (<see cref="Models.RegisteredPackage.VerdictUnreadable"/>); a superseded patch
-    /// whose product's patch set that enumeration could not establish
+    /// whose removable verdict that enumeration took away because it could not establish
+    /// something the offer needs, such as its products' patch sets, every installed
+    /// product or every recorded path
     /// (<see cref="Models.RegisteredPackage.RemovableWithheld"/>); and a read under the
     /// installer lease failing: the same pairing's, or the Uninstallable read of a
     /// patch on a product the batch's pairings name, where an answer that the
@@ -212,11 +214,13 @@ public enum HeldBackReason
     /// cause at all.
     ///
     /// IT DROPS THE WALK-DERIVED HALF OF A BATCH AND NOT THE WHOLE OF IT, as the scan
-    /// does. A superseded registration is offered beside the walk-derived files, and
-    /// those rows are judged by product code and are not touched by either condition,
-    /// so dropping them here would keep back files the scan would still offer on the
-    /// same machine a moment later. A path no registration names is the walk-derived
-    /// half, and that is the test used.
+    /// does. A superseded registration is offered beside the walk-derived files and is
+    /// judged by its own row. Where the re-enumeration could not settle a recorded path,
+    /// that row comes back withheld and its path is held under
+    /// <see cref="RecordsUnreadable"/>; the other legs do not touch the row, so dropping
+    /// it here on them would keep back a file the scan would still offer on the same
+    /// machine a moment later. A path no registration names is the walk-derived half,
+    /// and that is the test used.
     /// </summary>
     OwnershipUnestablished,
 

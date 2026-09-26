@@ -60,11 +60,12 @@ public sealed record ResultLogEntry(
     /// KEY WHOSE MEANING CHANGES IS NOT, which is why the missing-files split was
     /// added beside its total rather than over it.
     ///
-    /// SCHEMA 5 ADDS ELEVEN KEYS AND TAKES NONE AWAY: the registry side's failed reads
+    /// SCHEMA 5 ADDS TWELVE KEYS AND TAKES NONE AWAY: the registry side's failed reads
     /// under <c>machine</c>; under <c>scan</c> the six arms of the withholding split
     /// that schema 4 does not carry, so that from 5 the split's eleven counts add up to
-    /// <c>withheldCandidateCount</c>, and the two counts of superseded rows the
-    /// containment check kept back; and under <c>operation</c> a fifth held-back
+    /// <c>withheldCandidateCount</c>, the two counts of superseded rows the
+    /// containment check kept back, and the count of superseded rows withheld on a
+    /// recorded path the scan could not settle; and under <c>operation</c> a fifth held-back
     /// cause, <c>heldBackFileNotConfirmed</c>. Under <c>app</c> it adds
     /// <c>windowsLanguage</c>, the Windows display language with no country, AND
     /// <c>app.language</c> CHANGES WHAT IT MEANS AT 5: it is the language the app was
@@ -745,9 +746,12 @@ public sealed record MachineInfo(
 /// </param>
 /// <param name="WithheldPatchCount">
 /// Superseded files a scan would have offered and did not, on one condition rather
-/// than several: a read established nothing. That covers a scan unable to account for
-/// every installed product, and a product whose patch set could not be established at
-/// all. Reports from builds that offered no registered file carry it as zero.
+/// than several: the scan could not establish something the offer needs. That covers a
+/// read that established nothing, a scan unable to account for every installed
+/// product, a product whose patch set could not be established at all, and a recorded
+/// path the scan could not settle, which the report also counts on its own in
+/// <c>supersededRecordedPathUnestablishedCount</c>. Reports from builds that offered no
+/// registered file carry it as zero.
 /// Obsoleted files are not in it: they are not withheld, they are simply not
 /// offered, and they have their own count.
 ///
@@ -985,6 +989,17 @@ public sealed record MachineInfo(
 /// <c>ScanResult.SupersededContainmentUnestablishedCount</c>. Not to be added to the one
 /// above, for the reason given at the folder walk's pair.
 /// </param>
+/// <param name="SupersededRecordedPathUnestablishedCount">
+/// Superseded files the scan withheld on a recorded path it could not settle: rows the
+/// enumeration's scan-wide withholding took while that condition held, whose file is on
+/// disk (<c>ScanResult.SupersededRecordedPathUnestablishedCount</c>).
+///
+/// A SUB-COUNT OF <paramref name="WithheldPatchCount"/>, never added to it. It counts a
+/// row whether or not the scan also failed to account for every installed product,
+/// which withholds the same rows, so it answers how many files this one condition holds
+/// back, and <paramref name="WithheldPatchCount"/> less this is not a count of any other
+/// condition. A row an earlier check had already withheld is not in it.
+/// </param>
 public sealed record ScanInfo(
     long DurationMs,
     int RegisteredCount,
@@ -1017,7 +1032,8 @@ public sealed record ScanInfo(
     int WithheldContainmentRefusedCount,
     int WithheldContainmentUnestablishedCount,
     int SupersededContainmentRefusedCount,
-    int SupersededContainmentUnestablishedCount)
+    int SupersededContainmentUnestablishedCount,
+    int SupersededRecordedPathUnestablishedCount)
 {
     public static ScanInfo From(ScanResult scan, long durationMs)
     {
@@ -1086,7 +1102,9 @@ public sealed record ScanInfo(
             // are registered rows and not on the withheld list, so they are no part of
             // the split above.
             scan.SupersededContainmentRefusedCount,
-            scan.SupersededContainmentUnestablishedCount);
+            scan.SupersededContainmentUnestablishedCount,
+            // A sub-count of the withheld superseded figure above, never added to it.
+            scan.SupersededRecordedPathUnestablishedCount);
     }
 }
 
