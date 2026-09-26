@@ -260,7 +260,8 @@ public partial class CompletionViewModel : ObservableObject
     /// chooses between them through <see cref="ScanResult.HasUnsettledHeldBack"/>, and a
     /// file kept because Windows holds a record of the program or patch it declares
     /// does not choose this screen. Every other file held back chooses it, a file under
-    /// a day old and a superseded patch included.
+    /// a day old, a file the containment check refused or could not answer for and a
+    /// superseded patch included.
     ///
     /// ONE SCREEN WITH TWO BODIES, CHOSEN BY <paramref name="wholesale"/> AND NOT HERE.
     /// The two say what the scan could not establish, and they could not establish
@@ -291,8 +292,9 @@ public partial class CompletionViewModel : ObservableObject
     /// <see cref="ScanResult.UnsettledHeldBackBytes"/>.
     ///
     /// A FILE THE DECLARED-PRODUCT-INSTALLED OR DECLARED-PATCH-REGISTERED ARM KEPT IS NOT
-    /// AMONG THEM. A file under a day old, a file whose age was not established and a
-    /// superseded patch the scan held back are.
+    /// AMONG THEM. A file under a day old, a file whose age was not established, a file
+    /// the containment check refused or could not answer for and a superseded patch the
+    /// scan held back are.
     ///
     /// THE COMMAND LINE COUNTS THESE FILES IN TWO SENTENCES RATHER THAN ONE, and leaves a
     /// file under a day old out of both, so its figures for one machine need not match

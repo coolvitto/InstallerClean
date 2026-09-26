@@ -178,12 +178,12 @@ public class CliWithholdingReasonsTests
             // above speak for it, and a line here as well would say the same thing
             // twice about one machine. Nor are the declared-product-installed,
             // under-a-day-old and declared-patch-registered arms, whose files the
-            // held-back line does not count, or the age-unestablished arm, whose files
-            // it counts with no list printed under it. All five are spelled out rather
-            // than derived, so that renaming any of them fails this test rather than
-            // quietly widening the exception.
+            // held-back line does not count, or the age-unestablished and two
+            // containment arms, whose files it counts with no list printed under it.
+            // All seven are spelled out rather than derived, so that renaming any of
+            // them fails this test rather than quietly widening the exception.
             if (arm is "Wholesale" or "DeclaredProductInstalled" or "UnderADayOld" or "AgeUnestablished"
-                or "DeclaredPatchRegistered")
+                or "DeclaredPatchRegistered" or "ContainmentRefused" or "ContainmentUnestablished")
                 continue;
 
             Assert.True(named.Contains(arm),

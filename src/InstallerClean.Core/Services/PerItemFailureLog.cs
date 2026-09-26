@@ -50,11 +50,10 @@ namespace InstallerClean.Services;
 /// entries would have carried can still be found, or that it is nowhere. It is a
 /// per-caller string because the answer differs and a wrong one is a lie in the
 /// log, told to somebody reading crash.log after a storm of suppressed failures:
-/// a Move or Delete failure is on the completion screen, where a scan's refused
-/// candidate reaches nothing at all, having been dropped before the result was
-/// built, and an abandoned patch enumeration is the only place the product's
-/// identity is written down. The result log is never the answer: schema 3
-/// carries counts and categorical labels, no paths and no identifiers.
+/// a Move or Delete failure is on the completion screen; a file the scan refused is
+/// kept, and no screen names it as refused; and an abandoned patch enumeration is the
+/// only place the product's identity is written down. The result log is never the
+/// answer: it carries counts and categorical labels, no paths and no identifiers.
 /// </param>
 /// <param name="write">
 /// The sink, defaulting to crash.log. Tests pass their own so pinning the budget

@@ -40,9 +40,11 @@ internal static class CandidateGuard
         Refused,
 
         /// <summary>
-        /// Neither was established: the path could not be resolved, or its
-        /// attributes could not be read. The file is kept, and a caller that
-        /// reports the refusal must not name a cause it has not shown.
+        /// Neither was established: the path could not be resolved, its
+        /// attributes could not be read, or the cache root's own location was not
+        /// established, so a path that resolved could not be compared with it. The
+        /// file is kept, and a caller that reports the refusal must not name a
+        /// cause it has not shown.
         /// </summary>
         Unproven,
     }

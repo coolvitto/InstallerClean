@@ -680,4 +680,90 @@ public class ScanResultTests
         Assert.Equal(2048, result.UnsettledHeldBackBytes);
         Assert.True(result.HasUnsettledHeldBack);
     }
+
+    [Fact]
+    public void Superseded_files_the_containment_check_kept_back_are_counted_on_the_finished_screen()
+    {
+        // A run whose only kept files are superseded rows the containment check refused
+        // or could not answer for. The rows are registered files, so they are on no
+        // withheld list; the finished screen counts them anyway, and a run holding
+        // nothing else back is not given the all-clear.
+        var result = new ScanResult([], [], 0,
+            WithheldFiles: [],
+            SupersededContainmentRefusedCount: 2,
+            SupersededContainmentUnestablishedCount: 1,
+            SupersededContainmentBytes: 7000);
+
+        Assert.Equal(3, result.SupersededHeldBackCount);
+        Assert.Equal(7000, result.SupersededHeldBackBytes);
+        Assert.Equal(3, result.UnsettledHeldBackCount);
+        Assert.Equal(7000, result.UnsettledHeldBackBytes);
+        Assert.True(result.HasUnsettledHeldBack);
+        Assert.False(result.UnsettledHeldBackIsWholesale);
+
+        // The command line's walk sentence is not about them, and its superseded line
+        // reads SupersededHeldBackCount.
+        Assert.Equal(WithholdingAccount.Nothing, result.Withholding);
+        Assert.Equal(0, result.UnestablishedWithheldCount);
+    }
+
+    [Fact]
+    public void Superseded_files_held_back_either_way_are_one_count_with_one_size()
+    {
+        // Distinct figures on each side, so a member left out of the sum, or a size
+        // taken from the wrong side, comes out at a number that cannot be mistaken
+        // for the right one.
+        var result = new ScanResult([], [], 0,
+            WithheldCount: 4,
+            WithheldFiles: [],
+            SupersededWithheldBytes: 100,
+            SupersededContainmentRefusedCount: 20,
+            SupersededContainmentUnestablishedCount: 300,
+            SupersededContainmentBytes: 5000);
+
+        Assert.Equal(324, result.SupersededHeldBackCount);
+        Assert.Equal(5100, result.SupersededHeldBackBytes);
+        Assert.Equal(324, result.UnsettledHeldBackCount);
+        Assert.Equal(5100, result.UnsettledHeldBackBytes);
+    }
+
+    [Fact]
+    public void Files_from_the_walk_the_containment_check_kept_back_are_held_back_per_file()
+    {
+        // Both containment arms on the withheld list and nothing else. They are counted
+        // by both hosts' held-back sentences, the finished screen gives the per-file
+        // reading, and the command line prints its sentence on its own, neither arm
+        // having a reason line.
+        var result = new ScanResult([], [], 0,
+            WithheldFiles: [File("link.msi", 0), File("unread.msp", 4096)],
+            WithheldBy: new WithholdingSplit(ContainmentRefusedCount: 1, ContainmentUnestablishedCount: 1));
+
+        Assert.Equal(2, result.WithheldBy.Total);
+        Assert.Equal(2, result.UnsettledHeldBackCount);
+        Assert.Equal(4096, result.UnsettledHeldBackBytes);
+        Assert.False(result.UnsettledHeldBackIsWholesale);
+
+        Assert.Equal(WithholdingAccount.PerFile, result.Withholding);
+        Assert.True(result.HasWithholdingToReport);
+        Assert.Equal(2, result.UnestablishedWithheldCount);
+        Assert.Equal(4096, result.UnestablishedWithheldBytes);
+        Assert.False(result.NamedConditionsCoverEveryHeldBackFile);
+        Assert.Empty(result.WithheldBy.ArmsFired);
+    }
+
+    [Fact]
+    public void A_file_the_containment_check_kept_back_beside_a_wholesale_withholding_takes_the_per_file_reading()
+    {
+        // The wholesale sentence names a cause about the machine's records, which is
+        // false of a file the containment check kept back: that check asks where the
+        // file is, and nothing about the records.
+        var result = new ScanResult([], [], 0,
+            WithheldFiles: [File("a.msi", 1024), File("b.msi", 2048), File("link.msi", 0)],
+            WithheldBy: new WithholdingSplit(WholesaleCount: 2, ContainmentRefusedCount: 1));
+
+        Assert.Equal(3, result.UnsettledHeldBackCount);
+        Assert.False(result.UnsettledHeldBackIsWholesale);
+        Assert.Equal(WithholdingAccount.PerFile, result.Withholding);
+        Assert.False(result.NamedConditionsCoverEveryHeldBackFile);
+    }
 }

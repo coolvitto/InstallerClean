@@ -246,11 +246,15 @@ namespace InstallerClean.Models;
 /// it.
 /// </param>
 /// <param name="WithheldFiles">
-/// Every candidate this scan declined to offer, in walk order. FOUR DECISIONS PUT A FILE
-/// HERE AND THEY ARE NOT ONE THING, so they are listed rather than covered by a sentence
-/// that would be false of one of them:
+/// Every file from the folder walk this scan declined to offer, each decision's files in
+/// walk order. FIVE DECISIONS PUT A FILE HERE AND THEY ARE NOT ONE THING, so they are
+/// listed rather than covered by a sentence that would be false of one of them:
 ///
-/// The scan could not establish which cached files belong to which programs, which
+/// The containment check refused the file, which is a reparse point or resolves somewhere
+/// other than directly in the folder, or could not answer for it
+/// (<see cref="WithholdingSplit.ContainmentRefusedCount"/> and
+/// <see cref="WithholdingSplit.ContainmentUnestablishedCount"/>); or the scan could not
+/// establish which cached files belong to which programs, which
 /// withholds the whole walk-derived set at once
 /// (<see cref="WithholdingSplit.WholesaleCount"/>, and <see cref="WithholdingLeg"/> for
 /// the three findings that empty the offer wholesale); or this one candidate's own
@@ -267,7 +271,7 @@ namespace InstallerClean.Models;
 /// else let through, its age not being shown to be a day or more
 /// (<see cref="WithholdingSplit.UnderADayOldCount"/> and
 /// <see cref="WithholdingSplit.AgeUnestablishedCount"/>). A run can hold files put here
-/// by any of the four, and a reader of this list may assume none of them.
+/// by any of the five, and a reader of this list may assume none of them.
 ///
 /// NO SURFACE STATES A CAUSE OVER IT AND NONE MAY START. The main window counts these
 /// into its left-alone line. The Details window lists them among the registrations, in
@@ -294,7 +298,10 @@ namespace InstallerClean.Models;
 /// never is. They cannot be reached by the per-file decisions either, and the structure
 /// is what says so: the identity comparison, the screen and the age check all run over
 /// the walk's unclaimed candidates, and a superseded row reaches the offer from the
-/// registered set without ever having been one.
+/// registered set without ever having been one. A superseded row the containment check
+/// refuses stays on <see cref="RegisteredPackages"/>, which already puts it on the
+/// left-alone line, and is counted in <see cref="SupersededContainmentRefusedCount"/> or
+/// <see cref="SupersededContainmentUnestablishedCount"/>.
 ///
 /// IT EXISTS SO A WITHHELD FILE APPEARS ON ONE OF THE TWO SUMMARY LINES. It would
 /// otherwise appear in neither: not offered, and not a registered row either, because
@@ -351,8 +358,36 @@ namespace InstallerClean.Models;
 /// IT IS NOT <see cref="RegisteredSupersededBytes"/>, which sizes every superseded or
 /// obsoleted row the scan is keeping, held back or not.
 ///
-/// APPENDED AFTER EVERY OTHER MEMBER, so a positional construction of the rest still
+/// APPENDED AFTER THE MEMBERS ABOVE IT, so a positional construction of those still
 /// means what it meant.
+/// </param>
+/// <param name="SupersededContainmentRefusedCount">
+/// Superseded rows whose file is on disk, that carried a removable verdict to the offer,
+/// and that the containment check then refused: the recorded path is a reparse point, or
+/// resolves somewhere other than directly in the folder. The row stays on
+/// <see cref="RegisteredPackages"/>, so the left-alone line and the Details window already
+/// have it as a registered file.
+///
+/// IT IS NOT <see cref="WithheldCount"/>, which counts superseded rows on disk whose
+/// removable verdict was taken away. These rows kept theirs.
+/// <see cref="SupersededHeldBackCount"/> adds the three together for both hosts' counts of
+/// files held back, and the opt-in report carries each apart.
+///
+/// APPENDED AFTER <see cref="SupersededWithheldBytes"/>, with the two members after it, so
+/// a positional construction of the members above still means what it meant.
+/// </param>
+/// <param name="SupersededContainmentUnestablishedCount">
+/// The same rows where the containment check could not answer: the path's attributes, or
+/// the location it resolves to, would not read, or the Installer folder's own location was
+/// not established, so where the path resolves could not be compared with it.
+///
+/// NOT ADDED TO <see cref="SupersededContainmentRefusedCount"/> ANYWHERE BUT IN
+/// <see cref="SupersededHeldBackCount"/>, which states no cause. One is a finding about the
+/// file and the other the check failing to answer.
+/// </param>
+/// <param name="SupersededContainmentBytes">
+/// The size of the files the two counts above count. <see cref="SupersededHeldBackBytes"/>
+/// adds it to <see cref="SupersededWithheldBytes"/>.
 /// </param>
 public record ScanResult(
     IReadOnlyList<OrphanedFile> RemovableFiles,
@@ -379,7 +414,10 @@ public record ScanResult(
     long WithheldDeclaredProductInstalledBytes = 0,
     long WithheldUnderADayOldBytes = 0,
     long WithheldDeclaredPatchRegisteredBytes = 0,
-    long SupersededWithheldBytes = 0)
+    long SupersededWithheldBytes = 0,
+    int SupersededContainmentRefusedCount = 0,
+    int SupersededContainmentUnestablishedCount = 0,
+    long SupersededContainmentBytes = 0)
 {
     /// <summary>
     /// Every registration naming a file that is not on disk, the sum of the two
@@ -401,7 +439,7 @@ public record ScanResult(
     /// <summary>Total bytes of the files this scan is offering for removal.</summary>
     public long RemovableTotalBytes => RemovableFiles.Sum(f => f.SizeBytes);
 
-    /// <summary>Total bytes of the files this scan declined to offer.</summary>
+    /// <summary>Total bytes of the files on <see cref="WithheldFiles"/>.</summary>
     public long WithheldTotalBytes =>
         WithheldFiles?.Sum(f => f.SizeBytes) ?? 0;
 
@@ -530,8 +568,8 @@ public record ScanResult(
     ///
     /// WHERE IT IS FALSE, A LIST OF REASONS UNDER THE HELD-BACK SENTENCE WOULD BE SHORT
     /// OF THE FILES THAT SENTENCE COUNTS, so the command line prints the sentence on its
-    /// own. The age-unestablished arm has no reason line and is the arm that makes it
-    /// false; a file no arm counted makes it false too.
+    /// own. The age-unestablished arm and the two containment arms have no reason line
+    /// and are the arms that make it false; a file no arm counted makes it false too.
     ///
     /// WRITTEN AS THE NAMED ARMS ADDING UP TO THE COUNT, so an arm added to
     /// <see cref="WithholdingSplit"/> later without a reason line makes it false rather
@@ -550,41 +588,63 @@ public record ScanResult(
     /// <see cref="WithheldFiles"/> except those
     /// <see cref="WithholdingSplit.DeclaredProductInstalledCount"/> and
     /// <see cref="WithholdingSplit.DeclaredPatchRegisteredCount"/> count, together with
-    /// the superseded files <see cref="WithheldCount"/> counts.
+    /// the superseded files <see cref="SupersededHeldBackCount"/> counts.
     /// <see cref="UnsettledHeldBackBytes"/> is their size.
     ///
     /// THE TWO ARMS LEFT OUT KEEP A FILE BECAUSE WINDOWS HOLDS A RECORD OF THE PROGRAM OR
     /// PATCH IT DECLARES. Every other file held back, and every superseded file
-    /// <see cref="WithheldCount"/> counts, was kept without the scan establishing either
-    /// way whether anything needs it: a file under a day old, a file whose age was not
-    /// established, a superseded patch the scan held back, and a file kept on any other
-    /// verdict alike.
+    /// <see cref="SupersededHeldBackCount"/> counts, was kept without the scan establishing
+    /// that anything needs it: a file under a day old, a file whose age was not
+    /// established, a file the containment check refused or could not answer for, a
+    /// superseded patch the scan held back, and a file kept on any other verdict alike.
     ///
     /// IT IS THE LIST LESS THOSE TWO ARMS, NOT A SUM OF THE OTHERS, so a walk-derived file
     /// no arm counted, or one counted by an arm added to <see cref="WithholdingSplit"/>
     /// later, is counted here.
     ///
     /// THE COMMAND LINE DOES NOT READ IT. It speaks
-    /// <see cref="UnestablishedWithheldCount"/> and <see cref="WithheldCount"/> in separate
-    /// sentences, and the first of those leaves out a file under a day old.
+    /// <see cref="UnestablishedWithheldCount"/> and <see cref="SupersededHeldBackCount"/> in
+    /// separate sentences, and the first of those leaves out a file under a day old.
     /// </summary>
     public int UnsettledHeldBackCount =>
         Math.Max(0, (WithheldFiles?.Count ?? 0)
             - WithheldBy.DeclaredProductInstalledCount
             - WithheldBy.DeclaredPatchRegisteredCount)
-        + WithheldCount;
+        + SupersededHeldBackCount;
 
     /// <summary>
     /// The size of the files <see cref="UnsettledHeldBackCount"/> counts, on the same
     /// reading: the withheld list's size less that of the files the
     /// declared-product-installed and declared-patch-registered arms count, together with
-    /// <see cref="SupersededWithheldBytes"/>.
+    /// <see cref="SupersededHeldBackBytes"/>.
     /// </summary>
     public long UnsettledHeldBackBytes =>
         Math.Max(0, WithheldTotalBytes
             - WithheldDeclaredProductInstalledBytes
             - WithheldDeclaredPatchRegisteredBytes)
-        + SupersededWithheldBytes;
+        + SupersededHeldBackBytes;
+
+    /// <summary>
+    /// How many superseded files this scan kept back from the offer: those
+    /// <see cref="WithheldCount"/> counts, and those the containment check refused or could
+    /// not answer for. The command line's superseded line prints it, and the window's
+    /// finished screen counts it through <see cref="UnsettledHeldBackCount"/>, so the two
+    /// hosts count the same superseded files. <see cref="SupersededHeldBackBytes"/> is
+    /// their size.
+    ///
+    /// IT IS A COUNT AND NEVER A CAUSE. Its three members are different findings, and what
+    /// is true of all of them is that the app could not establish the file is one it can
+    /// offer. The opt-in report carries the three apart and never this sum.
+    /// </summary>
+    public int SupersededHeldBackCount =>
+        WithheldCount + SupersededContainmentRefusedCount + SupersededContainmentUnestablishedCount;
+
+    /// <summary>
+    /// The size of the files <see cref="SupersededHeldBackCount"/> counts:
+    /// <see cref="SupersededWithheldBytes"/> together with
+    /// <see cref="SupersededContainmentBytes"/>.
+    /// </summary>
+    public long SupersededHeldBackBytes => SupersededWithheldBytes + SupersededContainmentBytes;
 
     /// <summary>
     /// Whether the window's finished screen, on a run that offered nothing, speaks of
@@ -650,7 +710,8 @@ public enum WithholdingAccount
     /// THE COMMAND LINE'S SENTENCE COUNTS
     /// <see cref="ScanResult.UnestablishedWithheldCount"/>, NOT THE WHOLE LIST, so a file
     /// any of those three arms kept is left out of it. A file the age check kept because
-    /// its age was not established is in it.
+    /// its age was not established is in it, and so is a file the containment check
+    /// refused or could not answer for.
     /// </summary>
     PerFile,
 
@@ -805,20 +866,22 @@ public static class ShortNameCreationLabels
 /// <summary>
 /// Which decision kept each file on <see cref="ScanResult.WithheldFiles"/> back.
 ///
-/// EXACTLY FOUR DECISIONS PUT A FILE ON THAT LIST AND THEY ARE MUTUALLY EXCLUSIVE
-/// PER FILE, so this is a partition of it rather than nine overlapping views. The
-/// identity comparison keeps one candidate at a time; the wholesale arm keeps every
-/// remaining candidate in one go and the per-file screen and age check are skipped
-/// entirely; the screen keeps a candidate on its own verdict, counted in an arm per
-/// withholding verdict; and the age check keeps a candidate the screen let through that
-/// has not been shown to be a day old, counted in two arms by whether its age was
-/// established. A file an earlier decision has already taken is off the list a later
-/// one is handed, so nothing lands twice.
+/// EXACTLY FIVE DECISIONS PUT A FILE ON THAT LIST AND THEY ARE MUTUALLY EXCLUSIVE
+/// PER FILE, so this is a partition of it rather than eleven overlapping views. The
+/// containment check keeps a file the path comparison left unclaimed, before the
+/// identity comparison sees it, counted in two arms by whether the check refused it or
+/// could not answer; the identity comparison keeps one candidate at a time; the
+/// wholesale arm keeps every remaining candidate in one go and the per-file screen and
+/// age check are skipped entirely; the screen keeps a candidate on its own verdict,
+/// counted in an arm per withholding verdict; and the age check keeps a candidate the
+/// screen let through that has not been shown to be a day old, counted in two arms by
+/// whether its age was established. A file an earlier decision has already taken is off
+/// the list a later one is handed, so nothing lands twice.
 ///
 /// THE COUNTS ARE CARRIED APART BECAUSE THEY ARE READ APART. Each member is one fact
 /// about one machine, and nothing may add any two of them and call the result a
 /// cause: what is true of every file on the list is only that the scan declined to
-/// offer it. The opt-in report carries all nine, each under its own key, and a member
+/// offer it. The opt-in report carries all eleven, each under its own key, and a member
 /// added here goes there too. Inside the app, the declared-product-installed,
 /// under-a-day-old and declared-patch-registered counts are read by
 /// <see cref="ScanResult.UnestablishedWithheldCount"/> and
@@ -826,14 +889,14 @@ public static class ShortNameCreationLabels
 /// <see cref="ScanResult.UnsettledHeldBackCount"/> as well. The wholesale count is read
 /// by <see cref="ScanResult.Withholding"/>,
 /// <see cref="ScanResult.NamedConditionsCoverEveryHeldBackFile"/> and
-/// <see cref="ScanResult.UnsettledHeldBackIsWholesale"/>. The age-unestablished count is
-/// read by <see cref="Total"/> alone, and the other four by <see cref="ArmsFired"/> and
-/// <see cref="ScanResult.NamedConditionsCoverEveryHeldBackFile"/>.
+/// <see cref="ScanResult.UnsettledHeldBackIsWholesale"/>. The age-unestablished and the
+/// two containment counts are read by <see cref="Total"/> alone, and the other four by
+/// <see cref="ArmsFired"/> and <see cref="ScanResult.NamedConditionsCoverEveryHeldBackFile"/>.
 ///
 /// <see cref="Total"/> IS WHAT HOLDS THE PARTITION HONEST, and it is asserted against
 /// the list's own length rather than trusted. A partition is a partition until
-/// somebody adds a branch, and a tenth arm arriving later would appear in none of
-/// these nine while the list grew underneath them.
+/// somebody adds a branch, and a twelfth arm arriving later would appear in none of
+/// these eleven while the list grew underneath them.
 /// </summary>
 /// <param name="UnderADayOldCount">
 /// Candidates the age check kept back as under a day old: every other decision let the
@@ -868,6 +931,27 @@ public static class ShortNameCreationLabels
 /// APPENDED AFTER THE OTHER EIGHT, so a positional construction of the first eight
 /// still means what it meant.
 /// </param>
+/// <param name="ContainmentRefusedCount">
+/// Files from the folder walk that the containment check refused: the file is a reparse
+/// point, or it resolves somewhere other than directly in the folder. The walk reads the
+/// reparse-point attribute off each directory entry, and a file carrying it is counted
+/// here without being put to <see cref="Services.CandidateGuard.CheckSafeToRemove"/>,
+/// which would refuse it on the same attribute. See
+/// <see cref="Services.CandidateGuard.RemovalSafety.Refused"/>.
+///
+/// APPENDED AFTER THE OTHER NINE, so a positional construction of the first nine still
+/// means what it meant.
+/// </param>
+/// <param name="ContainmentUnestablishedCount">
+/// Files from the folder walk that the containment check could not answer for: the
+/// file's attributes, or the location it resolves to, would not read, or the Installer
+/// folder's own location was not established, so where the file resolves could not be
+/// compared with it. See <see cref="Services.CandidateGuard.RemovalSafety.Unproven"/>.
+///
+/// NOT TO BE ADDED TO THE ONE ABOVE. That one is a finding about the file; this is the
+/// check failing to answer, and a total over the pair would say the files were reparse
+/// points or lay elsewhere when some of them were never shown to be.
+/// </param>
 public readonly record struct WithholdingSplit(
     int IdentityUnestablishedCount = 0,
     int WholesaleCount = 0,
@@ -877,13 +961,15 @@ public readonly record struct WithholdingSplit(
     int UnderADayOldCount = 0,
     int AgeUnestablishedCount = 0,
     int DeclaredPatchRegisteredCount = 0,
-    int DeclaredPatchUnestablishedCount = 0)
+    int DeclaredPatchUnestablishedCount = 0,
+    int ContainmentRefusedCount = 0,
+    int ContainmentUnestablishedCount = 0)
 {
     /// <summary>
-    /// Every file the nine account for. It equals <see cref="ScanResult.WithheldFiles"/>'s
+    /// Every file the eleven account for. It equals <see cref="ScanResult.WithheldFiles"/>'s
     /// own length on any scan that filled both, and a test holds it there.
     ///
-    /// IT IS A COUNT AND NEVER A CAUSE. The nine members are nine different findings
+    /// IT IS A COUNT AND NEVER A CAUSE. The eleven members are eleven different findings
     /// about a machine, so this figure answers "how many were held back" and nothing
     /// whatever about why.
     /// </summary>
@@ -896,7 +982,9 @@ public readonly record struct WithholdingSplit(
         + UnderADayOldCount
         + AgeUnestablishedCount
         + DeclaredPatchRegisteredCount
-        + DeclaredPatchUnestablishedCount;
+        + DeclaredPatchUnestablishedCount
+        + ContainmentRefusedCount
+        + ContainmentUnestablishedCount;
 
     /// <summary>
     /// Which of the per-file decisions the scan could not settle kept anything back,
@@ -909,14 +997,14 @@ public readonly record struct WithholdingSplit(
     /// conditions held. A line built on the count would say less than the legs do and
     /// would say it a second time.
     ///
-    /// NOR ARE THE DECLARED-PRODUCT-INSTALLED, UNDER-A-DAY-OLD, DECLARED-PATCH-REGISTERED
-    /// AND AGE-UNESTABLISHED ARMS, so the command line names no reason for the files
-    /// those four count. It says nothing of the first three. The fourth is spoken of in
-    /// its per-file sentence with no line of its own, and
+    /// NOR ARE THE DECLARED-PRODUCT-INSTALLED, UNDER-A-DAY-OLD, DECLARED-PATCH-REGISTERED,
+    /// AGE-UNESTABLISHED AND TWO CONTAINMENT ARMS, so the command line names no reason for
+    /// the files those six count. It says nothing of the first three. The other three are
+    /// spoken of in its per-file sentence with no line of their own, and
     /// <see cref="ScanResult.NamedConditionsCoverEveryHeldBackFile"/> is what tells it
     /// that such files are among those the sentence counts. The window's finished screen
-    /// names no reasons at all, and counts the under-a-day-old and age-unestablished arms'
-    /// files among those it says were held back.
+    /// names no reasons at all, and counts the under-a-day-old, age-unestablished and
+    /// containment arms' files among those it says were held back.
     ///
     /// A MEMBER MEANS ONE DECISION KEPT AT LEAST ONE FILE, AND NEVER A CAUSE FOR ANY
     /// PARTICULAR ONE. Any combination of them can hold at once, so nothing sums over
@@ -947,8 +1035,8 @@ public readonly record struct WithholdingSplit(
 /// The per-file withholding decisions the scan could not settle, one member per arm of
 /// <see cref="WithholdingSplit"/> that speaks for itself. The wholesale arm is spoken
 /// for by the legs, and the declared-product-installed, under-a-day-old,
-/// declared-patch-registered and age-unestablished arms have no reason line, so none of
-/// the five has a member.
+/// declared-patch-registered, age-unestablished and two containment arms have no reason
+/// line, so none of the seven has a member.
 ///
 /// ONE MEMBER PER ARM RATHER THAN ONE PER CAUSE. They are different inabilities, so
 /// nothing may add them together or write one sentence over them that names a cause.

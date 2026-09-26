@@ -527,6 +527,45 @@ public class FileSystemScanServiceIntegrationTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task A_junction_at_the_root_named_as_a_cache_file_is_not_listed()
+    {
+        // The listing takes files and nothing else, and a junction is a folder, so one
+        // named like a cache file is neither offered nor held back: the walk never sees
+        // it. The reparse-point mark is for a link the listing does return as a file.
+        File.WriteAllBytes(Path.Combine(_fakeInstallerDir, "one.msi"), new byte[] { 1 });
+        var target = _fakeInstallerDir + "-target";
+        var junction = Path.Combine(_fakeInstallerDir, "dir.msi");
+        Directory.CreateDirectory(target);
+        try
+        {
+            MakeJunction(junction, target);
+
+            // The entry has to be there as a linked folder, or this is a test of an
+            // ordinary one. A host that cannot make one fails here rather than passing.
+            var attributes = File.GetAttributes(junction);
+            Assert.True((attributes & FileAttributes.ReparsePoint) != 0,
+                "mklink reported success but the path is not a reparse point.");
+            Assert.True((attributes & FileAttributes.Directory) != 0,
+                "mklink reported success but the path is not a folder.");
+
+            var result = await new FileSystemScanService(
+                QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>().AsReadOnly())),
+                null, _fakeInstallerDir).ScanAsync();
+
+            Assert.Equal("one.msi", Assert.Single(result.RemovableFiles).FileName);
+            Assert.Empty(result.WithheldFiles!);
+            Assert.Equal(default, result.WithheldBy);
+        }
+        finally
+        {
+            // The link alone, and never recursively, for the reason given at the test
+            // above; then its empty target.
+            if (Directory.Exists(junction)) Directory.Delete(junction, recursive: false);
+            if (Directory.Exists(target)) Directory.Delete(target, recursive: false);
+        }
+    }
+
     /// <summary>
     /// Makes a directory junction at <paramref name="link"/> pointing at
     /// <paramref name="target"/>, through cmd's mklink, which needs no elevation for a

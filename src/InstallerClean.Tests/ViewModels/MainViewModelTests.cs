@@ -584,6 +584,69 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Files_the_containment_check_kept_back_get_the_per_file_screen_and_not_the_all_clear()
+    {
+        // Two files from the folder walk, one the check refused and one it could not
+        // answer for, and nothing else held back. They are on the left-alone line, so
+        // the receipt counts them, and the screen speaks of both with their size.
+        var vm = CreateViewModel();
+        var withheld = new List<OrphanedFile>
+        {
+            new(@"C:\Windows\Installer\link.msi", 1024, false, false, false, Orphaned),
+            new(@"C:\Windows\Installer\unread.msp", 2048, true, false, false, Orphaned),
+        };
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanResult(
+                Array.Empty<OrphanedFile>(), Array.Empty<RegisteredPackage>(), 0,
+                WithheldFiles: withheld,
+                WithheldBy: new WithholdingSplit(ContainmentRefusedCount: 1, ContainmentUnestablishedCount: 1)));
+
+        await vm.Scan.ScanWithProgressAsync(null);
+
+        Assert.Equal(2, vm.Scan.RegisteredFileCount);
+        Assert.Equal(Strings.Completion_NothingOffered, vm.Completion.Heading);
+        Assert.Equal(
+            string.Format(
+                Strings.Completion_NothingOfferedPerFileBody_Plural,
+                DisplayHelpers.FormatCount(2), DisplayHelpers.PluraliseFile(2),
+                DisplayHelpers.FormatSize(3072)),
+            vm.Completion.Summary);
+        Assert.StartsWith("Scanned 2 files in ", vm.Completion.Restore, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_superseded_patch_the_containment_check_refused_gets_the_per_file_screen_and_not_the_all_clear()
+    {
+        // The row carried its removable verdict to the offer and the check refused it,
+        // so it stays on the kept list with its file on disk, as the scan leaves it.
+        var vm = CreateViewModel();
+        var kept = new[]
+        {
+            new RegisteredPackage(@"C:\Windows\Installer\p1.msp", "Contoso", "{aaa}",
+                PatchState: 2, IsRemovable: true, ProductPatchSetVerdict: ProductPatchSet.AllNonRemovable,
+                FileSizeBytes: 7000),
+        };
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanResult(
+                Array.Empty<OrphanedFile>(), kept, 7000,
+                WithheldFiles: Array.Empty<OrphanedFile>(),
+                SupersededContainmentRefusedCount: 1,
+                SupersededContainmentBytes: 7000));
+
+        await vm.Scan.ScanWithProgressAsync(null);
+
+        Assert.Equal(1, vm.Scan.RegisteredFileCount);
+        Assert.Equal(Strings.Completion_NothingOffered, vm.Completion.Heading);
+        Assert.Equal(
+            string.Format(
+                Strings.Completion_NothingOfferedPerFileBody_Singular,
+                DisplayHelpers.FormatCount(1), DisplayHelpers.PluraliseFile(1),
+                DisplayHelpers.FormatSize(7000)),
+            vm.Completion.Summary);
+        Assert.StartsWith("Scanned 1 file in ", vm.Completion.Restore, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task One_superseded_file_held_back_takes_the_one_form()
     {
         var vm = CreateViewModel();

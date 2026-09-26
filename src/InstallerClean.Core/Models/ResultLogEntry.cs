@@ -60,20 +60,24 @@ public sealed record ResultLogEntry(
     /// KEY WHOSE MEANING CHANGES IS NOT, which is why the missing-files split was
     /// added beside its total rather than over it.
     ///
-    /// SCHEMA 5 ADDS SEVEN KEYS AND TAKES NONE AWAY: the registry side's failed reads
-    /// under <c>machine</c>; under <c>scan</c> the four arms of the withholding split
-    /// that schema 4 does not carry, so that from 5 the split's nine counts add up to
-    /// <c>withheldCandidateCount</c>; and under <c>operation</c> a fifth held-back
+    /// SCHEMA 5 ADDS ELEVEN KEYS AND TAKES NONE AWAY: the registry side's failed reads
+    /// under <c>machine</c>; under <c>scan</c> the six arms of the withholding split
+    /// that schema 4 does not carry, so that from 5 the split's eleven counts add up to
+    /// <c>withheldCandidateCount</c>, and the two counts of superseded rows the
+    /// containment check kept back; and under <c>operation</c> a fifth held-back
     /// cause, <c>heldBackFileNotConfirmed</c>. Under <c>app</c> it adds
     /// <c>windowsLanguage</c>, the Windows display language with no country, AND
     /// <c>app.language</c> CHANGES WHAT IT MEANS AT 5: it is the language the app was
     /// showing, one of the languages it ships, where schema 4 carries the UI culture's
     /// own tag, which on Automatic is the Windows display language with its region, or
-    /// <c>invariant</c>. AN ADDITION MOVES THE VERSION ONCE A RELEASE SENDS THE VERSION
-    /// IT WOULD BE ADDED TO. From schema 4 on, the receiver holds each version to its
-    /// exact set of keys and requires every count in it, so a key added to a version a
-    /// release already sends could only be permitted there, never required, without
-    /// rejecting every report from that release.
+    /// <c>invariant</c>. AND <c>scan.withheldCandidateCount</c> AND
+    /// <c>scan.withheldTotalBytes</c> TAKE IN MORE FILES AT 5: from 5 the withheld list
+    /// holds the files from the folder walk that the containment check kept back, which
+    /// schema 4's figures leave out. AN ADDITION MOVES THE VERSION ONCE A RELEASE SENDS
+    /// THE VERSION IT WOULD BE ADDED TO. From schema 4 on, the receiver holds each
+    /// version to its exact set of keys and requires every count in it, so a key added
+    /// to a version a release already sends could only be permitted there, never
+    /// required, without rejecting every report from that release.
     ///
     /// A receiver that does not recognise a version stores the report under a
     /// lenient v&lt;n&gt;-unknown/ prefix rather than rejecting it, so a bump
@@ -820,12 +824,12 @@ public sealed record MachineInfo(
 /// ON THE WIRE ANSWERS THAT. It is the figure that says whether a machine got nothing
 /// because its folder was clean or because the scan could not settle it.
 ///
-/// NO CAUSE TRAVELS WITH THIS FIGURE AND NONE MAY BE ATTACHED TO IT. Four separate
-/// conditions put files on that list and they are different facts about a machine; a
-/// sentence naming any one of them would be false of the others. The nine counts below
-/// are where those conditions are counted apart, one finding each, and they are read
+/// NO CAUSE TRAVELS WITH THIS FIGURE AND NONE MAY BE ATTACHED TO IT. Five separate
+/// decisions put files on that list and they are different facts about a machine; a
+/// sentence naming any one of them would be false of the others. The eleven counts below
+/// are where those decisions are counted apart, one finding each, and they are read
 /// apart for the same reason. They are the scan's whole split of the list, taken off the
-/// same result as this figure, so the nine add up to it.
+/// same result as this figure, so the eleven add up to it.
 /// </param>
 /// <param name="WithheldTotalBytes">
 /// The bytes of the files behind <paramref name="WithheldCandidateCount"/>, summed
@@ -864,7 +868,7 @@ public sealed record MachineInfo(
 /// <param name="WithheldIdentityUnestablishedCount">
 /// Candidates the identity comparison kept back one at a time, because the filesystem
 /// would not say which file the candidate's own path names:
-/// <c>ScanResult.WithheldBy.IdentityUnestablishedCount</c>. The first of the nine
+/// <c>ScanResult.WithheldBy.IdentityUnestablishedCount</c>. The first of the eleven
 /// counts that split <paramref name="WithheldCandidateCount"/>.
 ///
 /// IT IS SENT RATHER THAN DERIVED, AND THAT IS DELIBERATE. The same population is
@@ -945,6 +949,42 @@ public sealed record MachineInfo(
 /// because the members here are positional <c>int</c> parameters and an insertion would
 /// re-point every argument after it with nothing in the build to say so.
 /// </param>
+/// <param name="WithheldContainmentRefusedCount">
+/// Files from the folder walk that the containment check refused, each being a reparse
+/// point or resolving somewhere other than directly in the folder:
+/// <c>ScanResult.WithheldBy.ContainmentRefusedCount</c>. Both hosts' held-back sentences
+/// count them, and no reason line names them.
+///
+/// APPENDED AFTER THE NINE ABOVE, with the three members after it, for the reason the
+/// four before it were.
+/// </param>
+/// <param name="WithheldContainmentUnestablishedCount">
+/// Files from the folder walk that the containment check could not answer for, their
+/// attributes or the location they resolve to not reading, or the Installer folder's own
+/// location not being established, so that where they resolve could not be compared with
+/// it: <c>ScanResult.WithheldBy.ContainmentUnestablishedCount</c>. Counted and left
+/// unnamed as the one above is.
+///
+/// NOT TO BE ADDED TO THE ONE ABOVE. That one is a finding about the file and this one
+/// the check failing to answer, and a total over the pair would say the files were
+/// reparse points or lay elsewhere when some of them were never shown to be.
+/// </param>
+/// <param name="SupersededContainmentRefusedCount">
+/// Superseded rows whose file is on disk, that carried a removable verdict to the offer,
+/// and that the containment check then refused:
+/// <c>ScanResult.SupersededContainmentRefusedCount</c>. They stay among the registered
+/// files, so <paramref name="RegisteredCount"/> has them, and both hosts count them among
+/// the superseded files held back.
+///
+/// IT IS NOT <paramref name="WithheldPatchCount"/>, which counts superseded rows on disk
+/// whose removable verdict was taken away. These rows kept theirs, and the two travel
+/// apart because they are different findings.
+/// </param>
+/// <param name="SupersededContainmentUnestablishedCount">
+/// The same rows where the containment check could not answer:
+/// <c>ScanResult.SupersededContainmentUnestablishedCount</c>. Not to be added to the one
+/// above, for the reason given at the folder walk's pair.
+/// </param>
 public sealed record ScanInfo(
     long DurationMs,
     int RegisteredCount,
@@ -973,7 +1013,11 @@ public sealed record ScanInfo(
     int WithheldUnderADayOldCount,
     int WithheldAgeUnestablishedCount,
     int WithheldDeclaredPatchRegisteredCount,
-    int WithheldDeclaredPatchUnestablishedCount)
+    int WithheldDeclaredPatchUnestablishedCount,
+    int WithheldContainmentRefusedCount,
+    int WithheldContainmentUnestablishedCount,
+    int SupersededContainmentRefusedCount,
+    int SupersededContainmentUnestablishedCount)
 {
     public static ScanInfo From(ScanResult scan, long durationMs)
     {
@@ -1022,8 +1066,8 @@ public sealed record ScanInfo(
             // Counted off the kept list by the scan, so the number sent and the rows
             // the registered-files window shows cannot come apart.
             scan.RegisteredWithheldCount,
-            // The nine counts that split the count three lines up, taken off the one
-            // place that knows them, so the nine add up to it. Appended rather than
+            // The eleven counts that split the withheld count above, taken off the one
+            // place that knows them, so the eleven add up to it. Appended rather than
             // placed among the members they belong beside: every argument after an
             // insertion point re-points at its neighbour's value, and a shift within a
             // run of ints compiles silently.
@@ -1035,7 +1079,14 @@ public sealed record ScanInfo(
             scan.WithheldBy.UnderADayOldCount,
             scan.WithheldBy.AgeUnestablishedCount,
             scan.WithheldBy.DeclaredPatchRegisteredCount,
-            scan.WithheldBy.DeclaredPatchUnestablishedCount);
+            scan.WithheldBy.DeclaredPatchUnestablishedCount,
+            scan.WithheldBy.ContainmentRefusedCount,
+            scan.WithheldBy.ContainmentUnestablishedCount,
+            // The superseded rows the containment check kept back, by its verdict. They
+            // are registered rows and not on the withheld list, so they are no part of
+            // the split above.
+            scan.SupersededContainmentRefusedCount,
+            scan.SupersededContainmentUnestablishedCount);
     }
 }
 

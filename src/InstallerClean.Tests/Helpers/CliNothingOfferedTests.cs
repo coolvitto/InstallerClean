@@ -291,6 +291,57 @@ public class CliNothingOfferedTests
     }
 
     [Fact]
+    public async Task Files_the_containment_check_kept_back_get_the_per_file_line_with_no_reasons_under_it()
+    {
+        // One file the check refused and one it could not answer for. Both are counted
+        // by the per-file line, so the run is not given the clean one, and neither has a
+        // reason line, so the heading is not printed over nothing.
+        var (exit, stdout) = await Run(Scan(
+            withheld: 2,
+            split: new WithholdingSplit(ContainmentRefusedCount: 1, ContainmentUnestablishedCount: 1)));
+
+        Assert.Equal(CliExitCode.Ok, exit);
+        Assert.Contains(Expected(Strings.Cli_NothingOfferedPerFile_Plural, 2), stdout, StringComparison.Ordinal);
+        Assert.DoesNotContain(Strings.Cli_FoundNoOrphans, stdout, StringComparison.Ordinal);
+        Assert.DoesNotContain(Strings.Cli_WithheldReasons_Header, stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Superseded_patches_the_containment_check_kept_back_are_counted_in_the_superseded_line()
+    {
+        // Distinct figures, so a member left out of the line's count comes out at a
+        // number that cannot be mistaken for the right one: one superseded patch held
+        // back for its products, two the check refused and four it could not answer
+        // for. The line is the one a superseded patch held back for its products has
+        // always had, printed after the clean line, which is about the folder walk.
+        var result = Scan(withheld: 0, split: default) with
+        {
+            WithheldCount = 1,
+            SupersededContainmentRefusedCount = 2,
+            SupersededContainmentUnestablishedCount = 4,
+        };
+
+        var (exit, stdout) = await Run(result);
+
+        Assert.Equal(CliExitCode.Ok, exit);
+        Assert.Contains(
+            string.Format(Strings.Cli_SupersededHeldBack_Plural, DisplayHelpers.FormatCount(7)),
+            stdout, StringComparison.Ordinal);
+        Assert.Contains(Strings.Cli_FoundNoOrphans, stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_single_superseded_patch_the_containment_check_refused_gets_the_one_form()
+    {
+        // Nothing else held back: without it the run would print the clean line alone.
+        var result = Scan(withheld: 0, split: default) with { SupersededContainmentRefusedCount = 1 };
+
+        var (_, stdout) = await Run(result);
+
+        Assert.Contains(Strings.Cli_SupersededHeldBack_Singular, stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task The_one_form_names_the_size_and_never_the_numeral()
     {
         // A count of one is reachable, being a folder holding a single unclaimed file,

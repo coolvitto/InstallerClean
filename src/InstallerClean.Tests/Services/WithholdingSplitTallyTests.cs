@@ -50,18 +50,22 @@ public class WithholdingSplitTallyTests
     {
         var split = new WithholdingSplit(
             IdentityUnestablishedCount: 1,
-            WholesaleCount: 20,
-            DeclaredProductInstalledCount: 300,
-            DeclaredProductUnestablishedCount: 4000,
-            ScreenUnansweredCount: 50000,
-            UnderADayOldCount: 600000,
-            AgeUnestablishedCount: 7000000,
-            DeclaredPatchRegisteredCount: 80000000,
-            DeclaredPatchUnestablishedCount: 900000000);
+            WholesaleCount: 3,
+            DeclaredProductInstalledCount: 9,
+            DeclaredProductUnestablishedCount: 27,
+            ScreenUnansweredCount: 81,
+            UnderADayOldCount: 243,
+            AgeUnestablishedCount: 729,
+            DeclaredPatchRegisteredCount: 2187,
+            DeclaredPatchUnestablishedCount: 6561,
+            ContainmentRefusedCount: 19683,
+            ContainmentUnestablishedCount: 59049);
 
-        // Distinct powers of ten, so any member left out of the sum or counted twice
-        // changes the answer rather than happening to cancel.
-        Assert.Equal(987654321, split.Total);
+        // Distinct powers of three, so any member left out of the sum or counted twice
+        // changes the answer rather than happening to cancel: with every member taken
+        // nought, once or twice, the sum has one spelling in base three, and it is all
+        // ones only where every member is taken once.
+        Assert.Equal(88573, split.Total);
     }
 
     [Fact]
@@ -91,6 +95,17 @@ public class WithholdingSplitTallyTests
         tally.Screened(DeclaredProductOutcome.DeclaredPatchUnestablished, 16384);
         tally.Screened(DeclaredProductOutcome.DeclaredPatchUnestablished, 16384);
         tally.Screened(DeclaredProductOutcome.DeclaredPatchUnestablished, 16384);
+        tally.Contained(CandidateGuard.RemovalSafety.Refused);
+        tally.Contained(CandidateGuard.RemovalSafety.Refused);
+        tally.Contained(CandidateGuard.RemovalSafety.Refused);
+        tally.Contained(CandidateGuard.RemovalSafety.Refused);
+        tally.Contained(CandidateGuard.RemovalSafety.Refused);
+        tally.Contained(CandidateGuard.RemovalSafety.Unproven);
+        tally.Contained(CandidateGuard.RemovalSafety.Unproven);
+        tally.Contained(CandidateGuard.RemovalSafety.Unproven);
+        tally.Contained(CandidateGuard.RemovalSafety.Unproven);
+        tally.Contained(CandidateGuard.RemovalSafety.Unproven);
+        tally.Contained(CandidateGuard.RemovalSafety.Unproven);
 
         var split = tally.Taken();
 
@@ -101,7 +116,9 @@ public class WithholdingSplitTallyTests
         Assert.Equal(2, split.DeclaredProductUnestablishedCount);
         Assert.Equal(3, split.DeclaredPatchRegisteredCount);
         Assert.Equal(4, split.DeclaredPatchUnestablishedCount);
-        Assert.Equal(22, split.Total);
+        Assert.Equal(5, split.ContainmentRefusedCount);
+        Assert.Equal(6, split.ContainmentUnestablishedCount);
+        Assert.Equal(33, split.Total);
     }
 
     [Fact]

@@ -70,7 +70,11 @@ public class ResultLogEntryTests
         WithheldUnderADayOldCount: 0,
         WithheldAgeUnestablishedCount: 0,
         WithheldDeclaredPatchRegisteredCount: 0,
-        WithheldDeclaredPatchUnestablishedCount: 0);
+        WithheldDeclaredPatchUnestablishedCount: 0,
+        WithheldContainmentRefusedCount: 0,
+        WithheldContainmentUnestablishedCount: 0,
+        SupersededContainmentRefusedCount: 0,
+        SupersededContainmentUnestablishedCount: 0);
 
     private static MachineInfo SampleMachine() => new(
         ShortNameCreation: ShortNameCreationLabels.NoVolumes,
@@ -255,12 +259,13 @@ public class ResultLogEntryTests
                 // there. Three withheld figures over three different populations;
                 // adding any two of them would answer no question.
                 "withheldTotalBytes", "registeredWithheldCount",
-                // The nine counts that split withheldCandidateCount, appended in the
+                // The eleven counts that split withheldCandidateCount, appended in the
                 // order the split declares them, and they add up to it. Each is one
                 // finding about one machine and nothing may add any two of them: the
                 // screen's four verdicts, that screen having answered about nothing,
                 // a per-file identity read that gave up, the whole walk-derived offer
-                // going at once on a fact about the machine, and the age check's two.
+                // going at once on a fact about the machine, the age check's two, and
+                // the containment check's two.
                 "withheldIdentityUnestablishedCount", "withheldWholesaleCount",
                 "withheldDeclaredProductInstalledCount",
                 "withheldDeclaredProductUnestablishedCount",
@@ -268,6 +273,10 @@ public class ResultLogEntryTests
                 "withheldUnderADayOldCount", "withheldAgeUnestablishedCount",
                 "withheldDeclaredPatchRegisteredCount",
                 "withheldDeclaredPatchUnestablishedCount",
+                "withheldContainmentRefusedCount", "withheldContainmentUnestablishedCount",
+                // Superseded rows the containment check kept back, by its verdict. They
+                // are registered rows and no part of the split above.
+                "supersededContainmentRefusedCount", "supersededContainmentUnestablishedCount",
             ],
             root.GetProperty("scan").EnumerateObject().Select(p => p.Name));
 
@@ -822,7 +831,9 @@ public class ResultLogEntryTests
                 UnansweredProductCount: 18),
             RegisteredWithheldCount: 19,
             WithheldFiles: withheld,
-            WithheldBy: new WithholdingSplit(20, 21, 22, 23, 24, 25, 26, 27, 28));
+            WithheldBy: new WithholdingSplit(20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
+            SupersededContainmentRefusedCount: 32,
+            SupersededContainmentUnestablishedCount: 33);
 
         var info = ScanInfo.From(scan, 7001);
 
@@ -854,6 +865,10 @@ public class ResultLogEntryTests
         Assert.Equal(26, info.WithheldAgeUnestablishedCount);
         Assert.Equal(27, info.WithheldDeclaredPatchRegisteredCount);
         Assert.Equal(28, info.WithheldDeclaredPatchUnestablishedCount);
+        Assert.Equal(29, info.WithheldContainmentRefusedCount);
+        Assert.Equal(30, info.WithheldContainmentUnestablishedCount);
+        Assert.Equal(32, info.SupersededContainmentRefusedCount);
+        Assert.Equal(33, info.SupersededContainmentUnestablishedCount);
     }
 
     [Fact]

@@ -242,10 +242,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
 
         var removable = new List<OrphanedFile>();
 
-        // Candidates the scan declined to offer, which the left-alone line counts with
-        // the registrations. The identity comparison, the wholesale withholding, the
-        // declared-product screen and the age check each add to it, and the tally below
-        // records which.
+        // Files from the walk the scan declined to offer, which the left-alone line counts
+        // with the registrations. The containment check, the identity comparison, the
+        // wholesale withholding, the declared-product screen and the age check each add to
+        // it, and the tally below records which.
         var withheld = new List<OrphanedFile>();
 
         // Which decision put each of those there, kept apart because the report reads
@@ -254,10 +254,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // place the question can be answered is where the decision is taken.
         var withheldBy = new WithholdingSplitTally();
 
-        // Candidates no registration claims, in walk order. Four passes decide THIS
-        // half of the offer: the path comparison, the file-identity match below it,
-        // the declared-product screen and the age check. A survivor of all four is an
-        // offered file.
+        // Candidates no registration claims by path and the containment check let
+        // through, in walk order. Four passes decide THIS half of the offer: the path
+        // comparison, the file-identity match below it, the declared-product screen and
+        // the age check. A survivor of all four is an offered file.
         //
         // IT IS ONE OF TWO SOURCES OF OFFERED FILES AND THE OTHER IS NOT THE WALK AT
         // ALL. A superseded patch reaches the offer from the registered set, having
@@ -284,9 +284,7 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // type and HRESULT, so without them the budget's novel-cause escape
         // hatch would fire once and swallow the other three.
         var refusalLog = new PerItemFailureLog("Scan",
-            "There is no other record of which files these were: a refused candidate is left off the "
-            + "list offered for removal and nothing else about it is kept. Fewer files are offered, "
-            + "never more.");
+            "The file behind each of them was kept rather than offered.");
 
         long stillUsedBytes = 0;
         // Registrations Windows reports superseded (2) and obsoleted (4), counted off
@@ -294,6 +292,12 @@ public sealed class FileSystemScanService : IFileSystemScanService
         int supersededRegistrations = 0;
         int obsoletedRegistrations = 0;
         int refusedCandidates = 0;
+        // Superseded rows that reached the offer and that the containment check then kept
+        // back, counted by its verdict, and their size. The rows stay on the kept list, so
+        // the left-alone line has them already; these say why, for the report, and count
+        // them among the files the finished screen and the command line say were held back.
+        var supersededContained = new ContainmentTally();
+        long supersededContainedBytes = 0;
         int missingAffected = 0;
         int missingUnaffected = 0;
         // The correlation gate's inputs, counted here rather than derived from the
@@ -349,7 +353,7 @@ public sealed class FileSystemScanService : IFileSystemScanService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Counted before the three tests below rather than after them, so the
+            // Counted before the tests below rather than after them, so the
             // position measures how far through the folder the loop has reached
             // rather than how many files got past the tests. Every file in the
             // list reaches this line, and the last one is reported whatever the
@@ -370,13 +374,39 @@ public sealed class FileSystemScanService : IFileSystemScanService
             if (!IsCacheExtension(ext))
                 continue;
 
-            // Containment guard at candidate creation. A walk file is normally
-            // in-bounds (it came out of the folder root), but assert it, so a
-            // reparse point that slipped the enumeration filter is dropped rather
-            // than offered. A refused candidate is logged and skipped; an
-            // unproven one is kept off the list under words that do not claim
-            // more than the check showed, and a transient read failure
-            // self-heals on the next scan.
+            var file = new OrphanedFile(
+                FullPath: filePath,
+                SizeBytes: walked.SizeBytes,
+                IsPatch: ext.Equals(".msp", StringComparison.OrdinalIgnoreCase),
+                IsRemovablePatch: false,
+                IsObsoleted: false,
+                Reason: Strings.Reason_Orphaned);
+
+            // A REPARSE POINT IS KEPT BACK HERE, AND THIS LOOP NEITHER OPENS IT NOR PUTS
+            // IT TO THE CONTAINMENT CHECK. The walk read the attribute off the directory
+            // entry and marked the file, and the check would refuse it on the same
+            // attribute. It goes on the withheld list, which puts it on the left-alone
+            // line and in the Details window, and the report counts it among the check's
+            // refusals. Nothing that judges a candidate reaches it: the identity
+            // comparison, the screen and the age check run over the list below, which it
+            // never joins.
+            //
+            // It is kept out of refusedCandidates, which the root-unresolved gate below
+            // reads as evidence that the comparison against the cache root failed. A
+            // reparse point is refused whatever the root resolved to.
+            if (walked.IsReparsePoint)
+            {
+                withheld.Add(file);
+                withheldBy.Contained(CandidateGuard.RemovalSafety.Refused);
+                continue;
+            }
+
+            // The containment check on every other file. A walked file came out of the
+            // folder root, and the check establishes that it resolves there and is not a
+            // reparse point before anything can offer it. A file it refuses or cannot
+            // answer for is logged, under words that claim no more than the check showed,
+            // and kept back on the withheld list, counted by the verdict. A transient read
+            // failure is judged afresh on the next scan.
             var walkSafety = CandidateGuard.CheckSafeToRemove(filePath, cacheRoot);
             if (walkSafety != CandidateGuard.RemovalSafety.Safe)
             {
@@ -386,16 +416,12 @@ public sealed class FileSystemScanService : IFileSystemScanService
                         ? $"Removal candidate refused (not directly in the Installer cache, or a reparse point): {filePath}"
                         : $"Removal candidate not offered (its symlink status or location could not be read): {filePath}"),
                     cause: $"walk/{walkSafety}");
+                withheld.Add(file);
+                withheldBy.Contained(walkSafety);
                 continue;
             }
 
-            unclaimedByPath.Add(new OrphanedFile(
-                FullPath: filePath,
-                SizeBytes: walked.SizeBytes,
-                IsPatch: ext.Equals(".msp", StringComparison.OrdinalIgnoreCase),
-                IsRemovablePatch: false,
-                IsObsoleted: false,
-                Reason: Strings.Reason_Orphaned));
+            unclaimedByPath.Add(file);
         }
 
         // THE SECOND HALF OF THE PATH COMPARISON, and it is part of that gate
@@ -690,12 +716,19 @@ public sealed class FileSystemScanService : IFileSystemScanService
                     continue;
                 }
 
+                // A ROW THE CHECK REFUSES OR CANNOT ANSWER FOR STAYS ON THE KEPT LIST,
+                // which already puts it on the left-alone line and in the details window
+                // as a registered file. What it adds is a count by verdict, with its size,
+                // so the finished screen and the command line count it among the files
+                // held back and the report carries why.
                 refusedCandidates++;
                 refusalLog.Record(new InvalidOperationException(
                     safety == CandidateGuard.RemovalSafety.Refused
                         ? $"Registered removal candidate refused (not directly in the Installer cache, or a reparse point): {pkg.LocalPackagePath}"
                         : $"Registered removal candidate not offered (its symlink status or location could not be read): {pkg.LocalPackagePath}"),
                     cause: $"registered/{safety}");
+                if (supersededContained.Record(safety))
+                    supersededContainedBytes += size;
             }
 
             sizedPackages.Add(sized);
@@ -1028,21 +1061,23 @@ public sealed class FileSystemScanService : IFileSystemScanService
             registrationIdentityReads,
             candidateIdentityReads,
             // Which decision took each file on the withheld list. Read here rather
-            // than derived, and held to that list's own length by a test: nine
-            // counts that no longer sum to it mean a tenth arm has been added and
+            // than derived, and held to that list's own length by a test: eleven
+            // counts that no longer sum to it mean a twelfth arm has been added and
             // is reported by none of them.
             withheldBy.Taken(),
             withheldBy.DeclaredProductInstalledBytes,
             withheldBy.UnderADayOldBytes,
             withheldBy.DeclaredPatchRegisteredBytes,
-            withheldCostBytes);
+            withheldCostBytes,
+            supersededContained.RefusedCount,
+            supersededContained.UnestablishedCount,
+            supersededContainedBytes);
     }
 
     /// <summary>
-    /// One file the walk found, carrying the size its directory entry already
-    /// held. Windows fills the size in as part of enumerating the folder, so
-    /// asking for it again per candidate was a second metadata read of a figure
-    /// already in hand: on an 800,000-entry cache folder, 776,000 of them.
+    /// One file the walk found, carrying the size and the reparse-point attribute its
+    /// directory entry already held. Windows fills both in as part of enumerating the
+    /// folder, so the walk carries them rather than asking for them again per file.
     ///
     /// A directory entry's size can in principle lag a fresh read, for a file
     /// with a writer still holding it open. Nothing decides anything on this
@@ -1051,8 +1086,13 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// the opt-in result log carry. Which files are offered does not depend on
     /// it, and a file being written is one the walk-before-query ordering, the
     /// removable re-verify and the action-time gates already govern.
+    ///
+    /// <see cref="IsReparsePoint"/> DOES DECIDE SOMETHING: the classification loop keeps
+    /// a file carrying it back without opening it or putting it to the containment
+    /// check. A list injected by a test carries it false, and the check then reads the
+    /// attribute for itself.
     /// </summary>
-    private readonly record struct WalkedFile(string FullPath, long SizeBytes);
+    private readonly record struct WalkedFile(string FullPath, long SizeBytes, bool IsReparsePoint = false);
 
     /// <summary>
     /// Moves out of <paramref name="candidates"/> every file some registration's
@@ -1128,6 +1168,7 @@ public sealed class FileSystemScanService : IFileSystemScanService
         private int _declaredPatchRegistered;
         private long _declaredPatchRegisteredBytes;
         private int _declaredPatchUnestablished;
+        private readonly ContainmentTally _containment = new();
 
         internal void IdentityUnestablished() => _identityUnestablished++;
 
@@ -1195,6 +1236,13 @@ public sealed class FileSystemScanService : IFileSystemScanService
         /// </summary>
         internal long DeclaredPatchRegisteredBytes => _declaredPatchRegisteredBytes;
 
+        /// <summary>
+        /// The containment check's verdict on a file from the walk, counted through
+        /// <see cref="ContainmentTally"/>, which the superseded half of the scan counts
+        /// through too, so both halves read one verdict the same way.
+        /// </summary>
+        internal void Contained(CandidateGuard.RemovalSafety verdict) => _containment.Record(verdict);
+
         internal WithholdingSplit Taken() => new(
             _identityUnestablished,
             _wholesale,
@@ -1204,7 +1252,50 @@ public sealed class FileSystemScanService : IFileSystemScanService
             _underADayOld,
             _ageUnestablished,
             _declaredPatchRegistered,
-            _declaredPatchUnestablished);
+            _declaredPatchUnestablished,
+            _containment.RefusedCount,
+            _containment.UnestablishedCount);
+    }
+
+    /// <summary>
+    /// Files the containment check kept back, counted by its verdict. The walk's files
+    /// are counted into <see cref="WithholdingSplit"/> through
+    /// <see cref="WithholdingSplitTally.Contained"/>, and the superseded rows travel on
+    /// the result as counts of their own.
+    ///
+    /// <see cref="CandidateGuard.RemovalSafety.Safe"/> COUNTS NOWHERE, AND NEITHER DOES A
+    /// VERDICT THE SWITCH DOES NOT NAME. Counting an unnamed verdict under Refused or
+    /// Unproven would put a finding on the file that nobody established.
+    /// ContainmentTallyTests walks the enum and holds every verdict but Safe to a count of
+    /// its own, so a verdict added to it has to be named here in the same edit.
+    /// </summary>
+    internal sealed class ContainmentTally
+    {
+        private int _refused;
+        private int _unestablished;
+
+        /// <summary>
+        /// Counts <paramref name="verdict"/> and says whether it did, so a caller summing
+        /// the files' sizes beside the counts sizes exactly the files they count.
+        /// </summary>
+        internal bool Record(CandidateGuard.RemovalSafety verdict)
+        {
+            switch (verdict)
+            {
+                case CandidateGuard.RemovalSafety.Refused:
+                    _refused++;
+                    return true;
+                case CandidateGuard.RemovalSafety.Unproven:
+                    _unestablished++;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        internal int RefusedCount => _refused;
+
+        internal int UnestablishedCount => _unestablished;
     }
 
     /// <summary>
@@ -1455,7 +1546,7 @@ public sealed class FileSystemScanService : IFileSystemScanService
 
     /// <summary>
     /// The walk. One pass over the folder ROOT, yielding each cache file with
-    /// the size its directory entry already carried.
+    /// the size and the reparse-point attribute its directory entry already carried.
     ///
     /// Root only. A registered LocalPackage path only ever sits at the root, so
     /// for any file in a subdirectory the API correlation carries no signal at
@@ -1475,20 +1566,24 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// an 8.3 short name), and it is the test the classification loop applies to
     /// every candidate anyway.
     ///
-    /// The three things the enumeration options would otherwise carry are stated
+    /// The three things the enumeration options would otherwise carry are handled
     /// here instead, because the entry's own metadata is wanted and only the
     /// <see cref="IDirectoryInfo"/> form carries it, and that form rejects a
     /// changed AttributesToSkip under the test double (System.IO.Abstractions
     /// 22.2.0 raises NotSupportedException). SearchOption.TopDirectoryOnly maps
     /// to AttributesToSkip = 0 and IgnoreInaccessible = false, so:
-    /// reparse points are skipped by the same test the option applied, keeping a
-    /// junction planted at the root from redirecting the walk outside it, and
-    /// now assertable against a MockFileSystem where the option never was;
+    /// a reparse point is listed with the attribute marked on it rather than
+    /// skipped, and the classification loop keeps a marked entry back and counts it
+    /// without opening it or putting it to the containment check, which is
+    /// assertable against a MockFileSystem;
     /// Hidden and System stay included, because real cache entries sometimes
     /// carry those attributes; and a folder the process cannot read yields
     /// nothing rather than throwing, which is what IgnoreInaccessible bought and
     /// is the only place this scan drops anything quietly. It drops in the safe
     /// direction: fewer files offered, never more.
+    ///
+    /// ONLY A CACHE FILE IS MARKED. The extension test comes first, so an entry of
+    /// any other kind is left out whether or not it carries the attribute.
     /// </summary>
     private IEnumerable<WalkedFile> GetInstallerFiles(string folder)
     {
@@ -1512,10 +1607,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
             // matching what IgnoreInaccessible itself continued past.
             catch (UnauthorizedAccessException) { yield break; }
 
-            if ((entry.Attributes & FileAttributes.ReparsePoint) != 0) continue;
             if (!IsCacheExtension(entry.Extension)) continue;
 
-            yield return new WalkedFile(entry.FullName, SafeLength(entry));
+            yield return new WalkedFile(entry.FullName, SafeLength(entry),
+                IsReparsePoint: (entry.Attributes & FileAttributes.ReparsePoint) != 0);
         }
     }
 

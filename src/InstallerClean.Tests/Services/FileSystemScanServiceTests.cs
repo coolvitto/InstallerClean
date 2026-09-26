@@ -451,6 +451,70 @@ public class FileSystemScanServiceTests
     }
 
     [Fact]
+    public async Task ScanAsync_holds_back_and_counts_a_candidate_the_containment_check_refused()
+    {
+        // The fixture above: %TEMP% stands in for a cache root that resolved, and the
+        // candidate sits somewhere else, so the containment check refuses it. It is kept
+        // on the withheld list, which puts it on the left-alone line and in the Details
+        // window, counted under the check's refusals, and the finished screen counts it
+        // among the files held back rather than giving the all-clear.
+        var root = InstallerCacheHelpers.ResolveFinalPath(Path.GetTempPath())
+            .TrimEnd(Path.DirectorySeparatorChar);
+        const string elsewhere = @"C:\Windows\Installer\elsewhere.msi";
+        var query = QueryReturning(new InstallerQueryResult(
+            new List<RegisteredPackage> { Registered(Path.Combine(root, "needed.msi")) }.AsReadOnly()));
+
+        var fs = new MockFileSystem();
+        fs.AddFile(elsewhere, new MockFileData(new byte[300]));
+        fs.AddFile(Path.Combine(root, "needed.msi"), new MockFileData("x"));
+
+        var result = await new FileSystemScanService(query, fs, new[] { elsewhere }, root).ScanAsync();
+
+        Assert.Empty(result.RemovableFiles);
+        var held = Assert.Single(result.WithheldFiles!);
+        Assert.Equal(elsewhere, held.FullPath);
+        Assert.Equal(300, held.SizeBytes);
+        Assert.Equal(1, result.WithheldBy.ContainmentRefusedCount);
+        Assert.Equal(0, result.WithheldBy.ContainmentUnestablishedCount);
+        Assert.Equal(result.WithheldFiles!.Count, result.WithheldBy.Total);
+        Assert.Equal(1, result.UnsettledHeldBackCount);
+        Assert.True(result.HasUnsettledHeldBack);
+    }
+
+    [Fact]
+    public async Task ScanAsync_keeps_a_superseded_patch_the_containment_check_refused_and_counts_it_held_back()
+    {
+        // A superseded row that carried its removable verdict to the offer, whose path
+        // the containment check refuses: %TEMP% stands in for a cache root that
+        // resolved, and the path sits somewhere else. The row stays a registered file,
+        // so the left-alone line has it already. It is counted by the check's verdict
+        // and among the superseded files held back, so a run holding nothing else back
+        // is not given the all-clear.
+        var root = InstallerCacheHelpers.ResolveFinalPath(Path.GetTempPath())
+            .TrimEnd(Path.DirectorySeparatorChar);
+        const string patch = @"C:\Windows\Installer\refused.msp";
+        var query = QueryReturning(new InstallerQueryResult(
+            new List<RegisteredPackage> { SupersededAndOffered(patch) }.AsReadOnly()));
+
+        var fs = new MockFileSystem();
+        fs.AddFile(patch, new MockFileData(new byte[500]));
+
+        var result = await new FileSystemScanService(query, fs, Array.Empty<string>(), root).ScanAsync();
+
+        Assert.Empty(result.RemovableFiles);
+        Assert.Equal(patch, Assert.Single(result.RegisteredPackages).LocalPackagePath);
+        Assert.Empty(result.WithheldFiles!);
+        Assert.Equal(1, result.SupersededContainmentRefusedCount);
+        Assert.Equal(0, result.SupersededContainmentUnestablishedCount);
+        Assert.Equal(500, result.SupersededContainmentBytes);
+        Assert.Equal(0, result.WithheldCount);
+        Assert.Equal(1, result.SupersededHeldBackCount);
+        Assert.Equal(1, result.UnsettledHeldBackCount);
+        Assert.Equal(500, result.UnsettledHeldBackBytes);
+        Assert.True(result.HasUnsettledHeldBack);
+    }
+
+    [Fact]
     public async Task ScanAsync_never_offers_a_withheld_patch_for_removal()
     {
         const string patch = @"C:\Windows\Installer\withheld.msp";
@@ -1219,17 +1283,21 @@ public class FileSystemScanServiceTests
     [Fact]
     public async Task ScanAsync_does_not_offer_a_reparse_point_at_the_cache_root()
     {
-        // A symlink or junction sitting at the root, which the walk drops before
-        // anything else looks at it: following one would pull an OS file out of
-        // System32. The walk applies this in managed code rather than through
-        // EnumerationOptions.AttributesToSkip, which MockFileSystem ignores and
-        // which would leave this unassertable.
+        // A symbolic link sitting at the root, which can point at a file anywhere on
+        // the machine. The walk marks it off its directory entry and the classification
+        // keeps it back without opening it: it is on the withheld list, which puts it on
+        // the left-alone line, counted among the containment check's refusals, and never
+        // on the offer. The walk reads the attribute in managed code rather than through
+        // EnumerationOptions.AttributesToSkip, which MockFileSystem ignores and which
+        // would leave this unassertable.
+        const string plain = @"C:\Windows\Installer\plain.msi";
+        const string link = @"C:\Windows\Installer\link.msi";
         var mockQuery = QueryReturning(new InstallerQueryResult(new List<RegisteredPackage>().AsReadOnly()));
 
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
-            [@"C:\Windows\Installer\plain.msi"] = new("x"),
-            [@"C:\Windows\Installer\link.msi"] = new("x")
+            [plain] = new("x"),
+            [link] = new("x")
             {
                 Attributes = FileAttributes.Normal | FileAttributes.ReparsePoint,
             },
@@ -1237,8 +1305,46 @@ public class FileSystemScanServiceTests
 
         var result = await new FileSystemScanService(mockQuery, fs).ScanAsync();
 
-        Assert.Single(result.RemovableFiles);
-        Assert.Equal(@"C:\Windows\Installer\plain.msi", result.RemovableFiles[0].FullPath);
+        Assert.Equal(plain, Assert.Single(result.RemovableFiles).FullPath);
+        Assert.Equal(link, Assert.Single(result.WithheldFiles!).FullPath);
+        Assert.Equal(1, result.WithheldBy.ContainmentRefusedCount);
+        Assert.Equal(result.WithheldFiles!.Count, result.WithheldBy.Total);
+    }
+
+    [Fact]
+    public async Task ScanAsync_marks_only_a_cache_file_and_leaves_one_a_registration_names_to_it()
+    {
+        // Only an entry the walk would take as a cache file is marked, so a reparse
+        // point of any other kind is not listed at all. And a marked file a
+        // registration names by path is that registration's file: the path comparison
+        // claims it first, so it is counted once, as a registered file, and is not held
+        // back beside it.
+        //
+        // link.msi is what makes the two absences mean something. It is marked and no
+        // registration names it, so it being held back shows the walk listed and marked
+        // entries in this run; a walk that listed nothing would satisfy every other
+        // assertion here.
+        const string claimed = @"C:\Windows\Installer\claimed.msi";
+        const string link = @"C:\Windows\Installer\link.msi";
+        var mockQuery = QueryReturning(new InstallerQueryResult(
+            new List<RegisteredPackage> { Registered(claimed) }.AsReadOnly()));
+
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        {
+            [claimed] = new("x") { Attributes = FileAttributes.Normal | FileAttributes.ReparsePoint },
+            [link] = new("x") { Attributes = FileAttributes.Normal | FileAttributes.ReparsePoint },
+            [@"C:\Windows\Installer\notes.txt"] = new("x")
+            {
+                Attributes = FileAttributes.Normal | FileAttributes.ReparsePoint,
+            },
+        });
+
+        var result = await new FileSystemScanService(mockQuery, fs).ScanAsync();
+
+        Assert.Empty(result.RemovableFiles);
+        Assert.Equal(link, Assert.Single(result.WithheldFiles!).FullPath);
+        Assert.Equal(new WithholdingSplit(ContainmentRefusedCount: 1), result.WithheldBy);
+        Assert.Equal(claimed, Assert.Single(result.RegisteredPackages).LocalPackagePath);
     }
 
     [Fact]

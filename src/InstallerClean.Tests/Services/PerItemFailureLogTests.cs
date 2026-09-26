@@ -13,8 +13,8 @@ namespace InstallerClean.Tests.Services;
 /// </summary>
 public class PerItemFailureLogTests
 {
-    private const string MoveTrail = "The per-file list is on the completion screen and in the result log.";
-    private const string ScanTrail = "There is no other record of which files these were.";
+    private const string MoveTrail = "The per-file list is on the completion screen.";
+    private const string ScanTrail = "The file behind each of them was kept rather than offered.";
 
     /// <summary>
     /// An IOException with a chosen HRESULT, which is half the cause identity
@@ -119,8 +119,8 @@ public class PerItemFailureLogTests
         log.WriteClosingEntry();
 
         var closing = Assert.IsType<InvalidOperationException>(written[^1]);
-        // A scan's refused candidate reaches no completion screen and no result
-        // log, so the Move and Delete wording would be false here.
+        // A file the scan refused is on no completion screen's list of files, so the
+        // Move and Delete wording would be false here.
         Assert.Contains(ScanTrail, closing.Message);
         Assert.DoesNotContain("completion screen", closing.Message);
         Assert.Contains("1 distinct cause ", closing.Message);

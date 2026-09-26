@@ -1098,16 +1098,20 @@ internal static class Program
         }
 
         // SUPERSEDED FILES HELD BACK, printed wherever the count this line carries is
-        // above zero. It names no cause, six separate findings reaching this count and no
-        // sentence naming one of them being true of the files the other five contribute;
-        // the string's own remarks carry that and why "superseded" is earned.
-        if (scanResult.WithheldCount > 0)
+        // above zero. The count is SupersededHeldBackCount, the same superseded files the
+        // window's finished screen counts: those whose removable verdict was taken away
+        // and those the containment check refused or could not answer for. It names no
+        // cause, several separate findings reaching this count and no sentence naming one
+        // of them being true of the files the others contribute; the string's own remarks
+        // carry that and why "superseded" is earned.
+        var supersededHeldBack = scanResult.SupersededHeldBackCount;
+        if (supersededHeldBack > 0)
             Console.WriteLine(string.Format(
-                DisplayHelpers.Pluralise(scanResult.WithheldCount,
+                DisplayHelpers.Pluralise(supersededHeldBack,
                     Strings.Cli_SupersededHeldBack_Singular,
                     Strings.Cli_SupersededHeldBack_Plural,
                     "Cli.SupersededHeldBack"),
-                DisplayHelpers.FormatCount(scanResult.WithheldCount)));
+                DisplayHelpers.FormatCount(supersededHeldBack)));
 
         // THE NOTICE HAS ITS OWN CONDITION, SEPARATE FROM THE LINE ABOVE. The line is
         // printed on the count of superseded files held back; this is written on the
@@ -1117,9 +1121,10 @@ internal static class Program
         // measurement that goes quiet reads exactly like nothing being wrong.
         //
         // THEY ARE NOT TWO VIEWS OF ONE QUANTITY. This counts installed products the
-        // enumeration could not account for, which is the trigger for ONE of the six
-        // routes into the count above. A machine can meet either condition without the other,
-        // and the commonest is meeting this one with no superseded file to hold back.
+        // enumeration could not account for, which is the trigger for ONE of the several
+        // routes into the count above. A machine can meet either condition without the
+        // other, and the commonest is meeting this one with no superseded file to hold
+        // back.
         //
         // The count does not appear in the human line and does appear here. Four
         // different things contribute to it and only two are failures to read, so it
