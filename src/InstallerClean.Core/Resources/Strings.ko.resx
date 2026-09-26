@@ -1782,21 +1782,25 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
        no placeholder and names the file instead of the numeral, as the other one-forms
        here do.
 
-       IT NAMES NO CAUSE, AND THE SUPERORDINATE HOLDS ON EVERY ROUTE INTO THE COUNT. Six
-       separate findings set RemovableWithheld, five of them about one patch and one a
-       sweep over the whole machine, so a sentence naming any one of them is false of
-       the files the other five put in the count. What is true on all six is that the
-       app could not establish that nothing still needs the file, which is the rule the
-       whole app runs on. Do not narrow it, do not name a mechanism and do not add a
-       cause in any language.
+       IT NAMES NO CAUSE, AND THE SUPERORDINATE HOLDS ON EVERY ROUTE INTO THE COUNT. The
+       count is ScanResult.SupersededHeldBackCount. Six separate findings set
+       RemovableWithheld, five of them about one patch and one a sweep over the whole
+       machine, and the containment check refusing the file, or failing to answer for
+       it, is a route in as well, so a sentence naming any one of them is false of the
+       files the others put in the count. What is true on every route is that the app
+       could not establish that the file is no longer needed, which is the rule the
+       whole app runs on, and establishing it takes every check, including the one on
+       where the file really is. Do not narrow it, do not name a mechanism and do not add
+       a cause in any language.
 
        "SUPERSEDED" IS EARNED AND THE COUNT CANNOT HOLD AN OBSOLETED ROW. Every route to
-       RemovableWithheld guards on IsRemovable, the only grant of which is
-       IsRemovablePatch, and that reads a patch state of 2. An obsoleted patch is never
-       offered, so it is never withheld either.
+       RemovableWithheld guards on IsRemovable, and so does the containment check on a
+       superseded row; the only grant of IsRemovable is IsRemovablePatch, and that reads
+       a patch state of 2. An obsoleted patch is never offered, so it is never withheld
+       either.
 
        IT IS GATED ON THE COUNT IT CARRIES, and never on the machine-wide refusal.
-       That refusal is one of six routes into the count rather than the count itself,
+       That refusal is one of several routes into the count rather than the count itself,
        so gating on it would tell somebody holding back no superseded file at all that
        one was held back.
 
@@ -1827,7 +1831,7 @@ InstallerClean은 이미 관리자 권한으로 실행 중이었으므로 그런
        and it is not a headcount of programs. The window does not show it, and
        this line keeps it, an RMM having a filter to hang on a number.
        Cli.SupersededHeldBack IS NOT THIS FIGURE IN OTHER WORDS: it counts files
-       held back, which is a different quantity reached by six routes, of which
+       held back, which is a different quantity reached by several routes, of which
        the condition here is one. -->
   <!-- 0 = mode arg, 1 = registrations naming a file that is not in the cache. The
        second notice (Event ID 3001), and the actionable one. A pair, because the
