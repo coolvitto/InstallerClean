@@ -1022,11 +1022,9 @@ public class InstallerQueryServiceUnitTests
     {
         // The registry's forty product keys against the enumeration's one are not
         // a term, so the figure is the thirty-nine files the registry claims and
-        // the API never mentioned, not seventy-eight. What the number reaches the
-        // user AS is nothing: the notice it gates says only that something in the
-        // records could not be matched up, because this is an estimate and two of
-        // its three terms are not failed reads. The command line's
-        // Application-channel entry is the one surface that still prints it.
+        // the API never mentioned, not seventy-eight. No screen shows the figure and
+        // the command line's own output prints none. The command line's
+        // Application-log entry is the one surface that carries it, as an estimate.
         const string patch = @"C:\Windows\Installer\superseded.msp";
 
         var result = await RunAgainstRegistry(OneProductWithASupersededPatch(patch),
@@ -1324,8 +1322,8 @@ public class InstallerQueryServiceUnitTests
 
         Assert.Equal(200, result.UnaccountedProductCount);
 
-        // Twenty in full plus the one closing entry, against the 200 the
-        // unbudgeted form wrote.
+        // Twenty in full plus the one closing entry, where one entry per product
+        // would be 200.
         Assert.Equal(21, written.Count);
         Assert.Equal(20, written.Count(e => e.Message.Contains("Patch enumeration abandoned", StringComparison.Ordinal)));
 
@@ -1333,8 +1331,8 @@ public class InstallerQueryServiceUnitTests
         Assert.Contains("Patch enumeration: 180 further failures were not logged individually",
             closing, StringComparison.Ordinal);
         // The trail has to be true of THIS caller: a suppressed abandonment
-        // takes the product's identity with it and the user-facing notice
-        // carries none.
+        // takes the product's identity with it, and nothing either host shows
+        // says which product's patch list was abandoned.
         Assert.Contains("recorded nowhere else", closing, StringComparison.Ordinal);
     }
 

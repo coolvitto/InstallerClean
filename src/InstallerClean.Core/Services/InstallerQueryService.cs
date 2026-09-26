@@ -679,9 +679,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // spends crash.log on near-identical copies of one already-recorded
         // condition, which is the very history a report of it would need.
         var abandonedLog = new PerItemFailureLog("Patch enumeration",
-            "The product identity in the ones not logged is recorded nowhere else. The user is "
-            + "told through the scan summary that something in the records could not be matched "
-            + "up, and that notice names nothing and counts nothing.",
+            "The product identity in the ones not logged is recorded nowhere else. Nothing the "
+            + "user sees says which product's patch list was abandoned. The command line counts "
+            + "the superseded files held back and writes to the Application log an estimate of "
+            + "how many installed products the scan could not account for. The window counts "
+            + "those files with the other files the scan held back, and only after a scan that "
+            + "offers nothing.",
             _crashLogSink);
 
         // A SECOND BUDGET, BECAUSE THE CLOSING ENTRY'S LAST SENTENCE IS PER CAUSE AND
@@ -706,9 +709,8 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // losing it behind a storm of the ordinary one.
         var unreadPatchFileLog = new PerItemFailureLog("Patch file read",
             "How many patch files would not read, and which of the two ways, is recorded "
-            + "nowhere else: the result log carries no count for it and no surface says "
-            + "anything about it. What the user sees is that some superseded files were "
-            + "kept back, which names no file and no cause.",
+            + "nowhere else. None of those files is offered. Nothing the user sees says that a "
+            + "file would not read, and nor does the opt-in report.",
             _crashLogSink);
 
         // The closing entry is owed on every exit: the two gates below both
@@ -731,10 +733,11 @@ public sealed class InstallerQueryService : IInstallerQueryService
             productIndex++;
 
             // Every way this one product's records can come back short reaches
-            // the same count, and reaches it once. The number the user reads is
-            // programs, not failures, so one program with a failed package read
-            // AND two failed patch rows is one program. Counting failures
-            // instead would inflate the notice without telling anyone more.
+            // the same count, and reaches it once. The count is of programs, not
+            // failures, so one program with a failed package read AND two failed
+            // patch rows is one program. Counting failures instead would inflate
+            // the Application-log entry and the opt-in report's figure without
+            // telling anyone more.
             var recordsShort = false;
 
             var productName = GetProductProperty(productCode, userSid, context, MsiInstallProperty.ProductName).Value;
@@ -4024,15 +4027,17 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// <summary>
     /// Records that one product's patch enumeration was abandoned after a full run
     /// of unreadable rows. Dev-facing crash-log breadcrumb only, deliberately not
-    /// localised and never surfaced: what the user is told is at most a count of the
-    /// superseded files the scan held back, and the count names no product, whereas
-    /// diagnosing WHY the withholding fired needs exactly that identity. Without this
-    /// line the abandonment leaves no record of which product
-    /// triggered it, so a field report can be pinned to a product only by the
-    /// reporter running the Windows Installer API by hand. Carries the product
-    /// code, its install context and SID (the round-trip that fails when the SID
-    /// is one the enumerator emits but rejects), the last error code, and the
-    /// index reached.
+    /// localised and never surfaced. The command line counts the superseded files the
+    /// scan held back and writes to the Application log an estimate of how many
+    /// installed products it could not account for; the window counts those files with
+    /// the other files the scan held back, and only after a scan that offers nothing.
+    /// None of it says which product's patch list was abandoned, and diagnosing why the
+    /// withholding fired needs exactly that identity. This entry is the one record of
+    /// which product triggered it; without it, pinning a report to a product takes
+    /// somebody running the Windows Installer API by hand on that machine. Carries the
+    /// product code, its install context and SID (the round-trip that fails when the
+    /// SID is one the enumerator emits but rejects), the last error code, and the index
+    /// reached.
     /// </summary>
     /// <param name="cause">
     /// Which arm abandoned: a run of rows the API returned as success with an
