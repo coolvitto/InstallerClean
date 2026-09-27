@@ -137,7 +137,8 @@ public enum HeldBackReason
     /// where the scan's own reading left it removable.
     ///
     /// BOTH LIMBS OF THAT SENTENCE ARE LOAD-BEARING. A patch row whose State or
-    /// Uninstallable read failed is non-removable too, and it names no claim at all:
+    /// Uninstallable read failed, or came back empty where the verdict turns on it, is
+    /// non-removable too, and it names no claim at all:
     /// it is the row being there and nothing more. Such a row carries
     /// <see cref="Models.RegisteredPackage.VerdictUnreadable"/> and counts under
     /// <see cref="RecordsUnreadable"/>, so nothing reaches this cause on a read
@@ -177,19 +178,24 @@ public enum HeldBackReason
     /// what keeps it in place.
     ///
     /// THREE MECHANISMS REACH IT and the sentence is a superordinate over all three
-    /// rather than a convenience: a patch's own State or Uninstallable read failing
-    /// during the re-verify's enumeration
-    /// (<see cref="Models.RegisteredPackage.VerdictUnreadable"/>); a superseded patch
-    /// whose removable verdict that enumeration took away because it could not establish
-    /// something the offer needs, such as its products' patch sets, every installed
-    /// product or every recorded path
+    /// rather than a convenience: a patch's own State or Uninstallable read failing, or
+    /// coming back empty where the verdict turns on it, during the re-verify's
+    /// enumeration (<see cref="Models.RegisteredPackage.VerdictUnreadable"/>); a
+    /// superseded patch whose removable verdict that enumeration took away because it
+    /// could not establish something the offer needs, such as its products' patch sets,
+    /// every installed product or every recorded path
     /// (<see cref="Models.RegisteredPackage.RemovableWithheld"/>); and a read under the
     /// installer lease failing, the same pairing's or the Uninstallable read of a patch
-    /// on a product the batch's pairings name. That second read reaches it too where it
-    /// answers that the installation holds no record of the patch or that the product
-    /// is not installed, or comes back empty. A walk-derived file whose identity
-    /// matches a row of either of the first two kinds is counted here as well, the row
-    /// deciding the cause. The merged count does not distinguish them.
+    /// on a product the batch's pairings name. The first reaches it too on an empty
+    /// answer the verdict turns on, as the enumeration's does. The second reaches it too
+    /// where it answers that the installation holds no record of the patch or that the
+    /// product is not installed, or comes back empty. Under the lease the path's own
+    /// pairings decide first: a path is counted here where none of them found a live
+    /// claim or a registration that has gone and one did not answer, or where they all
+    /// passed and the other patches on its products found no live claim and one did not
+    /// answer. A walk-derived file whose identity matches a row of either of the first
+    /// two kinds is counted here as well, the row deciding the cause. The merged count
+    /// does not distinguish them.
     ///
     /// Anything else that reaches it is held to the same test against the code that
     /// builds the set, never against this list.

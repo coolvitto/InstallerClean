@@ -621,18 +621,29 @@ public class InstallerQueryServiceUnitTests
 
     // ---- Uninstallable guard fails safe ----
 
-    [Fact]
-    public async Task Unreadable_Uninstallable_keeps_a_superseded_patch()
+    [Theory]
+    // An empty Uninstallable beside a superseded State, and an empty State, leave the
+    // pairing's verdict unestablished.
+    [InlineData("2", "", true)]
+    [InlineData("", "0", true)]
+    // Beside an applied or obsoleted State an empty Uninstallable decides nothing, and
+    // the pairing is a claim.
+    [InlineData("1", "", false)]
+    [InlineData("4", "", false)]
+    public async Task An_empty_answer_the_verdict_turns_on_keeps_the_patch_as_unread_rather_than_claimed(
+        string state, string uninstallable, bool unread)
     {
-        const string p = @"C:\Windows\Installer\uninst.msp";
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
-        // Uninstallable left unset => the property read returns empty.
-        msi.AddPatch("{A}", "{P}", localPackage: p, state: "2", uninstallable: null);
+        msi.AddPatch("{A}", "{P}", localPackage: @"C:\Windows\Installer\p.msp", state: state, uninstallable: uninstallable);
 
         var result = await Run(msi);
 
-        Assert.False(Assert.Single(result.Packages, r => r.LocalPackagePath == p).IsRemovable);
+        var row = Assert.Single(result.Packages, r => r.LocalPackagePath.EndsWith("p.msp", StringComparison.Ordinal));
+        Assert.False(row.IsRemovable);
+        Assert.Equal(unread, row.VerdictUnreadable);
+        Assert.Equal(unread ? 1 : 0, result.Census.UnreadablePatchStates);
+        Assert.Equal(unread ? 1 : 0, result.Census.UnreadableVerdictPaths);
     }
 
     // ---- Patch enumeration AccessDenied throws (matches product loop) ----
@@ -2099,6 +2110,76 @@ public class InstallerQueryServiceUnitTests
         var row = Assert.Single(result.Packages, r => r.PatchState == 2);
         Assert.False(row.IsRemovable);
         Assert.False(row.RemovableWithheld);
+    }
+
+    [Fact]
+    public async Task A_program_whose_Uninstallable_comes_back_empty_beside_a_superseded_state_withholds_the_patch()
+    {
+        // B, asked because the file declares it, holds the patch superseded and answers
+        // its Uninstallable with an empty value, which does not say whether the patch
+        // can be rolled back. The row is withheld as a read that did not answer rather
+        // than kept on a claim.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: PatchUnderAnotherName, state: "2", uninstallable: "0");
+        msi.SetPatchProperty("{P}", "{B}", "State", "2");
+        msi.SetPatchProperty("{P}", "{B}", "Uninstallable", "");
+
+        var result = await RunDeclaring(msi, "{B}");
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+    }
+
+    [Theory]
+    [InlineData("empty", false)]
+    [InlineData("empty", true)]
+    [InlineData("failed", false)]
+    [InlineData("failed", true)]
+    public async Task A_program_whose_answer_does_not_come_withholds_the_patch_beside_a_claim_whichever_is_asked_first(
+        string otherAnswer, bool claimAskedFirst)
+    {
+        // Two programs the file declares hold the patch. C has it applied, a live claim.
+        // B's answer establishes nothing: an empty Uninstallable beside a superseded
+        // State, or an Uninstallable read that fails. The row is withheld in either
+        // order.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddPatch("{A}", "{P}", localPackage: PatchUnderAnotherName, state: "2", uninstallable: "0");
+        msi.SetPatchProperty("{P}", "{B}", "State", "2");
+        if (otherAnswer == "empty")
+            msi.SetPatchProperty("{P}", "{B}", "Uninstallable", "");
+        else
+            msi.PatchPropertyResult[("{P}", "{B}", "Uninstallable")] = BadConfiguration;
+        msi.SetPatchProperty("{P}", "{C}", "State", "1");
+        msi.SetPatchProperty("{P}", "{C}", "Uninstallable", "0");
+
+        var result = await RunDeclaring(msi, claimAskedFirst ? new[] { "{C}", "{B}" } : new[] { "{B}", "{C}" });
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+    }
+
+    /// <summary>
+    /// A scan of <paramref name="msi"/> on which the cached patch file at
+    /// <see cref="PatchUnderAnotherName"/> declares <paramref name="targets"/>, in that
+    /// order, and every product the scan can ask about holds no patch that could be
+    /// uninstalled.
+    /// </summary>
+    private static Task<InstallerQueryResult> RunDeclaring(FakeMsiApi msi, params string[] targets)
+    {
+        var patchSets = new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["{A}"] = ProductPatchSet.AllNonRemovable,
+        };
+        foreach (var target in targets) patchSets[target] = ProductPatchSet.AllNonRemovable;
+
+        return new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, 0, ProductPatchSets: patchSets),
+                identityReader: new OnePatchFileDeclaring("shared.bin", targets))
+            .GetRegisteredPackagesAsync();
     }
 
     [Fact]

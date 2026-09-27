@@ -238,12 +238,13 @@ public sealed record AppInfo(string Version, string Language, string WindowsLang
 /// the first kind.
 /// </param>
 /// <param name="UnreadablePatchStateCount">
-/// Patches whose state could not be read during the scan, one per product-to-patch
-/// pairing. Both reads fail towards keeping the file, so the count says how often a
-/// machine cannot answer the question, and never counts a file lost.
+/// Patches whose State or Uninstallable read failed during the scan, or came back
+/// empty where the pairing's verdict turns on it, one per product-to-patch pairing.
+/// Each such pairing keeps its file, so the count says how often a machine cannot
+/// answer the question, and never counts a file lost.
 /// </param>
 /// <param name="UnreadableVerdictPathCount">
-/// The same failures counted once per cached PATH rather than once per pairing.
+/// The same unanswered reads counted once per cached PATH rather than once per pairing.
 ///
 /// IT IS HERE RATHER THAN UNDER THE SCAN BECAUSE THE PAIR IS THE READING and
 /// splitting them across two objects would throw that away: a machine where

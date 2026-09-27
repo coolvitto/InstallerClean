@@ -29,11 +29,11 @@ namespace InstallerClean.Models;
 ///
 /// RemovableWithheld and VerdictUnreadable are both live and neither is machinery
 /// kept against a class coming back. VerdictUnreadable means a patch's State or
-/// Uninstallable read failed, so nothing was established about that registration
-/// either way. RemovableWithheld means a removable verdict was taken away, which is
-/// a thing that happens on any scan that withholds one. Nothing may put a row
-/// carrying either flag under a sentence that names a claim, because there is no
-/// claim to name.
+/// Uninstallable read failed, or came back empty where the pairing's verdict turns on
+/// it, so nothing was established about that registration either way.
+/// RemovableWithheld means a removable verdict was taken away, which is a thing that
+/// happens on any scan that withholds one. Nothing may put a row carrying either flag
+/// under a sentence that names a claim, because there is no claim to name.
 /// </summary>
 /// <param name="ProductPatchSetVerdict">
 /// Whether anything on any product this registration is registered under could be

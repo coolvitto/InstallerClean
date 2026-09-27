@@ -632,7 +632,8 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // keeps a row it ever passed inside this figure.
         var unreadableProducts = unreadableRows;
 
-        // Patches whose State or Uninstallable read failed. Decides nothing; see
+        // Patches whose State or Uninstallable read failed, or came back empty where
+        // the pairing's verdict turns on it. Decides nothing; see
         // the increment site for what it measures and why it is worth measuring.
         var unreadablePatchStates = 0;
 
@@ -778,9 +779,8 @@ public sealed class InstallerQueryService : IInstallerQueryService
             }
 
             // LocalPackage is the one property whose failed read DELETES this
-            // product's claim rather than degrading it. An unreadable State
-            // leaves patchState 0 and an unreadable Uninstallable leans
-            // non-removable, so either still merges a row that says "needed";
+            // product's claim rather than degrading it. An unreadable State or
+            // Uninstallable still merges a row, kept and marked unread;
             // an unreadable LocalPackage skips the insertion entirely, and the
             // product's "I still have this file" never reaches the merge at all.
             // So it is counted in unreadableProducts and withholds the removable
@@ -836,12 +836,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
                     var stateStr = stateRead.Value;
 
                     // A read that failed leaves nothing established about the
-                    // registration, which no surface may describe as a claim, and the
-                    // count travels beside the flag because how often either read
-                    // fails is a fact only the reports can establish. It also refuses
-                    // the removable verdict below, both halves of that rule needing a
+                    // registration, which no surface may describe as a claim, and nor
+                    // does an empty answer where the verdict turns on it
+                    // (LeavesVerdictUnestablished). The count travels beside the flag
+                    // because how often a machine cannot answer either question is a
+                    // fact only the reports can establish. Neither can pass the
+                    // removable verdict below, both halves of that rule needing a
                     // positive answer.
-                    var verdictUnreadable = stateRead.Unreadable || uninstallableRead.Unreadable;
+                    var verdictUnreadable = stateRead.Unreadable || uninstallableRead.Unreadable
+                        || LeavesVerdictUnestablished(stateRead.Value, uninstallableRead.Value);
                     if (verdictUnreadable) unreadablePatchStates++;
 
                     // An unparseable State leaves patchState at 0 (not-a-patch),
@@ -1611,6 +1614,18 @@ public sealed class InstallerQueryService : IInstallerQueryService
             }
             toAsk.AddRange(fromFile.Installed);
 
+            // AN INSTALLATION THAT DID NOT ANSWER WITHHOLDS THE PATH, WHATEVER ANY OTHER
+            // INSTALLATION SAYS. It settles the path, and the reads stop there. A claim
+            // does not settle it: the reads go on past one, and the path is kept on the
+            // claim only where every installation asked has answered. Which installation
+            // is asked first then decides nothing.
+            //
+            // Do not let a claim end the reads. The missing-files split reads a row kept on
+            // a claim as one whose verdict this pass established, which holds only where
+            // every installation holding the patch answered.
+            var claimedByAnInstallation = false;
+            var unanswered = false;
+
             foreach (var (productCode, userSid, context) in toAsk)
             {
                 ct.ThrowIfCancellationRequested();
@@ -1628,18 +1643,18 @@ public sealed class InstallerQueryService : IInstallerQueryService
                 // that it does not hold the patch, so it says nothing about the verdict
                 // either way. From a listed holder it contradicts the listing, which
                 // named the same product, account and context this read is put in, so
-                // it withholds with every other read that did not answer.
+                // it counts with every other read that did not answer.
                 //
                 // AN ANSWER THAT THE PRODUCT IS NOT INSTALLED IS NEVER SKIPPED. Every
                 // installation on this list was listed earlier in this scan, by the
                 // product enumeration, the recovery by name, the machine-wide patch
                 // enumeration or the resolve of a declared target, so that answer
-                // contradicts what the scan established, and it withholds too.
+                // contradicts what the scan established, and it counts with them too.
                 if (state.PatchNotHeld && !IsListedHolder(named, productCode, userSid, context)) continue;
 
                 if (state.Unreadable)
                 {
-                    Downgrade(claimed, path, withheld: true);
+                    unanswered = true;
                     break;
                 }
 
@@ -1647,24 +1662,29 @@ public sealed class InstallerQueryService : IInstallerQueryService
                 // that this installation holds no record of the patch, so it holds
                 // one, and an answer now that it does not, or that its product is not
                 // installed, contradicts the one before it. Both are unreadable as
-                // well, and withhold.
+                // well.
                 var uninstallable = GetPatchProperty(_msi, patchCode, productCode, userSid, context,
                     MsiInstallProperty.Uninstallable);
-                if (uninstallable.Unreadable)
+
+                // An empty answer the verdict turns on did not answer either, and counts
+                // with the reads that failed rather than as a claim
+                // (LeavesVerdictUnestablished). An installation where the patch is
+                // applied or obsoleted claims it below, whatever its Uninstallable says.
+                if (uninstallable.Unreadable || LeavesVerdictUnestablished(state.Value, uninstallable.Value))
                 {
-                    Downgrade(claimed, path, withheld: true);
+                    unanswered = true;
                     break;
                 }
 
+                // This product holds the patch and has not shown it removable, which is
+                // the claim the truncated enumeration would have contributed. Same
+                // verdict, reached by asking.
                 if (!IsRemovablePatch(state.Value, uninstallable.Value))
-                {
-                    // This product holds the patch and has not shown it
-                    // removable, which is the claim the truncated enumeration
-                    // would have contributed. Same verdict, reached by asking.
-                    Downgrade(claimed, path, withheld: false);
-                    break;
-                }
+                    claimedByAnInstallation = true;
             }
+
+            if (unanswered) Downgrade(claimed, path, withheld: true);
+            else if (claimedByAnInstallation) Downgrade(claimed, path, withheld: false);
         }
     }
 
@@ -4169,6 +4189,28 @@ public sealed class InstallerQueryService : IInstallerQueryService
         int.TryParse(stateValue, out var patchState);
         return patchState == 2 && uninstallableValue == "0";
     }
+
+    /// <summary>
+    /// Whether a State and an Uninstallable value that both read, for one pairing of a
+    /// patch and a product, still leave that pairing's own verdict unestablished. An
+    /// empty value is present and empty or not recorded at all, and it answers nothing:
+    /// an empty State does not say whether the patch is applied or superseded, and an
+    /// empty Uninstallable beside a superseded State does not say whether the patch can
+    /// be rolled back, which is what the removable verdict turns on. Either is counted as
+    /// a read that did not answer, never as a claim on the file.
+    ///
+    /// AN EMPTY UNINSTALLABLE BESIDE ANY OTHER STATE DECIDES NOTHING, and the pairing
+    /// stays a claim. An applied or obsoleted patch holds its cached file whether or not
+    /// it can be uninstalled, so its State alone keeps the file.
+    ///
+    /// WHAT TURNS ON THIS IS WHICH COUNT A KEPT FILE IS IN, NEVER WHETHER IT IS KEPT.
+    /// Neither shape can pass <see cref="IsRemovablePatch"/>, so a pairing answering
+    /// either is kept whatever this says. A product's patch set reads an empty Uninstallable as unestablished whatever
+    /// the State beside it, and does not come through here.
+    /// </summary>
+    internal static bool LeavesVerdictUnestablished(string stateValue, string uninstallableValue) =>
+        stateValue.Length == 0
+        || (int.TryParse(stateValue, out var patchState) && patchState == 2 && uninstallableValue.Length == 0);
 
     /// <summary>
     /// The benign returns of a property read, through <c>MsiGetProductInfoEx</c>,

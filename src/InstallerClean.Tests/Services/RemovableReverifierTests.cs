@@ -303,6 +303,7 @@ public class RemovableReverifierTests
 
     private const string PatchA = "{AAAAAAAA-0000-0000-0000-000000000001}";
     private const string PatchB = "{BBBBBBBB-0000-0000-0000-000000000002}";
+    private const string PatchC = "{CCCCCCCC-0000-0000-0000-000000000003}";
     private const string ProductOne = "{11111111-0000-0000-0000-000000000001}";
     private const string ProductTwo = "{22222222-0000-0000-0000-000000000002}";
 
@@ -378,6 +379,62 @@ public class RemovableReverifierTests
 
         Assert.Equal(new[] { path }, recheck.HeldBack);
         Assert.Equal(new HeldBackReasons(RecordsUnreadable: 1), recheck.Reasons);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_sibling_that_can_be_uninstalled_outranks_one_whose_answer_is_empty_whichever_is_read_first(
+        bool claimReadFirst)
+    {
+        // Two other patches on the product: one answers its Uninstallable empty, which
+        // establishes nothing, and one answers that it can be uninstalled, a live claim
+        // on the rollback. The path is counted on the claim in either order.
+        const string path = @"C:\Windows\Installer\superseded.msp";
+        var msi = new ScriptedPatchApi();
+        msi.Set(PatchA, ProductOne, state: "2", uninstallable: "0");
+        msi.Set(PatchB, ProductOne, state: "2", uninstallable: "");
+        msi.Set(PatchC, ProductOne, state: "2", uninstallable: "1");
+        var svc = new RemovableReverifier(Substitute.For<IInstallerQueryService>(), msi);
+
+        var empty = Claim(@"C:\Windows\Installer\empty.msp", PatchB, ProductOne);
+        var claiming = Claim(@"C:\Windows\Installer\claiming.msp", PatchC, ProductOne);
+        var recheck = svc.RecheckUnderLease(new UnderLeaseClaims(
+            new[] { Claim(path, PatchA, ProductOne) },
+            claimReadFirst
+                ? new[] { Claim(path, PatchA, ProductOne), claiming, empty }
+                : new[] { Claim(path, PatchA, ProductOne), empty, claiming }));
+
+        Assert.Equal(new[] { path }, recheck.HeldBack);
+        Assert.Equal(new HeldBackReasons(Reclaimed: 1), recheck.Reasons);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_path_on_two_products_is_counted_on_the_claim_whichever_product_is_read_first(
+        bool claimingProductFirst)
+    {
+        // One cached patch held by two products, and each product has one other patch.
+        // Product one's answers its Uninstallable empty and product two's answers that it
+        // can be uninstalled. The rollback on product two reaches for the file, so the
+        // path is counted on that claim in either order.
+        const string path = @"C:\Windows\Installer\shared.msp";
+        var msi = new ScriptedPatchApi();
+        msi.Set(PatchA, ProductOne, state: "2", uninstallable: "0");
+        msi.Set(PatchA, ProductTwo, state: "2", uninstallable: "0");
+        msi.Set(PatchB, ProductOne, state: "2", uninstallable: "");
+        msi.Set(PatchB, ProductTwo, state: "2", uninstallable: "1");
+        var svc = new RemovableReverifier(Substitute.For<IInstallerQueryService>(), msi);
+
+        var onOne = new[] { Claim(path, PatchA, ProductOne), Claim(@"C:\Windows\Installer\other.msp", PatchB, ProductOne) };
+        var onTwo = new[] { Claim(path, PatchA, ProductTwo), Claim(@"C:\Windows\Installer\other.msp", PatchB, ProductTwo) };
+        var recheck = svc.RecheckUnderLease(new UnderLeaseClaims(
+            new[] { Claim(path, PatchA, ProductOne), Claim(path, PatchA, ProductTwo) },
+            claimingProductFirst ? onTwo.Concat(onOne).ToArray() : onOne.Concat(onTwo).ToArray()));
+
+        Assert.Equal(new[] { path }, recheck.HeldBack);
+        Assert.Equal(new HeldBackReasons(Reclaimed: 1), recheck.Reasons);
     }
 
     [Fact]
@@ -599,6 +656,80 @@ public class RemovableReverifierTests
         Assert.Equal(new HeldBackReasons(RecordsUnreadable: 1), recheck.Reasons);
     }
 
+    [Theory]
+    // An empty Uninstallable beside a superseded State, and an empty State, leave the
+    // pairing's verdict unestablished.
+    [InlineData("2", "", HeldBackReason.RecordsUnreadable)]
+    [InlineData("", "0", HeldBackReason.RecordsUnreadable)]
+    // Beside an applied or obsoleted State an empty Uninstallable decides nothing, and
+    // the pairing is a claim.
+    [InlineData("1", "", HeldBackReason.Reclaimed)]
+    [InlineData("4", "", HeldBackReason.Reclaimed)]
+    public void An_empty_answer_about_the_batch_pairing_is_counted_as_unread_where_the_verdict_turns_on_it(
+        string state, string uninstallable, HeldBackReason expected)
+    {
+        const string path = @"C:\Windows\Installer\empty.msp";
+        var msi = new ScriptedPatchApi();
+        msi.Set(PatchA, ProductOne, state, uninstallable);
+        var svc = new RemovableReverifier(Substitute.For<IInstallerQueryService>(), msi);
+
+        var recheck = svc.RecheckUnderLease(new UnderLeaseClaims(new[] { Claim(path, PatchA, ProductOne) }, new[] { Claim(path, PatchA, ProductOne) }));
+
+        Assert.Equal(new[] { path }, recheck.HeldBack);
+        Assert.Equal(default(HeldBackReasons).Plus(expected), recheck.Reasons);
+    }
+
+    [Theory]
+    [InlineData("failed", "applied", HeldBackReason.Reclaimed)]
+    [InlineData("applied", "failed", HeldBackReason.Reclaimed)]
+    [InlineData("empty", "applied", HeldBackReason.Reclaimed)]
+    [InlineData("applied", "empty", HeldBackReason.Reclaimed)]
+    [InlineData("gone", "applied", HeldBackReason.Reclaimed)]
+    [InlineData("applied", "gone", HeldBackReason.Reclaimed)]
+    [InlineData("failed", "gone", HeldBackReason.RecordsChanged)]
+    [InlineData("gone", "failed", HeldBackReason.RecordsChanged)]
+    public void A_path_whose_claims_answer_differently_is_counted_on_the_strongest_whichever_is_read_first(
+        string first, string second, HeldBackReason expected)
+    {
+        // One cached patch held by two products, whose pairings answer differently. A
+        // live claim outranks a registration that has gone, which outranks a read that
+        // did not answer, and the order the claims are read in decides nothing.
+        const string shared = @"C:\Windows\Installer\shared.msp";
+        var msi = new ScriptedPatchApi();
+        Answer(msi, ProductOne, first);
+        Answer(msi, ProductTwo, second);
+        var svc = new RemovableReverifier(Substitute.For<IInstallerQueryService>(), msi);
+
+        var claims = new[] { Claim(shared, PatchA, ProductOne), Claim(shared, PatchA, ProductTwo) };
+        var recheck = svc.RecheckUnderLease(new UnderLeaseClaims(claims, claims));
+
+        Assert.Equal(new[] { shared }, recheck.HeldBack);
+        Assert.Equal(default(HeldBackReasons).Plus(expected), recheck.Reasons);
+
+        static void Answer(ScriptedPatchApi msi, string product, string answer)
+        {
+            switch (answer)
+            {
+                case "applied":
+                    msi.Set(PatchA, product, state: "1", uninstallable: "0");
+                    break;
+                case "empty":
+                    msi.Set(PatchA, product, state: "2", uninstallable: "");
+                    break;
+                case "failed":
+                    msi.Set(PatchA, product, state: "2", uninstallable: "0");
+                    msi.FailProperty(PatchA, product, "State");
+                    break;
+                case "gone":
+                    msi.Set(PatchA, product, state: "2", uninstallable: "0");
+                    msi.AbsentRecord(PatchA, product, "State");
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(answer), answer, null);
+            }
+        }
+    }
+
     [Fact]
     public void Claims_that_answered_differently_are_counted_against_their_own_causes()
     {
@@ -681,13 +812,13 @@ public class RemovableReverifierTests
         })).HeldBack;
 
         // One verdict per path is all a caller can act on, and the second claim
-        // is not queried at all once the first has condemned it.
+        // is not queried at all once the first has shown a live claim.
         Assert.Equal(new[] { shared }, reclaimed);
 
         // FOUR READS, AND THE SPLIT IS THE ASSERTION RATHER THAN THE TOTAL. Two are
         // the batch loop's State and Uninstallable for the FIRST claim only, which is
-        // the short-circuit this test is about and which still holds: a second claim
-        // on a path already condemned is skipped. The other two are the sibling pass
+        // the short-circuit this test is about: a second claim on a path a live claim
+        // has already settled is skipped. The other two are the sibling pass
         // added for the rollback case, which reads Uninstallable once per PRODUCT
         // holding the patch, and this fixture names two products. A bare total would
         // have gone on passing if the short-circuit broke and the sibling pass got

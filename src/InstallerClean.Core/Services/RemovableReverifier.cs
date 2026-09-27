@@ -115,8 +115,10 @@ public sealed class RemovableReverifier : IRemovableReverifier
         // does not appear at all; a true orphan was never registered.
         //
         // NOT EVERY ROW HERE CARRIES A CLAIM, and telling them apart is the whole
-        // of what this map is for. A patch whose State or Uninstallable read failed
-        // lands here having established nothing either way: non-removable for want
+        // of what this map is for. A patch whose State or Uninstallable read failed,
+        // or came back empty where the verdict turns on it
+        // (InstallerQueryService.LeavesVerdictUnestablished), lands here having
+        // established nothing either way: non-removable for want
         // of a verdict rather than on one, so its file is held as records that could
         // not be read, not as a program reclaiming it. The withheld kind is a third,
         // held the same way: a superseded patch whose removable verdict this run took
@@ -434,9 +436,11 @@ public sealed class RemovableReverifier : IRemovableReverifier
     ///
     /// A KEYED READ COMES BACK IN FOUR SHAPES. They are a value, a positive "there is
     /// no such record", a read that failed, and an answer that came back empty without
-    /// having failed. The batch's own pairings tell the first three apart, and an empty
-    /// answer there is a value that is not removable, which is how the scan reads the
-    /// patch's own row. The sibling reads tell two. A read that failed, an answer that
+    /// having failed. The batch's own pairings tell the first three apart. An empty
+    /// answer there counts with the reads that failed where the verdict turns on it, an
+    /// empty State or an empty Uninstallable beside a superseded State, and beside an
+    /// applied or obsoleted State it is a claim, which is how the scan reads the patch's
+    /// own row. The sibling reads tell two. A read that failed, an answer that
     /// there is no such record and an empty answer are an inability, which is how the
     /// scan's reading of a product's patch set takes each of them, and a value that is
     /// present and not zero is a live claim on the rollback. Only a clean value lets a
@@ -477,18 +481,35 @@ public sealed class RemovableReverifier : IRemovableReverifier
         var siblingClaims = claims.Siblings;
         if (batchClaims.Count == 0) return new UnderLeaseRecheck(Array.Empty<string>());
 
-        var heldBack = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var reasons = default(HeldBackReasons);
+        // Every condemned path's cause, and the paths in the order each was first
+        // condemned, which is the order they are handed back in.
+        var causes = new Dictionary<string, HeldBackReason>(StringComparer.OrdinalIgnoreCase);
+        var condemnedInOrder = new List<string>();
 
+        void Condemn(string path, HeldBackReason reason)
+        {
+            if (causes.TryGetValue(path, out var already))
+            {
+                causes[path] = Stronger(already, reason);
+                return;
+            }
 
+            causes[path] = reason;
+            condemnedInOrder.Add(path);
+        }
+
+        // A LIVE CLAIM OUTRANKS EVERYTHING ELSE, and a record that has gone outranks a
+        // read that did not answer, as a finding outranks an inability. So a path's
+        // claims are read on past one that condemns it, until one is a live claim,
+        // which nothing can outrank, or until every claim has answered. Which of a
+        // path's own claims comes first then decides nothing about its cause. A path that has
+        // passed so far is read on for a different reason: every claim on it has to
+        // answer, because the one that has moved may be any of them.
         foreach (var claim in batchClaims)
         {
-            // Any one claim turning non-removable settles the path, so once a path
-            // is condemned its remaining claims are not queried. A path that has
-            // passed so far still is: every claim on it has to answer, because the
-            // one that has moved may be any of them.
-            if (seen.Contains(claim.LocalPackagePath)) continue;
+            if (causes.TryGetValue(claim.LocalPackagePath, out var settled)
+                && settled == HeldBackReason.Reclaimed)
+                continue;
 
             var context = (Interop.MsiInstallContext)claim.Context;
             var state = InstallerQueryService.GetPatchProperty(
@@ -521,24 +542,31 @@ public sealed class RemovableReverifier : IRemovableReverifier
             // sets; what it carries and this does not is a whole enumeration's
             // inherited withholding, which has no counterpart here because this
             // judges one named pairing.
+            //
+            // An empty answer the verdict turns on is counted with the reads that did
+            // not answer, as the pre-lease pass counts it through the row flag
+            // (InstallerQueryService.LeavesVerdictUnestablished). An applied or
+            // obsoleted pairing is a claim whatever its Uninstallable says.
             var reason =
                 notRegistered && !unreadable ? HeldBackReason.RecordsChanged
                 : unreadable ? HeldBackReason.RecordsUnreadable
-                : !InstallerQueryService.IsRemovablePatch(state.Value, uninstallable.Value)
-                    ? HeldBackReason.Reclaimed
-                    : (HeldBackReason?)null;
+                : InstallerQueryService.IsRemovablePatch(state.Value, uninstallable.Value)
+                    ? (HeldBackReason?)null
+                : InstallerQueryService.LeavesVerdictUnestablished(state.Value, uninstallable.Value)
+                    ? HeldBackReason.RecordsUnreadable
+                    : HeldBackReason.Reclaimed;
 
             if (reason is null) continue;
 
-            // One cause per path, taken from the claim that condemned it. Where a
-            // path's claims disagree the later ones are never asked, so preferring
-            // a different cause would mean more property reads with the
-            // machine-wide installer lease held. The cause named is true of the
-            // file; that a second one also applied is not a defect.
-            seen.Add(claim.LocalPackagePath);
-            heldBack.Add(claim.LocalPackagePath);
-            reasons = reasons.Plus(reason.Value);
+            Condemn(claim.LocalPackagePath, reason.Value);
         }
+
+        // A PATH ITS OWN PAIRINGS CONDEMNED IS SETTLED BY THEM, and the per-product
+        // condition below does not change its cause. The scan is the same: its reading
+        // of a product's patch sets takes the verdict away only from a row that still
+        // has one, so a row its own pairings left non-removable keeps the cause they
+        // gave it.
+        var settledByOwnPairings = new HashSet<string>(causes.Keys, StringComparer.OrdinalIgnoreCase);
 
         // THE PER-PRODUCT CONDITION, RE-READ BY KEY. Everything above re-asks about the
         // batch's own pairings; this re-asks about the OTHER patches on the products
@@ -555,12 +583,25 @@ public sealed class RemovableReverifier : IRemovableReverifier
         // shape of the condition rather than a shortcut: the patch's one cached file is
         // shared by every product holding it, so a rollback on any of them reaches for
         // it.
+        //
+        // A LIVE CLAIM OUTRANKS AN INABILITY, as it does in the scan's reading of a
+        // product's patch set. So a sibling that did not answer does not end the reads
+        // on its product: they go on until one sibling is a live claim, which settles
+        // the product, or until every sibling has been read, and the product is counted
+        // as unread only where none was a claim. A batch path its own pairings passed,
+        // registered to several products, is counted as a live claim where any of them
+        // gave one. Which sibling, and which product, comes first then decides nothing
+        // about the cause.
         var productsAlreadyJudged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var sibling in siblingClaims)
         {
             // A product settled by an earlier sibling needs no second look. The verdict
             // is one-way, so re-asking could only cost reads while the lease is held.
             if (!productsAlreadyJudged.Add(sibling.ProductCode)) continue;
+
+            // The cause this product's siblings support, null while every one read so
+            // far is a clean zero.
+            HeldBackReason? productReason = null;
 
             foreach (var onThisProduct in siblingClaims)
             {
@@ -586,34 +627,62 @@ public sealed class RemovableReverifier : IRemovableReverifier
                 // path is held back all the same.
                 if (!siblingUninstallable.Unreadable && siblingUninstallable.Value == "0") continue;
 
-                // Every batch path registered to this product goes, with the cause the
-                // read supports. A read that failed and an answer that came back empty
-                // are an inability, since neither says whether the patch can be
-                // uninstalled. A value that is present and not zero is a live claim on
-                // the rollback. The scan reads an answer that came back empty into a
-                // product's patch set as unestablished, and the pre-lease pass counts
-                // the file it holds for that under RecordsUnreadable. Change this arm
-                // and that reading together, or one answer is counted under two causes
-                // depending on which pass met it.
-                var siblingReason = siblingUninstallable.Unreadable || siblingUninstallable.Value.Length == 0
-                    ? HeldBackReason.RecordsUnreadable
-                    : HeldBackReason.Reclaimed;
-
-                foreach (var batchClaim in batchClaims)
+                // A read that failed and an answer that came back empty are an
+                // inability, since neither says whether the patch can be uninstalled,
+                // and the reads go on. A value that is present and not zero is a live
+                // claim on the rollback, and settles the product. The scan reads an
+                // answer that came back empty into a product's patch set as
+                // unestablished, and the pre-lease pass counts the file it holds for
+                // that under RecordsUnreadable where no patch on any product sharing the
+                // file is a claim. Change this arm and that reading together, or one answer is
+                // counted under two causes depending on which pass met it.
+                if (siblingUninstallable.Unreadable || siblingUninstallable.Value.Length == 0)
                 {
-                    if (!string.Equals(batchClaim.ProductCode, sibling.ProductCode,
-                            StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    if (!seen.Add(batchClaim.LocalPackagePath)) continue;
-
-                    heldBack.Add(batchClaim.LocalPackagePath);
-                    reasons = reasons.Plus(siblingReason);
+                    productReason = HeldBackReason.RecordsUnreadable;
+                    continue;
                 }
 
+                productReason = HeldBackReason.Reclaimed;
                 break;
+            }
+
+            if (productReason is null) continue;
+
+            // Every batch path registered to this product goes, with the cause the
+            // product's siblings support.
+            foreach (var batchClaim in batchClaims)
+            {
+                if (!string.Equals(batchClaim.ProductCode, sibling.ProductCode,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (settledByOwnPairings.Contains(batchClaim.LocalPackagePath)) continue;
+
+                Condemn(batchClaim.LocalPackagePath, productReason.Value);
             }
         }
 
-        return new UnderLeaseRecheck(heldBack.AsReadOnly(), reasons);
+        var reasons = default(HeldBackReasons);
+        foreach (var path in condemnedInOrder)
+            reasons = reasons.Plus(causes[path]);
+
+        return new UnderLeaseRecheck(condemnedInOrder.AsReadOnly(), reasons);
     }
+
+    /// <summary>
+    /// The stronger of two causes found for one path under the lease: a live claim,
+    /// then a registration that has gone, then records not read to a verdict. The
+    /// first two are findings and the third is an inability, and a finding outranks
+    /// an inability. Only those three are found under the lease.
+    /// </summary>
+    private static HeldBackReason Stronger(HeldBackReason a, HeldBackReason b) =>
+        Rank(a) >= Rank(b) ? a : b;
+
+    private static int Rank(HeldBackReason reason) => reason switch
+    {
+        HeldBackReason.Reclaimed => 2,
+        HeldBackReason.RecordsChanged => 1,
+        HeldBackReason.RecordsUnreadable => 0,
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason,
+            "Only a live claim, a registration that has gone and an unread record are found under the lease."),
+    };
 }

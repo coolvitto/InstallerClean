@@ -171,10 +171,12 @@ public record InstallerQueryResult(
 /// A subset of the fallback's failure count rather than a term beside it.
 /// </param>
 /// <param name="UnreadablePatchStates">
-/// Patch claims whose <c>State</c> or <c>Uninstallable</c> read failed, one per
-/// (patch, product) pairing asked. No file turns on it, a registration whose read
-/// failed being kept; the number says how often a machine cannot answer a plain
-/// question about its own installer records at all.
+/// Patch claims whose <c>State</c> or <c>Uninstallable</c> read failed, or came back
+/// empty where the pairing's verdict turns on it (an empty State, or an empty
+/// Uninstallable beside a superseded State), one per (patch, product) pairing asked.
+/// No file turns on it, a registration whose read did not answer being kept; the
+/// number says how often a machine cannot answer a plain question about its own
+/// installer records at all.
 /// </param>
 /// <param name="UnreadableVerdictPaths">
 /// Cached paths whose patch state no read established, one per merged row where

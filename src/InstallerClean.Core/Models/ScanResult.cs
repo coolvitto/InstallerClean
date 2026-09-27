@@ -37,9 +37,10 @@ namespace InstallerClean.Models;
 /// removable verdict the scan took away, because it could not establish something
 /// the offer needs (<c>RemovableWithheld</c>), counted in
 /// <see cref="RegisteredWithheldCount"/>; and a patch whose State or Uninstallable
-/// read failed (<c>VerdictUnreadable</c>), about which nothing was established at
-/// all, counted in <see cref="RegisteredUnjudgedCount"/>. All three are kept. What
-/// they do not share is a sentence, which is why each has its own count.
+/// read failed, or came back empty where its verdict turns on it
+/// (<c>VerdictUnreadable</c>), about which nothing was established at all, counted
+/// in <see cref="RegisteredUnjudgedCount"/>. All three are kept. What they do not
+/// share is a sentence, which is why each has its own count.
 /// </param>
 /// <param name="RegisteredTotalBytes">
 /// Sum of <see cref="RegisteredPackage.FileSizeBytes"/> across
@@ -226,8 +227,9 @@ namespace InstallerClean.Models;
 /// A row carrying neither flag is in <see cref="RegisteredClaimedCount"/>;
 /// a superseded row whose removable verdict the scan took away, because it could not
 /// establish something the offer needs, is in <see cref="RegisteredWithheldCount"/>;
-/// and a patch whose State read gave 2 or 4 and whose Uninstallable read then failed
-/// is in <see cref="RegisteredUnjudgedCount"/>. So it is added to none of them.
+/// and a patch whose State read gave 2 or 4 and whose Uninstallable read then failed,
+/// or gave 2 and whose Uninstallable came back empty, is in
+/// <see cref="RegisteredUnjudgedCount"/>. So it is added to none of them.
 /// A superseded or obsoleted row whose file has already gone is in one of the two
 /// missing counts instead, decided by <c>MissingFilesReport.Affected</c> rather than
 /// by the state.

@@ -905,8 +905,8 @@ public sealed class FileSystemScanService : IFileSystemScanService
         //
         // Its rows can sit in any of the three counts above: a live claim in the
         // claimed, a verdict taken away in the withheld, and a State that read 2 or 4
-        // whose Uninstallable read then failed in the unjudged. So it is added to none
-        // of them.
+        // whose Uninstallable read then failed, or a 2 whose Uninstallable came back
+        // empty, in the unjudged. So it is added to none of them.
         var registeredSuperseded = stillUsed
             .Count(p => p.IsSupersededOrObsoleted && p.FileExists);
         var registeredSupersededBytes = stillUsed
