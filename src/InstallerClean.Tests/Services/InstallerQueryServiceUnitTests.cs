@@ -34,8 +34,8 @@ public class InstallerQueryServiceUnitTests
     /// Codes the property reads branch on. <see cref="BadConfiguration"/> stands
     /// for the whole unreadable class (any code not on the benign allowlist
     /// reaches the same branch); <see cref="UnknownProperty"/> is the one a
-    /// record that simply does not carry the property returns, which a
-    /// 2026-07-18 Windows probe established is distinct from a failure.
+    /// record that simply does not carry the property returns, and it is not a
+    /// failure.
     /// </summary>
     private const uint UnknownProperty = 1608, BadConfiguration = 1610;
 
@@ -1629,10 +1629,10 @@ public class InstallerQueryServiceUnitTests
     // ---- A recorded path the scan could not settle withholds the removable class too ----
     //
     // Claims meet on a row by their normalised path, so a registration kept in a spelling
-    // nothing resolves sits on a row of its own, and the row for the file it means never
-    // hears from it. Which file such a claim names cannot be established, so the scan-wide
-    // withholding takes every superseded row off the offer, as it does on a scan that could
-    // not account for every installed product.
+    // nothing resolves need not land on the row for the file it means, and where it does
+    // not, that row never hears from it. Which file such a claim names cannot be
+    // established, so the scan-wide withholding takes every superseded row off the offer,
+    // as it does on a scan that could not account for every installed product.
     //
     // THE UNSETTLED VALUES HERE CARRY AN EMBEDDED NULL, which the normalisation refuses
     // before the resolver is asked, so they are unsettled wherever the suite runs. Rows are
@@ -1674,9 +1674,10 @@ public class InstallerQueryServiceUnitTests
     public async Task A_second_registration_of_a_superseded_patch_in_an_unsettled_spelling_withholds_it()
     {
         // The patch is superseded under A, and applied and not uninstallable under B, and
-        // both registrations name one cached file. B's value is kept in a spelling nothing
-        // resolves, so its claim lands on a row of its own and A's row carries no sign of
-        // it. The per-pairing pass skips (P, B), the product loop having read it already.
+        // both registrations name one cached file. B's value carries an embedded null and
+        // is kept exactly as recorded, so its claim lands on a row of its own and A's row
+        // carries no sign of it. The per-pairing pass skips (P, B), the product loop having
+        // read it already.
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
         msi.AddProduct("{B}");
@@ -2193,12 +2194,9 @@ public class InstallerQueryServiceUnitTests
     public async Task A_value_that_cannot_be_normalised_is_claimed_exactly_as_returned()
     {
         // THE EMBEDDED-NULL TEST AT THE FRONT OF THE NORMALISATION REFUSES THIS
-        // VALUE, and naming the refuser is the point rather than pedantry: this
-        // comment said GetFullPath until 3.0.0, which was true while the null
-        // reached that far, and the value now never gets past the first test in the
-        // method. The distinction is the one
+        // VALUE, so it never reaches GetFullPath.
         // An_embedded_null_is_refused_as_its_own_cause_and_not_as_a_full_path_failure
-        // below exists for, that release having found the two behaving differently.
+        // below holds that refusal apart from GetFullPath's.
         //
         // The claim must survive the refusal anyway: dropping the row would turn a
         // spelling nobody can improve into a file with no claim on it at all, which
@@ -2216,12 +2214,11 @@ public class InstallerQueryServiceUnitTests
     [Fact]
     public async Task An_embedded_null_is_refused_as_its_own_cause_and_not_as_a_full_path_failure()
     {
-        // WHAT THIS FIXTURE HOLDS IS THE POINT OF IT. On Windows the expansion at the
-        // front of the normalisation cuts a value at an embedded null and returns
-        // without throwing, so nothing was refused, nothing was counted, and the
-        // withholding that reads the count did not fire: the claim came back as
-        // C:\Windows\Installer\bad and named a path that on another machine could be
-        // a real file. Only a value carrying a null reaches any of that.
+        // WHAT THIS FIXTURE HOLDS IS THE POINT OF IT. On Windows the expansion cuts a
+        // value at an embedded null and returns without throwing, so the embedded-null
+        // test runs ahead of it: a value carrying a null is refused and counted before
+        // the expansion can shorten it to C:\Windows\Installer\bad, a path that on
+        // another machine could be a real file.
         const string withNull = "C:\\Windows\\Installer\\bad\0name.msi";
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
@@ -2259,25 +2256,18 @@ public class InstallerQueryServiceUnitTests
     }
 
     /// <summary>
-    /// THE RESOLVER'S DENOMINATOR, DRIVEN THROUGH A REAL SCAN. Its five outcome
-    /// counters cannot be read at all without it: the resolver is asked only for a
-    /// value carrying a prefix or an 8dot3 alias, which on most machines is no value
-    /// at all, so four of the five read zero because nothing asked, and
-    /// zero-because-nothing-asked is indistinguishable from zero-because-nothing-
-    /// failed. A receiver takes the second reading. Until this test the six had no
-    /// behavioural assertion anywhere in the suite: they appeared once each, as
-    /// literal zeros in a payload fixture.
+    /// THE RESOLVER'S DENOMINATOR, DRIVEN THROUGH A REAL SCAN. The five outcome
+    /// counters are read against the attempts count: a scan that asked about no path
+    /// reports five zeros, which without it are indistinguishable from five clean
+    /// answers, and a receiver takes the second reading.
     ///
     /// WHICH FAILURE THE KERNEL GIVES IS NOT PINNED, DELIBERATELY. A volume GUID no
     /// machine has cannot resolve, so exactly one of the five must move; which one is
     /// a property of the platform rather than of this code, and asserting it would
     /// pin a machine. The pair that IS this counter's contract is asserted: the
     /// attempt was counted, and it produced exactly one outcome.
-    ///
-    /// AND THREE OF THE FIVE OUTCOMES ARE REACHED BY NOTHING IN THIS SUITE, so what
-    /// is here must not be read as covering the six end to end.
-    /// <see cref="InstallerQueryServicePathCensusTests"/> says which three, and why
-    /// a zero in them is not evidence of anything.
+    /// <see cref="InstallerQueryServicePathCensusTests"/> records each of the five
+    /// straight into a census and holds each to a counter of its own.
     /// </summary>
     [Fact]
     public async Task A_volume_guid_value_counts_a_resolver_attempt_and_exactly_one_outcome()
@@ -2297,9 +2287,9 @@ public class InstallerQueryServiceUnitTests
             + census.PathResolverNoFinalNameCount
             + census.PathResolverFaultedCount);
         // AND THE SPELLING IS RECOGNISED AS ONE ONLY THE DISK COULD SETTLE, which is
-        // this fixture's own subject and no longer follows from the attempt count. Every
-        // recorded value is resolved from 3.0.0, so the attempts figure above is now 1
-        // for an ordinary path too and cannot tell this value apart from any other.
+        // this fixture's own subject. Every recorded value is resolved, so the attempts
+        // figure above is 1 for an ordinary path too and cannot tell this value apart
+        // from any other.
         Assert.Equal(1, census.PathFlaggedSpellingCount);
     }
 
@@ -2321,8 +2311,8 @@ public class InstallerQueryServiceUnitTests
         var census = (await Run(msi)).Census;
 
         Assert.Equal(1, census.PathResolverAttemptCount);
-        // THE HALF THAT IS ABOUT THIS VALUE RATHER THAN ABOUT EVERY VALUE. The ask
-        // widened to every recorded path in 3.0.0, so the count above says only that a
+        // THE HALF THAT IS ABOUT THIS VALUE RATHER THAN ABOUT EVERY VALUE. Every
+        // recorded path is asked about, so the count above says only that a
         // registration was read; the 8.3 alias is what this fixture is for, and the
         // character scan that recognises it is what the count below reports.
         Assert.Equal(1, census.PathFlaggedSpellingCount);
@@ -2332,18 +2322,16 @@ public class InstallerQueryServiceUnitTests
     public async Task An_ordinary_recorded_value_is_asked_about_too_and_carries_no_flagged_spelling()
     {
         // EVERY RECORDED VALUE IS ASKED ABOUT, ORDINARY ONES INCLUDED. The character
-        // scan below does not decide whether a handle is opened; it decides only what
-        // the flagged-spelling count reports. The invariant that buys is that a claim
+        // scan does not decide whether a handle is opened; it decides only what the
+        // flagged-spelling count reports. The invariant that buys is that a claim
         // leaving normalisation is either a location the kernel proved or one whose
-        // failure to resolve has been counted and is already withholding the whole
-        // walk-derived offer.
+        // failure to resolve has been counted and withholds the whole walk-derived
+        // offer and every superseded patch still carrying its removable verdict.
         //
-        // SO THE MUST-MISS MOVED WITH THE SCAN RATHER THAN GOING AWAY. The scan still
-        // exists and still selects exactly what it did; what changed is that it counts
-        // instead of deciding. An ordinary value must not be counted as carrying a
-        // spelling only the disk can settle, and that figure is what tells this fixture
-        // apart from the two above it. The attempts count cannot: it now reads 1 for
-        // every recorded value on every machine.
+        // SO THIS FIXTURE'S MUST-MISS IS THE FLAGGED-SPELLING COUNT. An ordinary value
+        // must not be counted as carrying a spelling only the disk can settle, and that
+        // figure is what tells this fixture apart from the two above it. The attempts
+        // count cannot: it reads 1 for every recorded value on every machine.
         //
         // NOTHING HERE ASSERTS THE OUTCOME OF THE RESOLUTION, for the reason the 8.3
         // fixture gives: whether this path resolves depends on the machine the test runs
@@ -2584,9 +2572,9 @@ public class InstallerQueryServiceUnitTests
     [Fact]
     public async Task A_product_carrying_no_InstanceType_is_neither_counted_nor_unreadable()
     {
-        // The ordinary case on every machine measured. An absent property is
-        // documented as meaning an ordinary installation, so it is a clean negative
-        // rather than a read that failed, and the two must not share a counter.
+        // The ordinary case. An absent property is documented as meaning an ordinary
+        // installation, so it is a clean negative rather than a read that failed, and
+        // the two must not share a counter.
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
         msi.SetProductProperty("{A}", "LocalPackage", @"C:\Windows\Installer\a.msi");
@@ -2657,13 +2645,9 @@ public class InstallerQueryServiceUnitTests
     private const string EnvRootValue = @"C:\TestWindows";
 
     [Theory]
-    // The plain form, which nothing in this application expanded before 3.0.0:
-    // CarriesFlaggedSpelling answers false for a '%', so the value fell through
-    // to GetFullPath, which completed it from the process working directory and
-    // produced a well-formed path naming nothing. The claim then failed to match
-    // the walk and the cached file it meant was offered as unclaimed, which is the
-    // one direction of a spelling fault that costs somebody a file rather than
-    // merely mis-filing a row.
+    // The plain form. GetFullPath completes an unexpanded value from the process
+    // working directory into a well-formed path naming nothing, so the expansion is
+    // what puts this claim on the file it means.
     [InlineData(@"%INSTALLERCLEAN_TEST_ROOT%\Installer\env.msi")]
     // The same with a doubled separator and a relative segment on top, so the
     // expansion and GetFullPath are shown to compose rather than either undoing

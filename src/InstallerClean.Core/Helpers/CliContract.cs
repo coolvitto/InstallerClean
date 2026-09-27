@@ -161,20 +161,17 @@ internal enum CliEventClass
     HardError,
 
     /// <summary>
-    /// Notice: the scan could not read every installed product's records, so the
+    /// Notice: the scan could not account for every installed product, so the
     /// registrations it saw may be short of one and anything it reports about
     /// files missing from the cache may be short with them.
     ///
-    /// It was <c>ScanWithheldNotice</c>, and what it reported was that the run had
-    /// withheld the superseded and obsoleted class wholesale. The rename is right and
-    /// the reason once given for it is not: a run meeting this condition DOES withhold
-    /// the superseded class wholesale, InstallerQueryService taking the removable
-    /// verdict off every such row, and this member is raised on exactly that condition.
-    /// The justification held only between 2026-08-11 and 2026-08-17, while the class
-    /// was out of the offer altogether. What the rename is actually for is that the
-    /// condition now carries a second meaning, about records this scan never read, and
-    /// the old name claimed only the first. The Event ID does not move with the name:
-    /// 3000 is the wire contract and the name is this codebase's.
+    /// Raised where <c>ScanResult.UnaccountedProductCount</c> is above nought, the
+    /// condition on which InstallerQueryService also takes the removable verdict off
+    /// every superseded row. A recorded path the scan could not settle withholds the
+    /// same rows and does not raise it: this notice is about installed products the
+    /// scan did not account for, not about the withholding. The Event ID is 3000 and is
+    /// the wire contract; the member's name is this codebase's, and renaming it changes
+    /// nothing a filter on the event log sees.
     /// </summary>
     ScanRecordsIncompleteNotice,
 
@@ -183,9 +180,8 @@ internal enum CliEventClass
     /// Nothing that bites today, but an update or uninstall of those programs
     /// can fail on it.
     ///
-    /// IT SAYS NOTHING ABOUT WHAT REMOVED THEM AND NEITHER MAY THIS COMMENT. Every
-    /// tool that deletes from that folder leaves the same record, this one
-    /// included up to v2.3.0.
+    /// IT SAYS NOTHING ABOUT WHAT REMOVED THEM AND NEITHER MAY THIS COMMENT. Any
+    /// tool that deletes from that folder can leave the same record.
     /// </summary>
     ScanMissingFilesNotice,
 

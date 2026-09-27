@@ -268,8 +268,8 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     // same-drive warning, which says a related thing once the choice has been
     // made.
     //
-    // IT ASKED THE QUESTION HERE UNTIL 3.0.0 AND NOW READS AN ANSWER SOMEBODY
-    // ELSE FETCHED. This property is recomputed on every keystroke in the box
+    // IT READS AN ANSWER SOMEBODY ELSE FETCHED RATHER THAN ASKING THE QUESTION
+    // HERE. This property is recomputed on every keystroke in the box
     // (NotifyPropertyChangedFor on MoveDestination) and it runs on the
     // dispatcher, and the only call that can settle which volume a folder is on
     // validates a remote path over the network. On a half-typed \\server, or on
@@ -286,15 +286,14 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     // and is true of all three. Where the space goes is explained on the main
     // window above the buttons.
     //
-    // WHAT THAT COSTS, SET AGAINST WHAT IT REPLACED, because a reader meeting
-    // an async flag and a staleness window should see the trade rather than
-    // half of it. The answer here can be briefly out of date: it is taken once
-    // the box settles, so a mount point created or removed while nobody is
-    // typing leaves the last answer standing. The answer it replaced was not
-    // stale, it was WRONG, and permanently so on that machine, because a path
-    // root cannot tell a mounted volume from a folder. And nothing acts on this
-    // one: the confirmation dialog, the free-space refusal and the completion
-    // line all re-ask inside the pre-flight at the moment of action.
+    // THE ANSWER CAN BE BRIEFLY OUT OF DATE, AND NOTHING ACTS ON IT. It is taken
+    // once the box settles, so a mount point created or removed while nobody is
+    // typing leaves the last answer standing. The confirmation dialog, the
+    // free-space refusal and the completion line all re-ask inside the
+    // pre-flight at the moment of action. Do not take the volume from the path
+    // root instead: a path root cannot tell a mounted volume from a folder, so
+    // that answer is wrong for any destination under a volume mounted into a
+    // folder.
     public string MoveButtonTooltip =>
         string.IsNullOrWhiteSpace(MoveDestination) ? Strings.Tooltip_MoveNeedsDestination
         : DestinationIsOnCacheVolume == true ? Strings.Tooltip_MoveSameDrive
@@ -315,9 +314,8 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
         // any volume, so nothing is asserted while it stands.
         //
         // Resolved from the TRIMMED value, because that is the string the Move
-        // itself uses (MoveAllAsync takes MoveDestination.Trim()), and a tooltip
-        // answering for a different string from the one the button acts on is
-        // the whole class of fault being fixed here.
+        // itself uses (MoveAllAsync takes MoveDestination.Trim()), and the tooltip
+        // must answer for the string the button acts on.
 
         // settings.json holds the trimmed string so a reader (CLI /m,
         // next session start) gets a normalised path. The TextBox
@@ -1477,8 +1475,9 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
             // A cancel before the worker starts deletes nothing; a mid-batch
             // cancel returns as result.Cancelled above and is reported on the
             // overlay there. Refresh the counts and clear: this is the path that
-            // has to leave the window showing a true count, and it is bounded by
-            // the same rescan every other path runs.
+            // has to leave the window showing a true count or none, and it is
+            // bounded by the same rescan every other path runs, which takes the
+            // list off the window where it does not finish.
             await RefreshAfterBatchAsync();
             OperationProgress = string.Empty;
         }
@@ -1642,8 +1641,8 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
         }
         catch (Exception)
         {
-            // Not empty any more, gone already, or refused: all fine, all leave
-            // the user exactly where a pre-2.1.0 cancel did.
+            // Not empty any more, gone already, or refused: all fine, because
+            // nothing depends on the folder being gone.
         }
     });
 
@@ -1934,23 +1933,19 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     /// that could not be established.
     /// </summary>
     /// <remarks>
-    /// ASKED ABOUT THE VOLUME AND NOT THE LETTER, and it did ask about the
-    /// letter until 3.0.0. It took Path.GetPathRoot and handed that to
-    /// DriveInfo, so a destination under a volume mounted into a folder on C:
-    /// was classified by whatever C: is: a removable disk mounted at
-    /// <c>C:\Data</c> was logged as a fixed drive. No sentence the user reads
-    /// changed, because ClassifySpaceOutcome maps fixed, removable and share
-    /// alike to "space was freed". What was wrong was the field itself, in the
-    /// result log and in the opt-in report, and a measurement that is quietly
-    /// wrong is worse than one that is missing: it is the only instrument this
-    /// project has for what happens on real machines, and it reads as an answer.
+    /// ASKED ABOUT THE VOLUME AND NOT THE LETTER. Do not classify from the drive
+    /// letter: Path.GetPathRoot handed to DriveInfo classifies a destination under
+    /// a volume mounted into a folder on C: by whatever C: is, and a removable disk
+    /// mounted at <c>C:\Data</c> then reads as a fixed drive. No sentence the user
+    /// reads depends on the difference, because ClassifySpaceOutcome maps fixed,
+    /// removable and share alike to "space was freed". The field is read in the
+    /// result log and in the opt-in report, where a wrong value reads as an answer.
     ///
     /// DriveInfo cannot be asked the right question. It is built from a
     /// drive-letter root, and a mounted folder has no letter, so
     /// StorageHelpers.GetDriveKind takes the mount point instead.
     ///
-    /// THREE VOLUME QUERIES RATHER THAN TWO, ON PURPOSE, AND IT WAS TWO RATHER
-    /// THAN ONE BEFORE THE CACHE SIDE STARTED ASKING. The same-drive answer comes
+    /// THREE VOLUME QUERIES RATHER THAN TWO, ON PURPOSE. The same-drive answer comes
     /// from MoveSpaceCheck so that this window and the command line cannot answer
     /// it differently, which is the reason that decision lives in Core at all.
     /// Two of the three are its own, one for the cache folder and one for the

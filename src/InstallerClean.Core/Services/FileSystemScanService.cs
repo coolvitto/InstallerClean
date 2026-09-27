@@ -89,16 +89,15 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// put a figure nobody measured into the one payload that exists to measure.
     /// </param>
     /// <param name="fileIdentities">
-    /// Null in every test that is not about it, which leaves the path comparison
-    /// exactly as it was before this existed: a string match and nothing more. A
-    /// null reader cannot make a scan offer MORE than it would have, only the same,
-    /// which is why the tests that pin the string classification go on pinning it.
+    /// Null in every test that is not about it, which leaves the path comparison a
+    /// string match and nothing more, so the tests that pin the string
+    /// classification go on pinning it.
     /// </param>
     /// <param name="declaredProducts">
     /// Null in every test that is not about it, on the same rule and for the same
     /// reason: the screen it performs can only ever keep a file back, so a scan
-    /// built without one offers exactly what it offered before the screen existed
-    /// and never more. The tests whose subject IS the screen inject one.
+    /// built without one is the rest of the scan, unchanged. The tests whose
+    /// subject IS the screen inject one.
     ///
     /// DEFAULTED, WHICH IS THE ONE THING TO BE CAREFUL OF HERE. Every other seam on
     /// this constructor has to be spelled, so a test carries a null for each
@@ -521,8 +520,8 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // AND THE FIFTH IS HERE: A CLAIM THIS SCAN COULD NOT SETTLE WITHHOLDS THIS
         // WHOLE HALF. Where any registration's recorded path could not be turned into
         // a path at all, or could be but the filesystem would not settle its spelling,
-        // that claim is compared in a form that matches nothing the walk produces, so
-        // any candidate in this list can be the cached file it names. WHICH ONE
+        // that claim is compared in a form that need not match how the walk spells the
+        // cached file it names, so any candidate in this list can be that file. WHICH ONE
         // cannot be established: the claim did not resolve, and the identity
         // match immediately above cannot be relied on to have reached it, since the
         // reasons a path will not resolve are largely the reasons a handle on it will
@@ -540,18 +539,21 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // a missing file resolves normally and this rule never sees it. What fires here
         // is a value that is not a path, or one the filesystem declined to settle.
         //
-        // THE SUPERSEDED HALF OF THE OFFER IS NOT WITHHELD WITH IT. Those rows come
-        // from the registered set rather than from this candidate list. They are
-        // judged on products, through registry keys read by product code and patch
-        // code, and every claim the Windows Installer enumeration returns is merged
-        // into that set under its normalised recorded path, so a claim under a
-        // superseded row's path that is not removable keeps that file off the offer,
-        // whichever of the two was read first.
+        // THE SUPERSEDED HALF OF THE OFFER IS WITHHELD ON THE SAME CONDITION, BY THE
+        // ENUMERATION RATHER THAN HERE. Those rows come from the registered set rather
+        // than from this candidate list, and a claim kept in a spelling nothing
+        // resolves need not land on the row for the file it means, so it cannot be
+        // relied on to take the verdict off it. InstallerQueryService asks
+        // EnumerationCensus.AnyRecordedPathUnestablished before it returns and takes
+        // the removable verdict off every superseded row where it answers true.
         //
-        // AND IT IS NOT WITHHELD WITH THE SECOND-INSTANCE CONDITION EITHER. A second
-        // copy is registered under its own product code and is therefore asked by the
+        // IT IS NOT WITHHELD ON THE SECOND-INSTANCE CONDITION ITSELF. A second copy is
+        // registered under its own product code and is therefore asked by the
         // per-product condition like any other product, whatever the cached patch's
-        // own Template names, so a patch it still holds takes the offer away.
+        // own Template names, so a patch it still holds takes the offer away. Two of
+        // that condition's members, a product Windows would not answer about and a
+        // registry key whose name yields no code, are also products the scan could not
+        // account for, and the enumeration withholds the superseded half on that count.
         //
         // THE QUESTION IS ASKED OF THE CENSUS RATHER THAN ASSEMBLED HERE. Naming the
         // members one by one at this line is correct and is one edit away from not
@@ -776,11 +778,11 @@ public sealed class FileSystemScanService : IFileSystemScanService
             // THAT EXCEPTION HOLDS ON A RUN THAT CAME UP SHORT ELSEWHERE, and the
             // scan-wide withholding leaves the marker alone. Clearing it on a run that
             // lost a claim would put the row back under the banner on the strength of a
-            // count whose terms are all about OTHER products. A recorded path the run
-            // could not settle is a registration with a row of its own, and that row is
-            // judged here on its own terms. What either condition reaches for is
-            // answered where answering still changes an outcome: such a run removes no
-            // superseded patch at all.
+            // count whose terms are all about OTHER products. A registration whose
+            // recorded path the run could not settle reaches this branch through the row
+            // it lands on, and that row is judged here on its own terms. What either
+            // condition reaches for is answered where answering still changes an
+            // outcome: such a run removes no superseded patch at all.
             //
             // WHAT STILL FIRES FROM THE WITHHELD SIDE. A row whose patch set could not be
             // established carries an Unestablished verdict, so the state-and-verdict test
@@ -954,8 +956,9 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // NormaliseLocalPackagePath, and the scan has already stopped wherever the
         // kernel spells the walked folder another way, so a lexical test sees every
         // resolved record naming a file in it. A record the resolver refused keeps
-        // the spelling Windows gave and is counted, and that count withholds the
-        // walk-derived offer.
+        // a spelling nothing settled and is counted, and that count withholds the
+        // walk-derived offer and every superseded patch still carrying its removable
+        // verdict.
         //
         // A tool that genuinely wiped the cache would leave no files to be
         // orphans, so the candidate clause rules that benign case out. Refuse the

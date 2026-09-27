@@ -16,9 +16,10 @@ namespace InstallerClean.Services;
 /// THAT EXCEPTION IS ONLY READABLE BECAUSE EVERY RECORDED PATH IS RESOLVED FIRST.
 /// A claim leaving <c>InstallerQueryService.NormaliseLocalPackagePath</c> is either
 /// a location the kernel proved or one whose failure to resolve has already
-/// withheld the whole walk-derived offer, so a proven location holding nothing can
-/// only mean the file is gone. Before that widening landed the same answer also
-/// covered a spelling nothing had settled, and the two were indistinguishable.
+/// withheld the whole walk-derived offer and every superseded patch still carrying
+/// its removable verdict, so a proven location holding nothing can only mean the
+/// file is gone. Without that resolution the same answer would also cover a
+/// spelling nothing had settled, and the two could not be told apart.
 ///
 /// NOTHING BRANCHES ON WHICH OF THE FOUR IT IS. They are counted apart because
 /// they are four different facts about a machine, in company with

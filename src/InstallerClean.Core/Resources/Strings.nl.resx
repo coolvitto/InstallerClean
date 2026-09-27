@@ -1619,7 +1619,11 @@ Voer InstallerClean opnieuw uit als administrator.</value></data>
   <data name="Cli.WithheldReasons.Header" xml:space="preserve"><value>Waarom die zekerheid er niet was:</value></data>
   <!-- The three wholesale legs, each printed only when its own leg is true, each
        carrying two leading spaces like the Cli.Help.* block. They are findings about
-       the machine's records that withheld the walk-derived offer whole. The four
+       the machine's records that withheld the walk-derived offer whole. The first, a
+       recorded path the scan could not settle, also withholds every superseded patch
+       still carrying its removable verdict. Those patches are counted by
+       Cli.SupersededHeldBack, which names no cause, and these lines print only where
+       files from the folder were held back, under the sentence counting them. The four
        lines after them are the per-file arms and carry their own note; a run that
        withheld both ways prints from both sets.
 
@@ -1817,15 +1821,15 @@ Voer InstallerClean opnieuw uit als administrator.</value></data>
        here do.
 
        IT NAMES NO CAUSE, AND THE SUPERORDINATE HOLDS ON EVERY ROUTE INTO THE COUNT. The
-       count is ScanResult.SupersededHeldBackCount. Six separate findings set
-       RemovableWithheld, five of them about one patch and one a sweep over the whole
-       machine, and the containment check refusing the file, or failing to answer for
-       it, is a route in as well, so a sentence naming any one of them is false of the
-       files the others put in the count. What is true on every route is that the app
-       could not establish that the file is no longer needed, which is the rule the
-       whole app runs on, and establishing it takes every check, including the one on
-       where the file really is. Do not narrow it, do not name a mechanism and do not add
-       a cause in any language.
+       count is ScanResult.SupersededHeldBackCount. Several separate findings set
+       RemovableWithheld: some are about one patch, and others are about the whole machine
+       and take every superseded patch at once. The containment check refusing the file,
+       or failing to answer for it, is a route in as well. So a sentence naming any one of
+       them is false of the files the others put in the count. What is true on every route
+       is that the app could not establish that the file is no longer needed, which is the
+       rule the whole app runs on, and establishing it takes every check, including the
+       one on where the file really is. Do not narrow it, do not name a mechanism and do
+       not add a cause in any language.
 
        "SUPERSEDED" IS EARNED AND THE COUNT CANNOT HOLD AN OBSOLETED ROW. Every route to
        RemovableWithheld guards on IsRemovable, and so does the containment check on a
@@ -1833,10 +1837,11 @@ Voer InstallerClean opnieuw uit als administrator.</value></data>
        a patch state of 2. An obsoleted patch is never offered, so it is never withheld
        either.
 
-       IT IS GATED ON THE COUNT IT CARRIES, and never on the machine-wide refusal.
-       That refusal is one of several routes into the count rather than the count itself,
-       so gating on it would tell somebody holding back no superseded file at all that
-       one was held back.
+       IT IS GATED ON THE COUNT IT CARRIES, and never on a condition about the whole
+       machine. Each such condition is one of several routes into the count rather than
+       the count itself, and a machine can meet one with no superseded file to hold back,
+       so gating on it would tell somebody holding back no superseded file at all that one
+       was held back.
 
        THIS SENTENCE AND THE NOTICE IN THE 3000 BAND ARE NOT ONE REPORT. This sentence
        is for a person. The notice keeps its own condition and its own figure, on
@@ -1854,15 +1859,13 @@ Voer InstallerClean opnieuw uit als administrator.</value></data>
        ONE FIGURE, AND THE KEY NAME IS NOT A PROMISE OF A SECOND. What this
        sentence is about is the products it could not account for and what they
        cost the count of files missing from the cache; a withheld count answers a
-       different
-       question, so printing it beside that clause would hand an operator a
+       different question, so printing it beside that clause would hand an operator a
        number with no stated relation to the words next to it. The withheld count
        travels in the opt-in result log instead, as scan.withheldPatchCount.
 
        The count this line prints is an estimate that can come out high as well
-       as low, which
-       MachineContract's remarks set out: it is sound to alert on and to trend,
-       and it is not a headcount of programs. The window does not show it, and
+       as low, which MachineContract's remarks set out: it is sound to alert on and to
+       trend, and it is not a headcount of programs. The window does not show it, and
        this line keeps it, an RMM having a filter to hang on a number.
        Cli.SupersededHeldBack IS NOT THIS FIGURE IN OTHER WORDS: it counts files
        held back, which is a different quantity reached by several routes, of which

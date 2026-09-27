@@ -9,30 +9,24 @@ namespace InstallerClean.Tests.Services;
 /// enums behind it reaches a counter of its own.
 ///
 /// WHY THESE ARE REFLECTIVE AND NOT WRITTEN OUT. The census is a hand-written merge
-/// of ten int fields and two switch statements with no default arm, so a counter
-/// added later and forgotten in any of the three compiles, builds green and reads
-/// zero for whichever half of the scan was not folded. That direction is the unsafe
-/// one: the four normalisation refusals are summed into the total the walk-derived
-/// offer is WITHHELD on, so a refusal counted into a census that goes nowhere is a
-/// withholding that does not happen and files offered that the app meant to keep
-/// back. Writing the ten names out again would leave the eleventh exactly as
-/// forgettable as it is today. Enumerating them is what makes the test notice.
+/// of int fields and two switch statements with no default arm, so a counter added
+/// later and forgotten in any of the three compiles, builds green and reads zero for
+/// whichever half of the scan was not folded. That direction is the unsafe one: the
+/// four normalisation refusals are summed into the total the walk-derived offer and
+/// every superseded patch still carrying its removable verdict are WITHHELD on, so a
+/// refusal counted into a census that goes nowhere is a withholding that does not
+/// happen and files offered that the app meant to keep back. A list of the names
+/// written out here would leave the next counter exactly as forgettable. Enumerating
+/// them is what makes the test notice.
 ///
 /// FIELDS ONLY, NEVER PROPERTIES. <c>NormalisationRefusedTotal</c> is derived from
 /// four of the fields, so a property sweep would either double-count it or need an
 /// exclusion list somebody has to remember, which is the same fault one level up.
 ///
-/// WHAT NO TEST HERE OR ANYWHERE CAN REACH, said plainly so this file is not read as
-/// covering the counters end to end. Three of the five resolver outcomes
-/// (<c>OpenRefused</c>, <c>FinalNameUnavailable</c>, <c>Faulted</c>) are decided by
-/// a real handle: CreateFile refusing one, GetFinalPathNameByHandle returning a
-/// zero-length name, or the call throwing. No fixture in this suite can produce any
-/// of those deterministically on a CI runner, because the resolution is a static
-/// call on the real filesystem with no seam in front of it. What is covered is that
-/// each of the five is WIRED to a counter of its own, which is what these walks
-/// establish, and that the two reachable ones move a real scan's census, which
-/// <see cref="InstallerQueryServiceUnitTests"/> asserts. A zero in the other three
-/// is not evidence of anything and must not be read as one.
+/// EACH RESOLVER OUTCOME IS RECORDED STRAIGHT INTO A CENSUS. The walk below puts each
+/// of the five into a fresh census through <c>RecordResolution</c>, which needs no
+/// path. <see cref="InstallerQueryServiceUnitTests"/> drives a real scan through the
+/// resolver and reads the attempt and the outcome it produced off the scan's census.
 /// </summary>
 public class InstallerQueryServicePathCensusTests
 {
@@ -61,15 +55,10 @@ public class InstallerQueryServicePathCensusTests
         // fails a test that tells you what else the counter needs, rather than
         // passing and reading zero on half of every scan.
         //
-        // IT WENT FROM TEN TO ELEVEN IN 3.0.0 AND THE CHECKLIST BELOW IS WHY THAT WAS
-        // CHEAP. FlaggedSpellings was added when the final-path resolution widened to
-        // every recorded path: ResolverAttempts had been answering two questions at
-        // once, how many values were asked about and how many carried a spelling only
-        // the filesystem can settle, and widening the ask took the second answer away
-        // from it. This test named every place the new counter had to reach, and the
-        // one thing it correctly did NOT ask for is a place in the withholding: a
-        // flagged spelling that resolves is the mechanism working rather than a
-        // failure, so it belongs in no refusal total.
+        // THE CHECKLIST BELOW IS WHAT A NEW COUNTER HAS TO REACH. ResolverAttempts and
+        // FlaggedSpellings correctly have no place in the withholding: one counts that
+        // a value was asked about and the other what it looked like, and neither is a
+        // failure, so they belong in no refusal total.
         var counters = Counters();
         Assert.True(counters.Length == 11,
             $"The census now holds {counters.Length} int fields rather than 11. If you have added "
@@ -77,7 +66,8 @@ public class InstallerQueryServicePathCensusTests
             + "the switch that produces it, add it to the EnumerationCensus record (APPEND, never "
             + "insert: the arguments are positional and all int), carry it in the payload, and "
             + "put it in NormalisationRefusedTotal if it is a refusal, because that total is what "
-            + "the walk-derived offer is withheld on, and add it to the set "
+            + "the walk-derived offer and every still-removable superseded patch are withheld on, "
+            + "and add it to the set "
             + "EnumerationCensusTests requires AnyRecordedPathUnestablished to fire on, or to that "
             + "test's must-miss half if it is not a refusal. Then change the 11 here. Fields found: "
             + string.Join(", ", counters.Select(f => f.Name)));
@@ -196,11 +186,11 @@ public class InstallerQueryServicePathCensusTests
     public void Every_normalisation_stage_reaches_a_counter_of_its_own_and_the_total()
     {
         // The same shape as the walk above, and this one carries the derived total
-        // with it. The total is the population the walk-derived offer is withheld
-        // on, and a stage that reaches a counter outside it is a cause the
-        // withholding silently does not act on: green build, counter reporting,
-        // withholding just not firing. That is the fault this release found in the
-        // embedded-null case.
+        // with it. The total is the population the walk-derived offer and every
+        // superseded patch still carrying its removable verdict are withheld on, and a
+        // stage that reaches a counter outside it is a cause the withholding silently
+        // does not act on: green build, counter reporting, withholding just not
+        // firing.
         var seen = new Dictionary<string, InstallerQueryService.NormalisationStage>(StringComparer.Ordinal);
 
         foreach (var stage in Enum.GetValues<InstallerQueryService.NormalisationStage>())
@@ -221,8 +211,9 @@ public class InstallerQueryServicePathCensusTests
 
             Assert.True(census.NormalisationRefusedTotal == 1,
                 $"NormalisationStage.{stage} moved {moved[0]} but left NormalisationRefusedTotal at "
-                + $"{census.NormalisationRefusedTotal}. The total is what the walk-derived offer is "
-                + "withheld on, so a refusal outside it is a cause the withholding does not act on.");
+                + $"{census.NormalisationRefusedTotal}. The total is what the walk-derived offer and "
+                + "every still-removable superseded patch are withheld on, so a refusal outside it is "
+                + "a cause the withholding does not act on.");
         }
     }
 
@@ -230,14 +221,12 @@ public class InstallerQueryServicePathCensusTests
     /// <summary>
     /// THE CENSUS IS MUTABLE AND THREADED BY ARGUMENT, so what keeps its counts
     /// honest is the shape of the call graph rather than anything the type enforces.
-    /// The enumeration is single-threaded by construction of its entry point today,
-    /// and that is provable rather than read off: the whole synchronous core runs
-    /// inside one Task.Run with no await in it and the file holds no other
-    /// concurrency primitive. What this pins is the FIRST change to that. Every
-    /// increment is a read-modify-write on a plain int, so two threads on one census
-    /// lose counts, and a lost normalisation refusal is a withholding that does not
-    /// fire: files offered that the app meant to keep back, on a machine whose scan
-    /// reads clean.
+    /// The enumeration runs on one thread: its whole synchronous core runs inside one
+    /// Task.Run with no await in it, and its file holds no other concurrency
+    /// primitive. What this pins is the FIRST change to that. Every increment is a
+    /// read-modify-write on a plain int, so two threads on one census lose counts,
+    /// and a lost normalisation refusal is a withholding that does not fire: files
+    /// offered that the app meant to keep back, on a machine whose scan reads clean.
     ///
     /// A real thread rather than Task.Run, because a pool thread can be the one the
     /// test itself was running on and the assertion would then pass for the wrong

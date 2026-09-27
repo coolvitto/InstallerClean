@@ -364,12 +364,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
         /// Of those, the ones carrying a spelling only the filesystem can settle: an
         /// 8dot3 alias, or a prefix the strip left on for want of a drive root.
         ///
-        /// IT DECIDES NOTHING AND IS THE ONLY MEMBER HERE THAT NEVER DID. The other
-        /// counters record what happened to a value; this records what the value
-        /// LOOKED LIKE. It exists because the resolver is put every path, so
-        /// <see cref="ResolverAttempts"/> cannot also say how many of them carried
-        /// such a spelling: one counter answering both questions answers neither.
-        /// How often these spellings occur on real machines is what this one is for.
+        /// IT DECIDES NOTHING. Every other counter here records what happened to a
+        /// value; this one records what the value LOOKED LIKE. It exists because the
+        /// resolver is put every path, so <see cref="ResolverAttempts"/> cannot also say
+        /// how many of them carried such a spelling: one counter answering both
+        /// questions answers neither. How often these spellings occur on real machines
+        /// is what this one is for.
         /// </summary>
         internal int FlaggedSpellings;
 
@@ -1159,11 +1159,11 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // A RECORDED PATH THE SCAN COULD NOT SETTLE WITHHOLDS THE CLASS AS WELL, for
         // the reason it withholds the walk-derived offer: nothing says which file the
         // claim it came from names. Claims meet on a row by their normalised path, so
-        // a claim kept in a spelling nothing resolves sits on a row of its own, and
-        // the row for the file it means never hears from it. That claim can be a
-        // second registration of a superseded patch, holding it applied under another
-        // product, or any other registration aimed at the patch's file. The
-        // per-pairing pass skips every pairing the product loop has already read,
+        // a claim kept in a spelling nothing resolves need not land on the row for the
+        // file it means, and where it does not, that row never hears from it. That
+        // claim can be a second registration of a superseded patch, holding it applied
+        // under another product, or any other registration aimed at the patch's file.
+        // The per-pairing pass skips every pairing the product loop has already read,
         // wherever its claim landed, and the per-product condition asks about patch
         // sets, so neither brings such a claim back to the file. The claim names a
         // file the scan cannot place, so it can be any of them, and scan-wide is again
@@ -1204,12 +1204,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // verdict.
         //
         // A RECORDED PATH THE SCAN COULD NOT SETTLE CAN BE THAT HOLDER, and the split
-        // still needs nothing from this loop, because the holder is a row of its own.
-        // Where the superseded file has gone, the registration kept in the unsettled
-        // spelling names that same absent file, or names nothing, so its row reads
-        // missing as well, and the split reports a missing row that is not a
-        // superseded or obsoleted patch whatever its verdict. The warning names that
-        // holder's program through its own row.
+        // still needs nothing from this loop, because the holder's registration reaches
+        // the split through the row it lands on. Where the superseded file has gone, the
+        // registration kept in the unsettled spelling names that same absent file, or
+        // names nothing, so its row reads missing as well, and the split reports a
+        // missing row that is not a superseded or obsoleted patch whatever its verdict.
+        // The warning names that holder's program through that row.
         //
         // THE WITHHOLDING ITSELF IS WHAT ANSWERS FOR SUCH A MACHINE: a run that could
         // not account for a product, or could not settle a recorded path, offers no
@@ -2284,14 +2284,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// from. Handing the resolver the Win32 spelling is what stops the resolution
     /// answering about a path assembled out of the running process's location.
     ///
-    /// A PATH THE KERNEL DECLINES TO RESOLVE is kept in the spelling Windows gave and
-    /// matches nothing the walk produces, so the refusal is counted and
+    /// A PATH THE KERNEL DECLINES TO RESOLVE is kept as GetFullPath spells it, which
+    /// need not be how the walk spells the file it names, so the refusal is counted and
     /// <c>EnumerationCensus.AnyRecordedPathUnestablished</c> withholds the whole
     /// walk-derived offer and every superseded row on it: nothing says WHICH file the
     /// unresolved claim meant, so no narrower set can be held back. Resolving a final
-    /// path is <see cref="InstallerCacheHelpers.TryResolveFinalPath"/>, which answers
-    /// yes or no; expanding an environment variable has no failure to report, and what
-    /// it does with a variable the machine has never heard of is pinned by a test.
+    /// path is <see cref="InstallerCacheHelpers.ResolveFinalPathOutcome"/>, which names
+    /// the outcome it reached; expanding an environment variable has no failure to
+    /// report, and what it does with a variable the machine has never heard of is pinned
+    /// by a test.
     /// </summary>
     private static string NormaliseLocalPackagePath(string value, PathCensus census)
     {

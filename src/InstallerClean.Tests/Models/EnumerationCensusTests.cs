@@ -7,7 +7,8 @@ namespace InstallerClean.Tests.Models;
 /// <summary>
 /// <see cref="EnumerationCensus.AnyRecordedPathUnestablished"/> as a STRUCTURE rather
 /// than as an answer: which members of the census make a scan withhold its whole
-/// walk-derived offer, and which deliberately do not.
+/// walk-derived offer and every superseded patch still carrying its removable
+/// verdict, and which deliberately do not.
 ///
 /// WHY THIS IS REFLECTIVE. The property is a hand-written expression over two derived
 /// totals, and the census is a positional record of ints that grows. A population added

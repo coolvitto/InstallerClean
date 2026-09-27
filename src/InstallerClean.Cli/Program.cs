@@ -1136,11 +1136,12 @@ internal static class Program
         // other, and the commonest is meeting this one with no superseded file to hold
         // back.
         //
-        // The count does not appear in the human line and does appear here. Four
-        // different things contribute to it and only two are failures to read, so it
-        // is an estimate that can come out high as well as low: a precision a sentence
-        // must not claim, and a number an RMM needs to hang a filter on. See
-        // MachineContract for what that figure is worth.
+        // The count does not appear in the human line and does appear here. Three
+        // different things contribute to it and only one is a failure to read (see
+        // InstallerQueryResult.UnaccountedProductCount). It is an estimate that can
+        // come out high as well as low: a precision a sentence must not claim, and a
+        // number an RMM needs to hang a filter on. See MachineContract for what that
+        // figure is worth.
         if (scanResult.UnaccountedProductCount > 0)
             MachineContract.WriteEventLog(CliEventClass.ScanRecordsIncompleteNotice,
                 () => string.Format(Strings.Cli_EventLogScanWithheld,
