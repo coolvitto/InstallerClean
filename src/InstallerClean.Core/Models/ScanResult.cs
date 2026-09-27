@@ -130,9 +130,10 @@ namespace InstallerClean.Models;
 /// rather than failing to establish anything. Worse() lets it beat Unestablished
 /// where a row meets both, so the mixed case is excluded with it. What is left is the
 /// scan failing to establish something: a read about the patch that established
-/// nothing, in Downgrade's own words, or one of the two conditions on the whole machine
-/// that withhold every such row at once, a product the scan could not account for and
-/// a recorded path it could not settle.
+/// nothing, in Downgrade's own words, or one of the three conditions on the whole
+/// machine that withhold every such row at once, a product the scan could not account
+/// for, a recorded path it could not settle and a machine-wide list of patch
+/// registrations that did not run to its end.
 /// <see cref="SupersededRecordedPathUnestablishedCount"/> counts the rows withheld while
 /// the second held.
 ///
@@ -165,8 +166,9 @@ namespace InstallerClean.Models;
 /// Each is a file a live registration positively claims (a product's own cached
 /// package, an applied patch, a path the registry fallback named, or a patch Windows
 /// reports superseded or obsoleted), except a superseded patch that kept its removable
-/// verdict and that the containment check refused or could not place, which is kept on
-/// that finding. Apart from that row, the one population in
+/// verdict and was not offered: one the containment check refused or could not place,
+/// which is kept on that finding, and one whose file was not on the disk when the scan
+/// looked, which had nothing to offer. Apart from those rows, the one population in
 /// <see cref="RegisteredPackages"/> that a sentence about being needed is true of.
 ///
 /// SUPERSEDED AND OBSOLETED PATCHES CARRYING NEITHER FLAG ARE IN IT. Microsoft's own
@@ -884,7 +886,7 @@ public static class ShortNameCreationLabels
 }
 
 /// <summary>
-/// Which decision kept each file on <see cref="ScanResult.WithheldFiles"/> back.
+/// What kept each file on <see cref="ScanResult.WithheldFiles"/> back.
 ///
 /// EXACTLY FIVE DECISIONS PUT A FILE ON THAT LIST AND THEY ARE MUTUALLY EXCLUSIVE
 /// PER FILE, so this is a partition of it rather than eleven overlapping views. The
@@ -893,7 +895,9 @@ public static class ShortNameCreationLabels
 /// could not answer; the identity comparison keeps one candidate at a time; the
 /// wholesale arm keeps every remaining candidate in one go and the per-file screen and
 /// age check are skipped entirely; the screen keeps a candidate on its own verdict,
-/// counted in an arm per withholding verdict; and the age check keeps a candidate the
+/// counted in an arm per withholding verdict, except that the screen counts a candidate
+/// whose own identity it could not read, or which had gone by the time it read it, in
+/// the identity comparison's arm; and the age check keeps a candidate the
 /// screen let through that has not been shown to be a day old, counted in two arms by
 /// whether its age was established. A file an earlier decision has already taken is off
 /// the list a later one is handed, so nothing lands twice.

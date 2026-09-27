@@ -175,8 +175,8 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             // this candidate, so it is asked per file.
             outcomes[i] = answer.Outcome == DeclaredProductOutcome.DeclaredProductInstalled
                 && answer.RecordedPackages is { } recorded
-                && IsNoneOf(candidate.FullPath, recorded)
-                    ? DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile
+                    ? CompareWithRecorded(candidate.FullPath, recorded,
+                        DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, answer.Outcome)
                     : answer.Outcome;
         }
 
@@ -779,8 +779,8 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         // patch, and whether the copies they open are OTHER files is asked per file.
         return answer.Outcome == DeclaredProductOutcome.DeclaredPatchRegistered
             && answer.RecordedPackages is { } recorded
-            && IsNoneOf(path, recorded)
-                ? DeclaredProductOutcome.DeclaredPatchCachedAsAnotherFile
+                ? CompareWithRecorded(path, recorded,
+                    DeclaredProductOutcome.DeclaredPatchCachedAsAnotherFile, answer.Outcome)
                 : answer.Outcome;
     }
 
@@ -958,22 +958,35 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     }
 
     /// <summary>
-    /// Whether the candidate at <paramref name="candidatePath"/> is a different file
-    /// from every one in <paramref name="recorded"/>: every package an installation of
-    /// a product opens, or every copy a registration of a patch opens. A candidate
-    /// whose own identity will not read is not shown to be different, so it answers
-    /// false and is kept.
+    /// The verdict for the candidate at <paramref name="candidatePath"/> against every
+    /// file in <paramref name="recorded"/>: every package an installation of a product
+    /// opens, or every copy a registration of a patch opens.
+    /// <paramref name="differentFromEvery"/> where the candidate is shown to be a
+    /// different file from all of them, and <paramref name="matched"/> where it opens as
+    /// one of them.
+    ///
+    /// A CANDIDATE WHOSE OWN IDENTITY DOES NOT READ IS
+    /// <see cref="DeclaredProductOutcome.CandidateIdentityUnestablished"/>, which keeps
+    /// it. Every recorded file was identified, so what was not established is about this
+    /// file alone. A candidate gone by the time it is read answers the same way. Do not
+    /// let it through with <paramref name="differentFromEvery"/>: that verdict says the
+    /// candidate is a different file from every recorded one, and nothing at a path that
+    /// names no file shows that.
     /// </summary>
-    private bool IsNoneOf(string candidatePath, IReadOnlyList<FileIdentity> recorded)
+    private DeclaredProductOutcome CompareWithRecorded(
+        string candidatePath,
+        IReadOnlyList<FileIdentity> recorded,
+        DeclaredProductOutcome differentFromEvery,
+        DeclaredProductOutcome matched)
     {
-        if (_fileIdentities is null) return false;
+        if (_fileIdentities is null) return matched;
         if (_fileIdentities.ReadOutcome(candidatePath, out var candidate) != FileIdentityRead.Read)
-            return false;
+            return DeclaredProductOutcome.CandidateIdentityUnestablished;
 
         foreach (var package in recorded)
-            if (package == candidate) return false;
+            if (package == candidate) return matched;
 
-        return true;
+        return differentFromEvery;
     }
 
     /// <param name="Outcome">The verdict the declared code alone gives.</param>

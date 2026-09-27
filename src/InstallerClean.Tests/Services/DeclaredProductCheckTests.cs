@@ -594,12 +594,34 @@ public class DeclaredProductCheckTests
     }
 
     [Fact]
-    public void A_copy_is_kept_when_the_copy_itself_will_not_identify()
+    public void A_copy_is_kept_as_unidentified_when_the_copy_itself_will_not_identify()
     {
+        // Every package the installation opens was seen and identified, so what the
+        // comparison lacks is the copy's own identity, and the verdict says that rather
+        // than that the program is installed.
         var f = ACopyBesideTheRecordedPackage();
         f.Files.Answers(Candidate, FileIdentityRead.IdentityUnavailable);
 
-        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, ScreenTheCopy(f));
+        var outcome = ScreenTheCopy(f);
+
+        Assert.Equal(DeclaredProductOutcome.CandidateIdentityUnestablished, outcome);
+        Assert.True(outcome.Withholds());
+    }
+
+    [Fact]
+    public void A_copy_gone_by_the_time_its_identity_is_read_is_kept_as_unidentified()
+    {
+        // The copy declares product A and then names nothing when the check reads its
+        // identity, as a file removed between the two reads does. Nothing at the path
+        // shows it to be a different file from the package A records, so it is kept,
+        // under the verdict for a copy whose identity did not read.
+        var f = ACopyBesideTheRecordedPackage();
+        f.Files.Answers(Candidate, FileIdentityRead.NamesNothing);
+
+        var outcome = ScreenTheCopy(f);
+
+        Assert.Equal(DeclaredProductOutcome.CandidateIdentityUnestablished, outcome);
+        Assert.True(outcome.Withholds());
     }
 
     // ---- The installation's sources ----
@@ -1758,12 +1780,17 @@ public class DeclaredProductCheckTests
     }
 
     [Fact]
-    public void A_patch_copy_is_kept_when_the_copy_itself_will_not_identify()
+    public void A_patch_copy_is_kept_as_unidentified_when_the_copy_itself_will_not_identify()
     {
+        // As for an installation package: every copy the registration opens was seen and
+        // identified, and it is the copy's own identity that did not read.
         var f = APatchCopyBesideTheRecordedCopy();
         f.Files.Answers(PatchCopy, FileIdentityRead.IdentityUnavailable);
 
-        Assert.Equal(DeclaredProductOutcome.DeclaredPatchRegistered, ScreenThePatchCopy(f));
+        var outcome = ScreenThePatchCopy(f);
+
+        Assert.Equal(DeclaredProductOutcome.CandidateIdentityUnestablished, outcome);
+        Assert.True(outcome.Withholds());
     }
 
     [Fact]

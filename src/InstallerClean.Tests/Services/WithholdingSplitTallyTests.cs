@@ -83,6 +83,9 @@ public class WithholdingSplitTallyTests
 
         tally.IdentityUnestablished();
         tally.IdentityUnestablished();
+        // A candidate whose own identity the screen could not read counts in the
+        // identity comparison's arm.
+        tally.Screened(DeclaredProductOutcome.CandidateIdentityUnestablished, 512);
         tally.Wholesale(7);
         tally.ScreenUnanswered(3);
         tally.Screened(DeclaredProductOutcome.DeclaredProductInstalled, 1024);
@@ -109,7 +112,7 @@ public class WithholdingSplitTallyTests
 
         var split = tally.Taken();
 
-        Assert.Equal(2, split.IdentityUnestablishedCount);
+        Assert.Equal(3, split.IdentityUnestablishedCount);
         Assert.Equal(7, split.WholesaleCount);
         Assert.Equal(3, split.ScreenUnansweredCount);
         Assert.Equal(1, split.DeclaredProductInstalledCount);
@@ -118,7 +121,7 @@ public class WithholdingSplitTallyTests
         Assert.Equal(4, split.DeclaredPatchUnestablishedCount);
         Assert.Equal(5, split.ContainmentRefusedCount);
         Assert.Equal(6, split.ContainmentUnestablishedCount);
-        Assert.Equal(33, split.Total);
+        Assert.Equal(34, split.Total);
     }
 
     [Fact]
@@ -135,6 +138,7 @@ public class WithholdingSplitTallyTests
         tally.Screened(DeclaredProductOutcome.DeclaredProductNotInstalled, 4);
         tally.Screened(DeclaredProductOutcome.DeclaredPatchRegistered, 60000);
         tally.Screened(DeclaredProductOutcome.DeclaredPatchUnestablished, 700000);
+        tally.Screened(DeclaredProductOutcome.CandidateIdentityUnestablished, 8000000);
         tally.Screened((DeclaredProductOutcome)99, 5);
 
         Assert.Equal(1200, tally.DeclaredProductInstalledBytes);
@@ -152,6 +156,7 @@ public class WithholdingSplitTallyTests
         tally.Screened(DeclaredProductOutcome.Unestablished, 30);
         tally.Screened(DeclaredProductOutcome.DeclaredPatchNotRegistered, 4);
         tally.Screened(DeclaredProductOutcome.DeclaredPatchUnestablished, 700000);
+        tally.Screened(DeclaredProductOutcome.CandidateIdentityUnestablished, 8000000);
         tally.Screened((DeclaredProductOutcome)99, 5);
 
         Assert.Equal(1200, tally.DeclaredPatchRegisteredBytes);

@@ -1204,6 +1204,13 @@ public sealed class FileSystemScanService : IFileSystemScanService
         /// splits. Such a member wants an arm of its own, and
         /// WithholdingSplitTallyTests walks the enum's withholding members against this
         /// switch, so adding one has to be a deliberate edit here as well as there.
+        ///
+        /// A CANDIDATE WHOSE OWN IDENTITY THE SCREEN COULD NOT READ, including one gone
+        /// by the time the screen read it, is counted with the candidates the identity
+        /// comparison could not identify. The comparison hands a gone candidate on
+        /// uncounted, so only the screen's share of this arm holds one. The command
+        /// line's line for the arm, that a file in the folder couldn't be identified, is
+        /// true of every file in it.
         /// </summary>
         internal void Screened(DeclaredProductOutcome outcome, long sizeBytes)
         {
@@ -1222,6 +1229,9 @@ public sealed class FileSystemScanService : IFileSystemScanService
                     break;
                 case DeclaredProductOutcome.DeclaredPatchUnestablished:
                     _declaredPatchUnestablished++;
+                    break;
+                case DeclaredProductOutcome.CandidateIdentityUnestablished:
+                    _identityUnestablished++;
                     break;
             }
         }

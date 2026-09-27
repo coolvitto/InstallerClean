@@ -159,8 +159,8 @@ public interface IDeclaredProductCheck
 }
 
 /// <summary>
-/// What one candidate's own declaration settled. Four of the eight keep the file,
-/// and <see cref="Withholds"/> is the only place that says which.
+/// What the screen settled about one candidate. Some verdicts keep the file and the
+/// rest let it through, and <see cref="Withholds"/> is the only place that says which.
 /// </summary>
 public enum DeclaredProductOutcome
 {
@@ -224,6 +224,9 @@ public enum DeclaredProductOutcome
     /// so this file could be it. A check constructed without its two file readers or its
     /// registry reader, or screening without the Installer folder to compare against,
     /// answers this for every installed product, having no way to look.
+    ///
+    /// Where every package was seen and this file's own identity does not read, the
+    /// answer is <see cref="CandidateIdentityUnestablished"/> instead.
     ///
     /// WHAT IT DOES NOT ESTABLISH, so no copy may be built on it: that a program
     /// would break without this particular copy.
@@ -324,6 +327,8 @@ public enum DeclaredProductOutcome
     /// <see cref="DeclaredProductInstalled"/>. A check constructed without its two file
     /// readers or its registry reader, or screening without the Installer folder to
     /// compare against, answers this for every registered patch, having no way to look.
+    /// Where every copy was seen and this file's own identity does not read, the answer
+    /// is <see cref="CandidateIdentityUnestablished"/> instead.
     ///
     /// A REGISTRATION IS ANY RECORD WINDOWS HOLDS OF THE PATCH AGAINST AN INSTALLATION
     /// OF A PRODUCT, whatever state the patch is in there, so it is wider than
@@ -353,6 +358,23 @@ public enum DeclaredProductOutcome
     /// <see cref="DeclaredProductCachedAsAnotherFile"/>.
     /// </summary>
     DeclaredPatchCachedAsAnotherFile,
+
+    /// <summary>
+    /// Windows holds a record of the product this installation package declares, or a
+    /// registration of the patch this patch copy declares, the check saw every package
+    /// or copy each installation or registration opens, and this file's own identity
+    /// did not read, so it could not be compared with any of them. Kept back.
+    ///
+    /// IT IS ABOUT THE FILE AND NOT ABOUT THE RECORDS. Everything the records name was
+    /// read and identified; what the comparison lacks is this file's own volume and
+    /// file ID. So both halves give this one verdict, and the scan counts it with the
+    /// files the identity comparison could not identify.
+    ///
+    /// A FILE GONE BY THE TIME ITS IDENTITY IS READ IS GIVEN IT TOO. It declared its
+    /// product or patch earlier in the same pass, and nothing at its path shows it to be
+    /// a different file from any the records name.
+    /// </summary>
+    CandidateIdentityUnestablished,
 }
 
 /// <summary>Reading a <see cref="DeclaredProductOutcome"/>.</summary>

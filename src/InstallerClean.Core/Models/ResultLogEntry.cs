@@ -870,17 +870,16 @@ public sealed record MachineInfo(
 /// be false of the rows the others put in the count.
 /// </param>
 /// <param name="WithheldIdentityUnestablishedCount">
-/// Candidates the identity comparison kept back one at a time, because the filesystem
-/// would not say which file the candidate's own path names:
+/// Candidates kept back one at a time because the filesystem would not say which file
+/// the candidate's own path names: at the identity comparison, or at the
+/// declared-product screen when it came to compare the candidate with the packages or
+/// copies the records name, where a candidate found gone is counted too:
 /// <c>ScanResult.WithheldBy.IdentityUnestablishedCount</c>. The first of the eleven
 /// counts that split <paramref name="WithheldCandidateCount"/>.
 ///
-/// IT IS SENT RATHER THAN DERIVED, AND THAT IS DELIBERATE. The same population is
-/// recoverable today from <c>machine</c>'s candidate-side refusal total, which has the
-/// same membership and the same value. Two expressions answering one question is the
-/// arrangement that agrees until one side moves, after which nothing fails and the
-/// report goes on looking right; a figure that happens to match is a coincidence
-/// somebody later has to prove is still holding.
+/// IT IS NOT <c>machine</c>'S CANDIDATE-SIDE REFUSAL TOTAL. That total counts the
+/// identity comparison's refusals, which are the candidates that comparison kept, so
+/// this count less that total is the candidates the screen kept on its own read.
 /// </param>
 /// <param name="WithheldWholesaleCount">
 /// Candidates kept back in one go, the whole walk-derived offer having been withheld on

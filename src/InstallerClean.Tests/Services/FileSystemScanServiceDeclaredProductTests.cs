@@ -121,6 +121,39 @@ public class FileSystemScanServiceDeclaredProductTests
     }
 
     [Fact]
+    public async Task A_copy_whose_own_identity_will_not_read_is_kept_and_spoken_of()
+    {
+        // The offered scan above with a.msi's own identity not reading. Everything the
+        // screen reads about product A answers, so what it could not establish is about
+        // a.msi alone: the file is counted with the files that would not identify, and a
+        // run holding only it is one the window's finished screen and the command line
+        // speak of, rather than one they treat as holding nothing back.
+        var identities = new ScriptedPackageIdentities();
+        identities.Declares($@"{Folder}\a.msi", ProductA);
+        identities.Declares($@"{Folder}\b.msi", ProductA);
+
+        var msi = new ScriptedMsiProducts();
+        msi.Installed(ProductA);
+        msi.RecordsPackage(ProductA, null, MsiInstallContext.Machine, $@"{Folder}\b.msi");
+        msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, "setup.msi", SetupFolder);
+
+        var files = new ScriptedFileIdentities();
+        files.Answers($@"{Folder}\a.msi", FileIdentityRead.IdentityUnavailable);
+        files.Opens($@"{Folder}\b.msi", 2);
+        files.Answers(SetupFolder + "setup.msi", FileIdentityRead.NamesNothing);
+
+        var result = await ScanWithRecordedPackage(msi, identities, files);
+
+        Assert.Empty(result.RemovableFiles);
+        var kept = Assert.Single(result.WithheldFiles!);
+        Assert.Equal($@"{Folder}\a.msi", kept.FullPath);
+        Assert.Equal(1, result.WithheldBy.IdentityUnestablishedCount);
+        Assert.Equal(0, result.WithheldBy.DeclaredProductInstalledCount);
+        Assert.True(result.HasUnsettledHeldBack);
+        Assert.Equal(WithholdingAccount.PerFile, result.Withholding);
+    }
+
+    [Fact]
     public void The_scan_the_hosts_build_screens_declared_products()
     {
         // Constructed by hand everywhere else in this file, where the default is no
