@@ -1155,19 +1155,12 @@
            BasedOn="{StaticResource FlatTextBoxFocusVisual}"/>
 
     <!-- Progress bar. Slim dark bar. Determinate uses PART_Indicator
-         (WPF stock). Indeterminate has two presentations: a sweeping
-         bar when animations are on, and a static full-width fill when
-         the Windows "show animations" setting is off (reduced motion). The sweep
-         moves the RepeatBehavior onto the DoubleAnimation rather than
-         the wrapping Storyboard so the compiled BAML carries no literal
-         "Storyboard RepeatBehavior=Forever" attribute pair.
-
-         The sweep translates the 80 px bar from X=-80 to X=320 (max bar
-         width 240 px). DoubleAnimation can't template-bind ActualWidth,
-         so a wider indeterminate consumer needs the To value raised, and
-         those two lengths are the reason this bar is not among the ones
-         that take the OS text-scale factor: the travel is a literal, so a
-         bar that grew would leave its own sweep behind. -->
+         (WPF stock). Indeterminate has two presentations: an 80 px stripe
+         sweeping across the bar when animations are on, and a static
+         full-width fill when the Windows "show animations" setting is off
+         (reduced motion). IndeterminateSweep runs the stripe and takes the
+         ends of its travel from the track, so it crosses the whole bar at
+         whatever width the bar is drawn. -->
     <Style TargetType="ProgressBar">
         <Setter Property="Background" Value="{StaticResource Surface.Sidebar}"/>
         <!-- Progress.Fill, not the accent fill the buttons wear: a bar is read
@@ -1197,7 +1190,7 @@
                                     Visibility="Collapsed"
                                     RenderTransformOrigin="0,0">
                                 <Border.RenderTransform>
-                                    <TranslateTransform x:Name="IndeterminateTransform"/>
+                                    <TranslateTransform/>
                                 </Border.RenderTransform>
                             </Border>
                             <!-- Reduced-motion stand-in for the sweep: a static,
@@ -1211,12 +1204,11 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <!-- Indeterminate with animations on: the bar sweeps. The
-                             storyboard is named so the companion ExitActions stop
-                             it the moment the bar stops being indeterminate or
-                             "show animations" is switched off mid-run, rather than
-                             leaving a clock running on a hidden element (and
-                             stacking a second clock if it later re-enters). -->
+                        <!-- Indeterminate with animations on: the stripe sweeps.
+                             The sweep runs while this trigger holds, and stops the
+                             moment the bar stops being indeterminate or "show
+                             animations" is switched off mid-run, because leaving
+                             the trigger clears IsRunning. -->
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
                                 <Condition Binding="{Binding IsIndeterminate, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/>
@@ -1224,20 +1216,7 @@
                             </MultiDataTrigger.Conditions>
                             <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed"/>
                             <Setter TargetName="IndeterminateBar" Property="Visibility" Value="Visible"/>
-                            <MultiDataTrigger.EnterActions>
-                                <BeginStoryboard x:Name="IndeterminateMarquee">
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="IndeterminateTransform"
-                                                         Storyboard.TargetProperty="X"
-                                                         From="-80" To="320"
-                                                         Duration="0:0:1.4"
-                                                         RepeatBehavior="Forever"/>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </MultiDataTrigger.EnterActions>
-                            <MultiDataTrigger.ExitActions>
-                                <StopStoryboard BeginStoryboardName="IndeterminateMarquee"/>
-                            </MultiDataTrigger.ExitActions>
+                            <Setter TargetName="IndeterminateBar" Property="a11y:IndeterminateSweep.IsRunning" Value="True"/>
                         </MultiDataTrigger>
                         <!-- Indeterminate with animations off: a static full-width
                              fill stands in for the sweep, so an animation-off user
