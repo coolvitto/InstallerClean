@@ -428,6 +428,18 @@
     <value>Натисніть «Повторити сканування», щоб переглянути {InstallerFolder} і знайти файли інсталятора, яких уже не потребує жодна програма.</value>
     <comment>Main window intro (muted tier) before any scan has completed. Re-scan is the button's own label; keep whatever the Action.Rescan key says in this language, minus its accelerator underscore.</comment>
   </data>
+  <data name="Body.RescanNotFinished.Lead" xml:space="preserve">
+    <value>До наступного сканування показувати нічого.</value>
+    <comment>Main window intro (heading tier) after a Move or Delete, when the scan the app runs straight afterwards did not finish: it stopped, it failed or the user cancelled it. The window has no list then, and this replaces the three-key intro above, which describes files a scan found. It is read just after the summary card has reported what was moved or deleted, so it must not suggest the Move or Delete itself failed. Keep it one short clause.</comment>
+  </data>
+  <data name="Body.RescanNotFinished.Why" xml:space="preserve">
+    <value>Сканування, яке виконується після «Перемістити» або «Видалити», не завершилося, тож немає списку, який можна показати. Натисніть «Повторити сканування», щоб знову просканувати {InstallerFolder}.</value>
+    <comment>Main window intro (muted tier) under Body.RescanNotFinished.Lead. Move and Delete name the two actions the way the Body.PendingReboot lines name them, and Re-scan is the button's own label: keep whatever the Action.Rescan key says in this language, minus its accelerator underscore. "Didn't finish" covers all three endings, a stop, a failure and a cancel, so it must not be translated as any one of them. It deliberately gives no reason and says nothing about what was removed: the reason goes to the crash log, named by Body.RescanNotFinished.Recorded where the log was written.</comment>
+  </data>
+  <data name="Body.RescanNotFinished.Recorded" xml:space="preserve">
+    <value>Причину зупинки записано до {0}.</value>
+    <comment>Shown as its own paragraph under Body.RescanNotFinished.Why when that scan stopped or failed and the crash log was written. {0} is the crash log's full path. Not shown after a cancel, which is not logged.</comment>
+  </data>
   <data name="Body.PendingReboot.Lead" xml:space="preserve">
     <value>Ці файли зараз не можна прибрати.</value>
     <comment>Main window intro (heading tier) when a scan found files but the pending-reboot check holds Move and Delete, whatever its reason. Replaces the "safe to delete" lead, which reads wrong above dead buttons. The reason-specific banner below it (Body.PendingReboot.*) carries the why; keep this one short.</comment>

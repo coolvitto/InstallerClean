@@ -63,11 +63,12 @@
 
         <!-- Invisible scan-result announcer. Code-behind writes the
              composed "N unneeded files to clean up (size)" line here
-             after a scan that found files; the visible count rows carry
-             no LiveSetting because they rebind on every refresh,
-             including the silent post-operation one. Opacity 0 keeps the
-             element in the rendered tree, which the UIA bridge requires
-             before it announces a text change. -->
+             after a scan that found files, and, where the scan after a
+             Move or Delete did not finish, why the window has no list; the
+             visible count rows carry no LiveSetting because they rebind on
+             every refresh, including the silent post-operation one.
+             Opacity 0 keeps the element in the rendered tree, which the UIA
+             bridge requires before it announces a text change. -->
         <TextBlock x:Name="ScanResultAnnouncer" Grid.Row="0"
                    HorizontalAlignment="Left" VerticalAlignment="Top"
                    Opacity="0" IsHitTestVisible="False"

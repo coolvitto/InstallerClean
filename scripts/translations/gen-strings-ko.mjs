@@ -558,6 +558,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean이 이 PC에 설치된 모든 프로그램을 보려면 관리자 권한이 필요한데, 관리자 권한으로 실행 중이 아니므로 검사하지 않습니다. 아무것도 변경하지 않았습니다. 관리자 명령 프롬프트에서 다시 실행하세요.`,
   'Error.ScanInstallerFolderNotFound': `Windows가 이 PC에 {InstallerFolder}가 없다고 보고해서 InstallerClean이 작업을 멈췄습니다. 아무것도 제시하지 않았고 아무것도 제거하지 않았습니다.`,
   'Error.ScanInstallerFolderListFailed': `InstallerClean이 {InstallerFolder}의 파일 목록을 가져오려 할 때 Windows가 오류를 보고해서, 전체 목록을 얻지 못하고 작업을 멈췄습니다. 아무것도 제시하지 않았고 아무것도 제거하지 않았습니다.`,
+  'Body.RescanNotFinished.Lead': `다음 검사 전까지 표시할 내용이 없습니다.`,
+  'Body.RescanNotFinished.Why': `이동 또는 삭제 후에 실행되는 검사가 완료되지 않아 표시할 목록이 없습니다. 다시 검사를 눌러 {InstallerFolder}를 한 번 더 검사하세요.`,
+  'Body.RescanNotFinished.Recorded': `중단된 원인은 {0}에 기록되어 있습니다.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

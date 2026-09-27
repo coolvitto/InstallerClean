@@ -7,8 +7,8 @@ namespace InstallerClean.Tests.Helpers;
 /// <summary>
 /// The main window's first line, across all sixteen languages.
 ///
-/// MainViewModel.IntroLead picks one of four strings and the window binds it as
-/// the TextBlock's text. None of the four carries a square bracket, in any
+/// MainViewModel.IntroLead picks one of seven strings and the window binds it as
+/// the TextBlock's text. None of the seven carries a square bracket, in any
 /// language.
 ///
 /// That is visible to no existing gate. A bracket is an ordinary character in a
@@ -23,16 +23,20 @@ namespace InstallerClean.Tests.Helpers;
 public class IntroLeadCompositionTests
 {
     /// <summary>
-    /// The four leads, each of which renders as plain text. Keys rather than
+    /// The seven leads, each of which renders as plain text. Keys rather than
     /// typed accessors, because the assertion is about what each language ships
-    /// and the lookup has to name a culture.
+    /// and the lookup has to name a culture. A failed scan's lead is its dialog's
+    /// heading, and there are three of those.
     /// </summary>
     private static readonly string[] LeadKeys =
     {
-        "Body.MainExplanation.Lead", // a scan found files
-        "Error.ScanFailedTitle",     // a scan failed, startup or Re-scan
-        "Body.NotScanned.Lead",      // the startup scan was cancelled
-        "Body.PendingReboot.Lead",   // files found, but Windows Installer is busy
+        "Body.MainExplanation.Lead",    // a scan found files
+        "Error.StoppedTitle",           // a scan stopped, startup or Re-scan
+        "Error.AdminRequiredTitle",     // Windows refused a scan
+        "Error.ScanFailedTitle",        // a scan failed in a way nothing anticipated
+        "Body.RescanNotFinished.Lead",  // the scan after a Move or Delete did not finish
+        "Body.NotScanned.Lead",         // the startup scan was cancelled
+        "Body.PendingReboot.Lead",      // files found, but Windows Installer is busy
     };
 
     public static TheoryData<string> Cultures()
@@ -54,14 +58,14 @@ public class IntroLeadCompositionTests
             var value = Lead(key, culture);
 
             // Either bracket on its own is the whole fault: the character is
-            // drawn as it stands. The key is named in the message because four
+            // drawn as it stands. The key is named in the message because seven
             // leads are read and a fault quoting only the value would leave a
             // reader working out which state it came from.
             if (value.Contains('[') || value.Contains(']'))
                 faults.Add($"{key} carries a square bracket: \"{value}\"");
         }
 
-        // Collected across the four and asserted once, so one run names every
+        // Collected across the seven and asserted once, so one run names every
         // lead a language gets wrong rather than stopping at the first.
         Assert.True(faults.Count == 0, $"{cultureName}: {string.Join("; ", faults)}");
     }

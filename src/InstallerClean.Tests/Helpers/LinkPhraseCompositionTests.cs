@@ -37,7 +37,7 @@ namespace InstallerClean.Tests.Helpers;
 ///
 /// IntroLeadCompositionTests and DeleteConfirmationCompositionTests hold the
 /// opposite rule over two surfaces whose values must carry no bracket at all: the
-/// main window's four leads, and the delete dialog, whose value varies by count.
+/// main window's leads, and the delete dialog, whose value varies by count.
 ///
 /// The parse itself is CompositionParsing.SplitAtBracketedPhrase, covered for its own
 /// edge cases in CompositionParsingTests; what is covered here is the shipped text it

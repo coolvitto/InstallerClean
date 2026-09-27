@@ -582,6 +582,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean a besoin des droits d'administrateur pour voir tous les programmes installés sur ce PC, et il ne s'exécute pas en tant qu'administrateur, il ne lancera donc pas d'analyse. Rien n'a été modifié. Relancez-le depuis une invite de commandes administrateur.`,
   'Error.ScanInstallerFolderNotFound': `Windows indique que {InstallerFolder} n'existe pas sur ce PC, donc InstallerClean s'est arrêté. Rien n'a été proposé et rien n'a été retiré.`,
   'Error.ScanInstallerFolderListFailed': `Windows a signalé une erreur quand InstallerClean a essayé de lister les fichiers de {InstallerFolder}, donc il n'a pas pu en obtenir la liste complète et s'est arrêté. Rien n'a été proposé et rien n'a été retiré.`,
+  'Body.RescanNotFinished.Lead': `Rien à afficher avant la prochaine analyse.`,
+  'Body.RescanNotFinished.Why': `L'analyse qui suit Déplacer ou Supprimer ne s'est pas terminée, il n'y a donc aucune liste à afficher. Cliquez sur Réanalyser pour analyser de nouveau {InstallerFolder}.`,
+  'Body.RescanNotFinished.Recorded': `Ce qui l'a interrompue est consigné dans {0}.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

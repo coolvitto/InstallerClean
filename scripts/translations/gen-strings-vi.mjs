@@ -561,6 +561,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean cần quyền quản trị viên để thấy mọi chương trình được cài trên máy này, nhưng hiện không chạy với tư cách quản trị viên, nên sẽ không quét. Không có gì bị thay đổi. Hãy chạy lại từ dấu nhắc quản trị viên.`,
   'Error.ScanInstallerFolderNotFound': `Windows báo rằng {InstallerFolder} không tồn tại trên máy này, nên InstallerClean đã dừng lại. Không có gì được đề xuất và không có gì bị bỏ đi.`,
   'Error.ScanInstallerFolderListFailed': `Windows đã báo lỗi khi InstallerClean cố liệt kê các tệp trong {InstallerFolder}, nên InstallerClean không lấy được danh sách đầy đủ và đã dừng lại. Không có gì được đề xuất và không có gì bị bỏ đi.`,
+  'Body.RescanNotFinished.Lead': `Không có gì để hiển thị cho đến lần quét tiếp theo.`,
+  'Body.RescanNotFinished.Why': `Lần quét chạy sau Chuyển hoặc Xóa đã không hoàn tất, nên không có danh sách nào để hiển thị. Nhấn Quét lại để quét {InstallerFolder} một lần nữa.`,
+  'Body.RescanNotFinished.Recorded': `Nguyên nhân dừng quét được ghi lại trong {0}.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

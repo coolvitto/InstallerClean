@@ -576,6 +576,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean braucht Administratorrechte, um alle auf diesem PC installierten Programme zu sehen, läuft aber nicht als Administrator und scannt deshalb nicht. Es wurde nichts verändert. Führe es erneut in einer Eingabeaufforderung als Administrator aus.`,
   'Error.ScanInstallerFolderNotFound': `Windows meldet, dass {InstallerFolder} auf diesem PC nicht existiert, deshalb hat InstallerClean abgebrochen. Es wurde nichts angeboten und nichts entfernt.`,
   'Error.ScanInstallerFolderListFailed': `Windows hat einen Fehler gemeldet, als InstallerClean versuchte, die Dateien in {InstallerFolder} aufzulisten, deshalb konnte es keine vollständige Liste erhalten und hat abgebrochen. Es wurde nichts angeboten und nichts entfernt.`,
+  'Body.RescanNotFinished.Lead': `Nichts anzuzeigen bis zum nächsten Scan.`,
+  'Body.RescanNotFinished.Why': `Der Scan, der nach „Verschieben“ oder „Löschen“ läuft, wurde nicht abgeschlossen, deshalb kann keine Liste angezeigt werden. Klicke auf „Neu scannen“, um {InstallerFolder} erneut zu scannen.`,
+  'Body.RescanNotFinished.Recorded': `Was ihn gestoppt hat, ist in {0} festgehalten.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

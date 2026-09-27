@@ -154,8 +154,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// The main window's opening line. The intro is the only thing that tells the
     /// window's states apart:
     ///
-    ///   - a scan FAILED (the startup scan, or a Re-scan): the tailored error,
-    ///     with Re-scan focused, instead of exiting,
+    ///   - the scan after a Move or Delete did not finish: it says so, and that
+    ///     there is no list until the next scan,
+    ///   - a scan FAILED (the startup scan, or a Re-scan): the tailored error
+    ///     under the heading its dialog carries on a Re-scan, with Re-scan
+    ///     focused, instead of exiting,
     ///   - nothing scanned yet (the startup scan was cancelled),
     ///   - a scan found files but a Windows Installer operation is in progress, so
     ///     Move and Delete are held: the copy explains the hold rather than telling
@@ -165,30 +168,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
     ///   - a scan found nothing (an all-clear, and the end state of every
     ///     successful clean-up).
     ///
-    /// The failed state takes precedence over not-yet-scanned, because a failed
-    /// scan leaves <see cref="ScanViewModel.HasScanned"/> false too but must say
-    /// what went wrong rather than "nothing scanned yet". A completed scan gets
-    /// the same lead at any count, zero included: "Any unneeded files below" is
-    /// written to read correctly over an empty list, and the completion overlay
-    /// has already announced the result in its own words by the time this
-    /// window is read.
+    /// The first two take precedence over not-yet-scanned, because each leaves
+    /// <see cref="ScanViewModel.HasScanned"/> false too but must say what happened
+    /// rather than "nothing scanned yet", which after a Move or Delete is not true.
+    /// The two never hold together: a scan that sets either message clears the
+    /// other first. A completed scan gets the same lead at any count, zero
+    /// included: "Any unneeded files below" is written to read correctly over an
+    /// empty list, and the completion overlay has already announced the result in
+    /// its own words by the time this window is read.
     /// </summary>
     public string IntroLead =>
-        Scan.HasScanError ? Strings.Error_ScanFailedTitle
+        Scan.HasUnfinishedRefresh ? Strings.Body_RescanNotFinished_Lead
+        : Scan.HasScanError ? Scan.LastScanErrorTitle
         : !Scan.HasScanned ? Strings.Body_NotScanned_Lead
         : Scan.HasOrphans && Scan.HasPendingReboot ? Strings.Body_PendingReboot_Lead
         : Strings.Body_MainExplanation_Lead;
 
     /// <summary>
     /// The muted second line under <see cref="IntroLead"/>. Carries the tailored
-    /// message on a failed scan. Shown for every completed scan, zero files
+    /// message on a failed scan, and the message saying the scan after a Move or
+    /// Delete did not finish. Shown for every completed scan, zero files
     /// included: it is the app explaining what it does, and a clean machine is
     /// when a first-time user needs that most. Empty only on a pending-reboot
     /// hold (the banner below carries the specific reason), which collapses the
     /// TextBlock.
     /// </summary>
     public string IntroDetail =>
-        Scan.HasScanError ? Scan.LastScanError
+        Scan.HasUnfinishedRefresh ? Scan.UnfinishedRefreshMessage
+        : Scan.HasScanError ? Scan.LastScanError
         : !Scan.HasScanned ? Strings.Body_NotScanned_Why
         : Scan.HasOrphans && Scan.HasPendingReboot ? string.Empty
         : MainExplanationWhyText;
@@ -212,10 +219,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool ShowActionZone => Scan.HasScanned && !Scan.HasScanError;
 
     /// <summary>
-    /// "Scan cancelled." under the not-yet-scanned intro, so a user who
-    /// cancelled the startup scan is told why the window is empty rather than
-    /// being shown what looks like a clean machine. Empty (and collapsed) in
-    /// every other state: once a scan has completed, its result is the answer.
+    /// "Scan cancelled." under the intro when the latest scan was cancelled and
+    /// no result is on screen: the startup scan, the scan after a Move or Delete,
+    /// or a Re-scan over a window that already had none. The user is told why
+    /// the window is empty rather than being shown what looks like a clean
+    /// machine. Empty (and collapsed) in every other state: while a completed
+    /// scan's result is on screen, that result is the answer.
     /// </summary>
     public string IntroNotice =>
         !Scan.HasScanned && Scan.LastScanWasCancelled ? Strings.Status_ScanCancelled : string.Empty;
@@ -248,12 +257,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // The three intro lines are computed from the scan's state, so they
-        // re-read whenever any of the three inputs moves. HasOrphans covers
-        // OrphanedFileCount, which raises it.
+        // re-read whenever any of their inputs moves. HasOrphans covers
+        // OrphanedFileCount, which raises it, and HasScanError and
+        // HasUnfinishedRefresh cover the two messages, whose setters raise them
+        // on every change.
         if (e.PropertyName is nameof(ScanViewModel.HasScanned)
             or nameof(ScanViewModel.HasOrphans)
             or nameof(ScanViewModel.LastScanWasCancelled)
             or nameof(ScanViewModel.HasScanError)
+            or nameof(ScanViewModel.LastScanErrorTitle)
+            or nameof(ScanViewModel.HasUnfinishedRefresh)
             or nameof(ScanViewModel.HasPendingReboot))
         {
             OnPropertyChanged(nameof(IntroLead));

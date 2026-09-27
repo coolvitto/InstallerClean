@@ -581,6 +581,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean потрібні права адміністратора, щоб бачити всі програми, встановлені на цьому ПК, а його запущено не від імені адміністратора, тож сканування не буде. Нічого не змінено. Запустіть його знову з командного рядка адміністратора.`,
   'Error.ScanInstallerFolderNotFound': `Windows повідомляє, що {InstallerFolder} на цьому ПК не існує, тому InstallerClean зупинився. Нічого не запропоновано і нічого не прибрано.`,
   'Error.ScanInstallerFolderListFailed': `Windows повідомив про помилку, коли InstallerClean намагався отримати список файлів у {InstallerFolder}, тому InstallerClean не зміг отримати повний список і зупинився. Нічого не запропоновано і нічого не прибрано.`,
+  'Body.RescanNotFinished.Lead': `До наступного сканування показувати нічого.`,
+  'Body.RescanNotFinished.Why': `Сканування, яке виконується після «Перемістити» або «Видалити», не завершилося, тож немає списку, який можна показати. Натисніть «Повторити сканування», щоб знову просканувати {InstallerFolder}.`,
+  'Body.RescanNotFinished.Recorded': `Причину зупинки записано до {0}.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

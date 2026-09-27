@@ -71,9 +71,10 @@ public class DialogHeadingBodyTests
         // The one exemption, pinned rather than left out, so a later pass that
         // tidies it to match the others has to come and read this first. The
         // string is the dialog body AND the main window's error line AND what the
-        // scan announcer speaks, and on those last two nothing is drawn above it,
-        // so it names its own subject or the reader is told a bare exception type
-        // with no clue what it was doing.
+        // scan announcer speaks. The window draws the same heading above it, as
+        // the dialog does, but the announcer speaks it alone, so it names its own
+        // subject or a screen-reader user is told a bare exception type with no
+        // clue what it was doing.
         var body = noLog ? Strings.Status_ScanFailedDetails_NoLog : Strings.Status_ScanFailedDetails;
 
         Assert.StartsWith(Strings.Error_ScanFailedTitle, body, StringComparison.Ordinal);

@@ -6785,6 +6785,57 @@
       "uk": "7cb900a9d0fc486f",
       "vi": "7cb900a9d0fc486f",
       "zh-Hans": "7cb900a9d0fc486f"
+    },
+    "Body.RescanNotFinished.Lead": {
+      "de": "abd86cf715f888c0",
+      "es": "abd86cf715f888c0",
+      "fr": "abd86cf715f888c0",
+      "id": "abd86cf715f888c0",
+      "it": "abd86cf715f888c0",
+      "ja": "abd86cf715f888c0",
+      "ko": "abd86cf715f888c0",
+      "nl": "abd86cf715f888c0",
+      "pl": "abd86cf715f888c0",
+      "pt-BR": "abd86cf715f888c0",
+      "ru": "abd86cf715f888c0",
+      "tr": "abd86cf715f888c0",
+      "uk": "abd86cf715f888c0",
+      "vi": "abd86cf715f888c0",
+      "zh-Hans": "abd86cf715f888c0"
+    },
+    "Body.RescanNotFinished.Why": {
+      "de": "895191e631daebf0",
+      "es": "895191e631daebf0",
+      "fr": "895191e631daebf0",
+      "id": "895191e631daebf0",
+      "it": "895191e631daebf0",
+      "ja": "895191e631daebf0",
+      "ko": "895191e631daebf0",
+      "nl": "895191e631daebf0",
+      "pl": "895191e631daebf0",
+      "pt-BR": "895191e631daebf0",
+      "ru": "895191e631daebf0",
+      "tr": "895191e631daebf0",
+      "uk": "895191e631daebf0",
+      "vi": "895191e631daebf0",
+      "zh-Hans": "895191e631daebf0"
+    },
+    "Body.RescanNotFinished.Recorded": {
+      "de": "bd08d52f2e9fbb70",
+      "es": "bd08d52f2e9fbb70",
+      "fr": "bd08d52f2e9fbb70",
+      "id": "bd08d52f2e9fbb70",
+      "it": "bd08d52f2e9fbb70",
+      "ja": "bd08d52f2e9fbb70",
+      "ko": "bd08d52f2e9fbb70",
+      "nl": "bd08d52f2e9fbb70",
+      "pl": "bd08d52f2e9fbb70",
+      "pt-BR": "bd08d52f2e9fbb70",
+      "ru": "bd08d52f2e9fbb70",
+      "tr": "bd08d52f2e9fbb70",
+      "uk": "bd08d52f2e9fbb70",
+      "vi": "bd08d52f2e9fbb70",
+      "zh-Hans": "bd08d52f2e9fbb70"
     }
   }
 }

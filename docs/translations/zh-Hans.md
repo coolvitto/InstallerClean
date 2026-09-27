@@ -119,6 +119,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Move them to a backup folder you choose, then delete that folder when you're satisfied your programs still update and uninstall as normal. Putting them back into {InstallerFolder} restores everything. Or delete them permanently now. | 把它们移动到您选择的备份文件夹，等您确信自己的程序仍能照常更新和卸载时，再删除那个文件夹。把它们放回 {InstallerFolder} 就能恢复原状。或者现在就永久删除。 |
 | Nothing scanned yet. | 尚未扫描。 |
 | Press Re-scan to look through {InstallerFolder} for installer files that no program still needs. | 点击“重新扫描”，在 {InstallerFolder} 中查找没有任何程序仍然需要的安装程序文件。 |
+| Nothing to show until the next scan. | 在下次扫描之前没有可显示的内容。 |
+| The scan that runs after a Move or Delete didn't finish, so there's no list to show. Press Re-scan to scan {InstallerFolder} again. | 移动或删除之后运行的扫描没有完成，因此没有可显示的列表。点击“重新扫描”，再次扫描 {InstallerFolder}。 |
+| What stopped it is recorded in {0}. | 停止的原因已记录在 {0} 中。 |
 | These files can't be cleaned up right now. | 这些文件现在无法清理。 |
 | Something is using Windows Installer right now, such as a Windows Update or a program installing in the background. Move and Delete are paused while that runs, so InstallerClean won't touch {InstallerFolder} while it's changing. Once it's done, Re-scan and they come back. | 此刻有程序正在使用 Windows Installer，比如 Windows 更新，或者某个正在后台安装的程序。在此期间，移动和删除会暂停，这样 InstallerClean 就不会在 {InstallerFolder} 变动时去碰它。等结束后重新扫描，两者就会恢复。 |
 | Windows refused InstallerClean permission to check whether Windows Installer is busy, so Move and Delete are paused and InstallerClean won't touch {InstallerFolder}. Restart Windows and Re-scan. If Windows still refuses, this isn't a machine InstallerClean can clean. | Windows 拒绝了 InstallerClean 检查 Windows Installer 是否正忙的权限，因此移动和删除已暂停，InstallerClean 不会去碰 {InstallerFolder}。请重启 Windows 并重新扫描。如果 Windows 仍然拒绝，这台机器就不是 InstallerClean 能清理的。 |

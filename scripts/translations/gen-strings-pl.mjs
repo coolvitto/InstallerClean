@@ -600,6 +600,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean potrzebuje uprawnień administratora, żeby widzieć każdy program zainstalowany na tym komputerze, a nie działa jako administrator, więc nie przeprowadzi skanowania. Nic nie zostało zmienione. Uruchom go ponownie z wiersza polecenia administratora.`,
   'Error.ScanInstallerFolderNotFound': `Windows zgłasza, że {InstallerFolder} nie istnieje na tym komputerze, więc InstallerClean się zatrzymał. Niczego nie zaproponowano i niczego nie usunięto.`,
   'Error.ScanInstallerFolderListFailed': `Windows zgłosił błąd, gdy InstallerClean próbował pobrać listę plików w {InstallerFolder}, więc nie udało mu się uzyskać pełnej listy i się zatrzymał. Niczego nie zaproponowano i niczego nie usunięto.`,
+  'Body.RescanNotFinished.Lead': `Nic do pokazania do następnego skanowania.`,
+  'Body.RescanNotFinished.Why': `Skanowanie uruchamiane po operacji Przenieś lub Usuń nie zakończyło się, więc nie ma listy do pokazania. Naciśnij przycisk Skanuj ponownie, aby jeszcze raz przeskanować {InstallerFolder}.`,
+  'Body.RescanNotFinished.Recorded': `Przyczyna zatrzymania jest zapisana w {0}.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

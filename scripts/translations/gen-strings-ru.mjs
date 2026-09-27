@@ -479,6 +479,9 @@ const MAP = {
   'Startup.AdminRightsNeededBody': `InstallerClean нужны права администратора, чтобы видеть все программы, установленные на этом ПК, а он запущен не от имени администратора, поэтому сканировать не будет. Ничего не изменено.\n\nЗапустите InstallerClean снова от имени администратора.`,
   'Error.ScanInstallerFolderNotFound': `Windows сообщает, что {InstallerFolder} на этом ПК не существует, поэтому InstallerClean остановился. Ничего не предложено и ничего не убрано.`,
   'Error.ScanInstallerFolderListFailed': `Windows сообщил об ошибке, когда InstallerClean попытался получить список файлов в {InstallerFolder}, поэтому InstallerClean не смог получить полный список и остановился. Ничего не предложено и ничего не убрано.`,
+  'Body.RescanNotFinished.Lead': `До следующего сканирования показывать нечего.`,
+  'Body.RescanNotFinished.Why': `Сканирование, которое выполняется после «Переместить» или «Удалить», не завершилось, поэтому нет списка, который можно показать. Нажмите «Повторить сканирование», чтобы снова просканировать {InstallerFolder}.`,
+  'Body.RescanNotFinished.Recorded': `Причина остановки записана в {0}.`,
 };
 
 // Russian CLDR-category overrides beyond the neutral one/other split. They do NOT

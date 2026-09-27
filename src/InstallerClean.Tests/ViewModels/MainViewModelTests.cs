@@ -3129,9 +3129,10 @@ public class MainViewModelTests
         // test is about is the account reaching the window at all.
         Assert.StartsWith(Strings.Error_InstallerDbEmpty, vm.Scan.LastScanError,
             StringComparison.Ordinal);
-        // The window's intro shows the diagnosis, not "nothing scanned yet", and
-        // the startup path is inline: no modal fires over the splash.
-        Assert.Equal(Strings.Error_ScanFailedTitle, vm.IntroLead);
+        // The window's intro shows the diagnosis, not "nothing scanned yet", under
+        // the heading a Re-scan's dialog would carry, and the startup path is
+        // inline: no modal fires over the splash.
+        Assert.Equal(Strings.Error_StoppedTitle, vm.IntroLead);
         Assert.Equal(vm.Scan.LastScanError, vm.IntroDetail);
         Assert.Equal(string.Empty, vm.IntroNotice);
         _dialogService.DidNotReceive().ShowError(Arg.Any<string>(), Arg.Any<string>());
@@ -3150,10 +3151,47 @@ public class MainViewModelTests
         // The explicit click still gets its modal (one error ladder, two
         // presentations)...
         _dialogService.Received(1).ShowError(Arg.Any<string>(), Strings.Error_StoppedTitle);
-        // ...and the same message is recorded inline, so a later re-render of the
-        // window shows the diagnosis rather than a stale count.
+        // ...and the same message is recorded inline, so the window under the
+        // modal shows the diagnosis, as a failed startup scan's does, under the
+        // modal's own heading.
         Assert.True(vm.Scan.HasScanError);
-        Assert.Equal(Strings.Error_ScanFailedTitle, vm.IntroLead);
+        Assert.Equal(Strings.Error_StoppedTitle, vm.IntroLead);
+    }
+
+    [Theory]
+    [InlineData("stop")]
+    [InlineData("refused")]
+    [InlineData("unforeseen")]
+    public async Task A_failed_rescan_heads_the_window_as_its_dialog_is_headed(string ending)
+    {
+        // Each rung of the ladder has its own heading, and the window carries the
+        // one its dialog did, so the two are not one click apart and saying
+        // different things.
+        var vm = CreateViewModel();
+        Exception ex = ending switch
+        {
+            "stop" => new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty),
+            "refused" => new UnauthorizedAccessException("denied"),
+            _ => new InvalidProgramException("nothing anticipated this"),
+        };
+        var expected = ending switch
+        {
+            "stop" => Strings.Error_StoppedTitle,
+            "refused" => Strings.Error_AdminRequiredTitle,
+            _ => Strings.Error_ScanFailedTitle,
+        };
+        var headings = new List<string>();
+        _dialogService.When(d => d.ShowError(Arg.Any<string>(), Arg.Any<string>()))
+            .Do(ci => headings.Add(ci.ArgAt<string>(1)));
+        _dialogService.When(d => d.ShowWarning(Arg.Any<string>(), Arg.Any<string>()))
+            .Do(ci => headings.Add(ci.ArgAt<string>(1)));
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(ex);
+
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { expected }, headings);
+        Assert.Equal(expected, vm.IntroLead);
     }
 
     [Fact]
@@ -3167,6 +3205,440 @@ public class MainViewModelTests
 
         Assert.False(vm.Scan.HasScanError);
         Assert.Equal(string.Empty, vm.Scan.LastScanError);
+    }
+
+    // THE WINDOW AFTER A SCAN THAT LEAVES NO LIST. After an earlier scan completed,
+    // three endings do that: a Re-scan that stops or fails, the scan after a Move or
+    // Delete that stops or fails, and that scan cancelled by the user. Each leaves no
+    // list on screen and nothing for Move, Delete or Details to act on. The
+    // assertions are on the commands and not on the layout, so they hold whatever
+    // the window hides.
+
+    /// <summary>
+    /// Three files offered and one left alone, so both count lines, both Details
+    /// buttons and both action commands are live before the scan under test.
+    /// </summary>
+    private static ScanResult AnOfferAndAFileLeftAlone() =>
+        new(ScanResultWithOrphans(3).RemovableFiles,
+            new[] { new RegisteredPackage(@"C:\Windows\Installer\kept.msi", "Contoso Reader", "{aaa}") },
+            4096);
+
+    private static void AssertEverythingIsLive(MainViewModel vm)
+    {
+        Assert.True(vm.Scan.HasScanned);
+        Assert.Equal(3, vm.Scan.OrphanedFileCount);
+        Assert.Equal(1, vm.Scan.RegisteredFileCount);
+        Assert.True(vm.Cleanup.MoveAllCommand.CanExecute(null));
+        Assert.True(vm.Cleanup.DeleteAllCommand.CanExecute(null));
+        Assert.True(vm.Chrome.OpenOrphanedDetailsCommand.CanExecute(null));
+        Assert.True(vm.Chrome.OpenRegisteredDetailsCommand.CanExecute(null));
+    }
+
+    private static void AssertNoListAndNothingActsOnOne(MainViewModel vm)
+    {
+        Assert.False(vm.Scan.HasScanned);
+        Assert.Null(vm.Scan.LastScanResult);
+        Assert.Equal(0, vm.Scan.OrphanedFileCount);
+        Assert.Equal(0, vm.Scan.RegisteredFileCount);
+        Assert.False(vm.ShowActionZone);
+        Assert.False(vm.ShowMainAction);
+        Assert.False(vm.Cleanup.MoveAllCommand.CanExecute(null));
+        Assert.False(vm.Cleanup.DeleteAllCommand.CanExecute(null));
+        Assert.False(vm.Chrome.OpenOrphanedDetailsCommand.CanExecute(null));
+        Assert.False(vm.Chrome.OpenRegisteredDetailsCommand.CanExecute(null));
+    }
+
+    /// <summary>
+    /// The message the window gives when the scan after a Move or Delete stopped or
+    /// failed. Whether the log can be written is a property of the host, so the probe
+    /// decides which of the two forms is expected, as in ScanViewModelStoppedScanTests.
+    /// </summary>
+    private static string UnfinishedMessageWithTheLogWhereWritten()
+    {
+        var probe = CrashLog.TryWrite(new InvalidOperationException("probe"));
+        return probe.Written
+            ? Strings.Body_RescanNotFinished_Why + Environment.NewLine + Environment.NewLine
+                + string.Format(Strings.Body_RescanNotFinished_Recorded, probe.Path)
+            : Strings.Body_RescanNotFinished_Why;
+    }
+
+    private void ScansReturn(ScanResult result) =>
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+
+    private void ScansThrow(Exception ex) =>
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(ex);
+
+    [Fact]
+    public async Task A_failed_rescan_takes_the_earlier_list_off_the_window_and_closes_its_commands()
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        AssertEverythingIsLive(vm);
+
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        _dialogService.Received(1).ShowError(Arg.Any<string>(), Strings.Error_StoppedTitle);
+        AssertNoListAndNothingActsOnOne(vm);
+        // The window a failed startup scan opens: the diagnosis and Re-scan.
+        Assert.Equal(Strings.Error_StoppedTitle, vm.IntroLead);
+        Assert.Equal(vm.Scan.LastScanError, vm.IntroDetail);
+        Assert.Equal(string.Empty, vm.IntroNotice);
+    }
+
+    [Fact]
+    public async Task A_failed_rescan_takes_the_two_warnings_with_the_list()
+    {
+        // Both lines describe the earlier scan, and both speak of what the list
+        // offers: the pending-reboot banner of Move and Delete being paused, the
+        // missing-files line of its Details window.
+        var vm = CreateViewModel();
+        _rebootService.Check().Returns(PendingRebootResult.Block(PendingRebootReason.MsiExecuteMutexHeld));
+        ScansReturn(new ScanResult(
+            ScanResultWithOrphans(1).RemovableFiles,
+            new[] { new RegisteredPackage(@"C:\Windows\Installer\gone.msi", "Contoso Reader", "{aaa}", FileExists: false) },
+            0,
+            MissingAffectedCount: 1));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        Assert.True(vm.Scan.HasPendingReboot);
+        Assert.True(vm.Scan.HasMissingFromDisk);
+
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        Assert.False(vm.Scan.HasPendingReboot);
+        Assert.Equal(string.Empty, vm.Scan.PendingRebootBannerText);
+        Assert.False(vm.Scan.HasMissingFromDisk);
+    }
+
+    [Fact]
+    public async Task The_Details_buttons_are_told_to_grey_out_once_the_list_has_gone()
+    {
+        // A button asks CanExecute again only when its command raises
+        // CanExecuteChanged, so what it shows is the answer at that moment. The
+        // left-alone Details button re-asks when HasScanned changes and reads the
+        // result, which raises nothing of its own, so the answer recorded here is
+        // the one the button is left showing.
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        var registeredAnswers = new List<bool>();
+        var orphanedAnswers = new List<bool>();
+        vm.Chrome.OpenRegisteredDetailsCommand.CanExecuteChanged += (_, _) =>
+            registeredAnswers.Add(vm.Chrome.OpenRegisteredDetailsCommand.CanExecute(null));
+        vm.Chrome.OpenOrphanedDetailsCommand.CanExecuteChanged += (_, _) =>
+            orphanedAnswers.Add(vm.Chrome.OpenOrphanedDetailsCommand.CanExecute(null));
+
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        Assert.NotEmpty(registeredAnswers);
+        Assert.False(registeredAnswers[^1]);
+        Assert.NotEmpty(orphanedAnswers);
+        Assert.False(orphanedAnswers[^1]);
+    }
+
+    [Fact]
+    public async Task After_a_failed_rescan_each_command_refuses_when_run_directly()
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        vm.Cleanup.MoveDestination = Path.Combine(Path.GetTempPath(), "ic-test-move");
+        _confirmationService.ConfirmDelete(Arg.Any<int>(), Arg.Any<string>()).Returns(true);
+        _confirmationService.ConfirmMove(
+            Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(true);
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        // The toolkit's Execute and ExecuteAsync do not consult CanExecute, so each
+        // of these reaches its command body whatever state the buttons are in, and
+        // what refuses is the command itself.
+        await vm.Cleanup.DeleteAllCommand.ExecuteAsync(null);
+        await vm.Cleanup.MoveAllCommand.ExecuteAsync(null);
+        vm.Chrome.OpenOrphanedDetailsCommand.Execute(null);
+        vm.Chrome.OpenRegisteredDetailsCommand.Execute(null);
+
+        _confirmationService.DidNotReceive().ConfirmDelete(Arg.Any<int>(), Arg.Any<string>());
+        _confirmationService.DidNotReceive().ConfirmMove(
+            Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+        await _reverifier.DidNotReceive().ReverifyAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+        await _deleteService.DidNotReceive().DeleteFilesAsync(
+            Arg.Any<IEnumerable<string>>(), Arg.Any<UnderLeaseClaims>(),
+            Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>());
+        await _moveService.DidNotReceive().MoveFilesAsync(
+            Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<UnderLeaseClaims>(),
+            Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>());
+        _windowService.DidNotReceive().ShowOrphanedDetails(Arg.Any<OrphanedFilesViewModel>());
+        _windowService.DidNotReceive().ShowRegisteredDetails(Arg.Any<RegisteredFilesViewModel>());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_scan_after_a_delete_that_does_not_finish_leaves_the_card_and_no_list_under_it(bool deliberateStop)
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        _deleteService.DeleteFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new DeleteResult(3, Array.Empty<FileOperationError>()));
+        _confirmationService.ConfirmDelete(Arg.Any<int>(), Arg.Any<string>()).Returns(true);
+        await vm.Scan.ScanWithProgressAsync(null);
+        AssertEverythingIsLive(vm);
+
+        Exception ended = deliberateStop
+            ? new LocalisedInvalidOperationException(Strings.Error_ScanInstallerFolderListFailed)
+            : new InvalidProgramException("nothing anticipated this");
+        ScansThrow(ended);
+
+        await vm.Cleanup.DeleteAllCommand.ExecuteAsync(null);
+
+        // The card reports the batch from the batch's own tally.
+        Assert.True(vm.Completion.IsComplete);
+        Assert.Contains("permanently deleted", vm.Completion.Summary);
+        // Under it there is no list: the one from before the batch names the three
+        // files just deleted.
+        AssertNoListAndNothingActsOnOne(vm);
+        Assert.Equal(Strings.Body_RescanNotFinished_Lead, vm.IntroLead);
+        Assert.Equal(vm.Scan.UnfinishedRefreshMessage, vm.IntroDetail);
+        Assert.Equal(UnfinishedMessageWithTheLogWhereWritten(), vm.IntroDetail);
+        // Not the stop's own account, which says nothing was removed.
+        Assert.DoesNotContain(ended.Message, vm.IntroDetail, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, vm.IntroNotice);
+        Assert.False(vm.Scan.HasScanError);
+        _dialogService.DidNotReceive().ShowError(Arg.Any<string>(), Arg.Any<string>());
+        _dialogService.DidNotReceive().ShowWarning(Arg.Any<string>(), Arg.Any<string>());
+
+        // Done takes the card away and leaves the same window under it.
+        vm.Completion.DismissCommand.Execute(null);
+        Assert.Equal(Strings.Body_RescanNotFinished_Lead, vm.IntroLead);
+        AssertNoListAndNothingActsOnOne(vm);
+    }
+
+    [Fact]
+    public async Task A_scan_after_a_move_that_stops_leaves_the_card_and_no_list_under_it()
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        _moveService.MoveFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new MoveResult(3, Array.Empty<FileOperationError>()));
+        _confirmationService.ConfirmMove(
+            Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(true);
+        await vm.Scan.ScanWithProgressAsync(null);
+        vm.Cleanup.MoveDestination = Path.Combine(Path.GetTempPath(), "ic-test-move");
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_ScanInstallerFolderListFailed));
+
+        await vm.Cleanup.MoveAllCommand.ExecuteAsync(null);
+
+        await _moveService.Received(1).MoveFilesAsync(
+            Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<UnderLeaseClaims>(),
+            Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>());
+        Assert.True(vm.Completion.IsComplete);
+        AssertNoListAndNothingActsOnOne(vm);
+        Assert.Equal(Strings.Body_RescanNotFinished_Lead, vm.IntroLead);
+        Assert.Equal(UnfinishedMessageWithTheLogWhereWritten(), vm.IntroDetail);
+    }
+
+    [Fact]
+    public async Task A_scan_after_a_delete_that_is_cancelled_leaves_the_card_and_no_list_under_it()
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        _deleteService.DeleteFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                vm.Cleanup.CancelOperationCommand.Execute(null);
+                return new DeleteResult(1, Array.Empty<FileOperationError>(), Cancelled: true);
+            });
+        _confirmationService.ConfirmDelete(Arg.Any<int>(), Arg.Any<string>()).Returns(true);
+        await vm.Scan.ScanWithProgressAsync(null);
+
+        // The second Cancel, pressed while the overlay reads "Scanning...".
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                vm.Cleanup.CancelOperationCommand.Execute(null);
+                ci.Arg<CancellationToken>().ThrowIfCancellationRequested();
+                return ScanResultWithOrphans(2);
+            });
+        var logBefore = CrashLogText();
+
+        await vm.Cleanup.DeleteAllCommand.ExecuteAsync(null);
+
+        // One file went before the first Cancel, so the card is up.
+        Assert.True(vm.Completion.IsComplete);
+        AssertNoListAndNothingActsOnOne(vm);
+        Assert.True(vm.Scan.LastScanWasCancelled);
+        Assert.Equal(Strings.Body_RescanNotFinished_Lead, vm.IntroLead);
+        // THE CRASH-LOG SENTENCE NEVER FOLLOWS A CANCEL, and nothing is written for
+        // it to name: the user asked for this ending. "Scan cancelled." is the whole
+        // of what follows the message.
+        Assert.Equal(Strings.Body_RescanNotFinished_Why, vm.IntroDetail);
+        Assert.DoesNotContain(CrashLog.LogPath, vm.IntroDetail, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(logBefore, CrashLogText());
+        Assert.Equal(Strings.Status_ScanCancelled, vm.IntroNotice);
+    }
+
+    /// <summary>
+    /// The crash log as it stands, or empty where there is none or it will not
+    /// read. Compared before and after a run to show the run wrote nothing.
+    /// </summary>
+    private static string CrashLogText()
+    {
+        try { return File.Exists(CrashLog.LogPath) ? File.ReadAllText(CrashLog.LogPath) : string.Empty; }
+        catch (IOException) { return string.Empty; }
+    }
+
+    [Fact]
+    public async Task A_cancelled_rescan_keeps_the_earlier_list_and_its_commands()
+    {
+        // The control for the three above: the one ending that keeps an earlier
+        // result, because that scan completed and nothing has acted on it since.
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                vm.Scan.CancelScanCommand.Execute(null);
+                ci.Arg<CancellationToken>().ThrowIfCancellationRequested();
+                return ScanResultWithOrphans(1);
+            });
+
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        Assert.True(vm.Scan.LastScanWasCancelled);
+        Assert.NotNull(vm.Scan.LastScanResult);
+        AssertEverythingIsLive(vm);
+        Assert.Equal(Strings.Body_MainExplanation_Lead, vm.IntroLead);
+        Assert.Equal(string.Empty, vm.IntroNotice);
+    }
+
+    [Fact]
+    public async Task A_cancelled_rescan_after_a_failed_one_leaves_the_failure_on_screen()
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+        var diagnosis = vm.Scan.LastScanError;
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                vm.Scan.CancelScanCommand.Execute(null);
+                ci.Arg<CancellationToken>().ThrowIfCancellationRequested();
+                return ScanResultWithOrphans(1);
+            });
+
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        AssertNoListAndNothingActsOnOne(vm);
+        Assert.Equal(Strings.Error_StoppedTitle, vm.IntroLead);
+        Assert.Equal(diagnosis, vm.IntroDetail);
+        Assert.Equal(Strings.Status_ScanCancelled, vm.IntroNotice);
+    }
+
+    [Fact]
+    public async Task A_rescan_that_completes_after_an_unfinished_one_puts_its_own_list_on_screen()
+    {
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        _deleteService.DeleteFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new DeleteResult(1, Array.Empty<FileOperationError>()));
+        _confirmationService.ConfirmDelete(Arg.Any<int>(), Arg.Any<string>()).Returns(true);
+        await vm.Scan.ScanWithProgressAsync(null);
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_ScanInstallerFolderListFailed));
+        await vm.Cleanup.DeleteAllCommand.ExecuteAsync(null);
+        vm.Completion.DismissCommand.Execute(null);
+        Assert.True(vm.Scan.HasUnfinishedRefresh);
+        // The window reads the lead when the view model says it changed, so the
+        // lead as it stood at the last such raise is the one on screen.
+        var leadsRaised = new List<string>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IntroLead)) leadsRaised.Add(vm.IntroLead);
+        };
+
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        Assert.False(vm.Scan.HasUnfinishedRefresh);
+        AssertEverythingIsLive(vm);
+        Assert.Equal(Strings.Body_MainExplanation_Lead, vm.IntroLead);
+        Assert.NotEmpty(leadsRaised);
+        Assert.Equal(Strings.Body_MainExplanation_Lead, leadsRaised[^1]);
+        Assert.Equal(string.Empty, vm.IntroNotice);
+    }
+
+    [Fact]
+    public async Task A_rescan_that_fails_after_an_unfinished_one_shows_its_own_failure()
+    {
+        // The window's intro reads the unfinished message ahead of a failure, so a
+        // failed Re-scan has to clear it or the window keeps saying the scan after
+        // the Delete did not finish, over a failure it is not describing.
+        var vm = CreateViewModel();
+        ScansReturn(AnOfferAndAFileLeftAlone());
+        _deleteService.DeleteFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(new DeleteResult(1, Array.Empty<FileOperationError>()));
+        _confirmationService.ConfirmDelete(Arg.Any<int>(), Arg.Any<string>()).Returns(true);
+        await vm.Scan.ScanWithProgressAsync(null);
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_ScanInstallerFolderListFailed));
+        await vm.Cleanup.DeleteAllCommand.ExecuteAsync(null);
+        vm.Completion.DismissCommand.Execute(null);
+        Assert.True(vm.Scan.HasUnfinishedRefresh);
+
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        _dialogService.Received(1).ShowError(Arg.Any<string>(), Strings.Error_StoppedTitle);
+        Assert.False(vm.Scan.HasUnfinishedRefresh);
+        Assert.True(vm.Scan.HasScanError);
+        AssertNoListAndNothingActsOnOne(vm);
+        Assert.Equal(Strings.Error_StoppedTitle, vm.IntroLead);
+        Assert.Equal(vm.Scan.LastScanError, vm.IntroDetail);
+        Assert.StartsWith(Strings.Error_InstallerDbEmpty, vm.IntroDetail, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, vm.IntroNotice);
+    }
+
+    [Fact]
+    public async Task A_rescan_that_stops_after_a_refused_startup_scan_raises_the_stops_heading()
+    {
+        // Both scans leave the window in the failed state, so nothing about the list
+        // changes between them, and the window moves off "Access denied" only on a
+        // raise that comes after the new heading is set. The window reads the lead
+        // when the view model says it changed, so the lead as it stood at the last
+        // such raise is the one on screen.
+        var vm = CreateViewModel();
+        ScansThrow(new UnauthorizedAccessException("denied"));
+        await vm.Scan.ScanWithProgressAsync(null);
+        Assert.Equal(Strings.Error_AdminRequiredTitle, vm.IntroLead);
+        var leadsRaised = new List<string>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IntroLead)) leadsRaised.Add(vm.IntroLead);
+        };
+
+        ScansThrow(new LocalisedInvalidOperationException(Strings.Error_InstallerDbEmpty));
+        await vm.Scan.ScanCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Error_StoppedTitle, vm.IntroLead);
+        Assert.NotEmpty(leadsRaised);
+        Assert.Equal(Strings.Error_StoppedTitle, leadsRaised[^1]);
     }
 
     [Fact]

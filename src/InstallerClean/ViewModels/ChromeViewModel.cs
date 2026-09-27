@@ -19,9 +19,10 @@ namespace InstallerClean.ViewModels;
 /// Reads <see cref="ScanViewModel.LastScanResult"/> for the details
 /// commands so the detail windows always show the same scan the main
 /// window is currently summarising. The details commands' CanExecute
-/// reflects whether a scan has completed at all, so the buttons are
-/// disabled (greyed out by the pill styles' IsEnabled trigger) until
-/// the user has data to view.
+/// reflects whether the scan view model holds a result, so the buttons are
+/// disabled (greyed out by the pill styles' IsEnabled trigger) before the
+/// first scan completes and at each ending <see cref="ScanViewModel.HasScanned"/>
+/// lists.
 /// </summary>
 public partial class ChromeViewModel : ObservableObject, IDisposable
 {
@@ -76,10 +77,11 @@ public partial class ChromeViewModel : ObservableObject, IDisposable
         _isBusy = isBusy ?? (() => false);
         _checkCooldown = checkCooldownOverride ?? CheckForUpdatesCooldown;
 
-        // Re-evaluate the Details buttons when a scan finishes.
-        // HasScanned is observable; LastScanResult is a plain auto-
-        // property and won't raise PropertyChanged. Held as a field
-        // so Dispose can unhook it; the singleton container disposes
+        // Re-evaluate the Details buttons when a scan finishes or its result
+        // is dropped. HasScanned is observable; LastScanResult is a plain
+        // auto-property and won't raise PropertyChanged, which is why the scan
+        // view model drops the result before it sets HasScanned false. Held as
+        // a field so Dispose can unhook it; the singleton container disposes
         // this VM on shutdown.
         _scanHandler = OnScanPropertyChanged;
         _scan.PropertyChanged += _scanHandler;
@@ -93,9 +95,9 @@ public partial class ChromeViewModel : ObservableObject, IDisposable
             OpenRegisteredDetailsCommand.NotifyCanExecuteChanged();
         }
         // A clean-up empties the orphan list without a fresh HasScanned raise
-        // (the post-operation refresh only moves the counts), so the orphaned
-        // Details button needs this one to grey out behind the completion
-        // overlay rather than sit live over an empty list.
+        // (a post-operation refresh that completes only moves the counts), so
+        // the orphaned Details button needs this one to grey out behind the
+        // completion overlay rather than sit live over an empty list.
         else if (e.PropertyName == nameof(ScanViewModel.HasOrphans))
         {
             OpenOrphanedDetailsCommand.NotifyCanExecuteChanged();

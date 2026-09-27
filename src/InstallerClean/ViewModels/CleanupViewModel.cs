@@ -216,7 +216,7 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     private void OnScanPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ScanViewModel.IsScanInFlight) ||
-            e.PropertyName == nameof(ScanViewModel.OrphanedFileCount) ||
+            e.PropertyName == nameof(ScanViewModel.HasOrphans) ||
             e.PropertyName == nameof(ScanViewModel.HasPendingReboot))
         {
             MoveAllCommand.NotifyCanExecuteChanged();
@@ -501,19 +501,23 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     // destination to be typed first. A Move with an empty box asks where to
     // put the files and carries on, so gating the button on the box would
     // hide the action from anyone moving through the window by keyboard.
-    // A disabled control is skipped by Tab entirely, so the button, its
-    // spoken description and the tooltip explaining what it needs were all
-    // unreachable without a mouse, which is the one route a screen-reader
-    // user does not have.
+    // A disabled control is skipped by Tab entirely, which would take the
+    // button, its spoken description and the tooltip explaining what it needs
+    // out of reach without a mouse, the one route a screen-reader user does not
+    // have.
+    // HasOrphans rather than the count alone, because it is false while the scan
+    // view model holds no result: after a scan that failed, or the scan after a
+    // Move or Delete that did not finish, neither command runs, whatever the
+    // layout shows.
     private bool CanMove() =>
         !_scan.IsScanInFlight && !IsOperationInFlight
         && !_scan.HasPendingReboot
-        && _scan.OrphanedFileCount > 0;
+        && _scan.HasOrphans;
 
     private bool CanDelete() =>
         !_scan.IsScanInFlight && !IsOperationInFlight
         && !_scan.HasPendingReboot
-        && _scan.OrphanedFileCount > 0;
+        && _scan.HasOrphans;
 
     [RelayCommand]
     private void BrowseDestination()
@@ -1114,9 +1118,9 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
                 movedBytes = survivingFiles.Where(f => !errorPaths.Contains(f.FullPath)).Sum(f => f.SizeBytes);
             }
 
-            // Refresh through the scan VM so the registered/orphaned counts
-            // update before the completion overlay reads them, on the same helper
-            // every other end of a batch uses.
+            // Re-scans through the helper the other ends of a batch use. The
+            // summary card below is filled from the batch's own figures, not the
+            // scan's.
             await RefreshAfterBatchAsync();
 
             _completion.ShowMoveSummary(movedCount, movedBytes, movedDest, result.Errors,
@@ -1149,7 +1153,7 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException)
         {
             // A cancel before the worker starts (the token was cancelled between
-            // the confirmation and Task.Run) moves nothing; a mid-batch cancel now
+            // the confirmation and Task.Run) moves nothing; a mid-batch cancel
             // comes back as result.Cancelled above rather than as a throw, and is
             // reported on the overlay there. Nothing reached a file here, so just
             // refresh the counts and clear.
@@ -1161,17 +1165,16 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
         {
             // Everything reaching here is one of MoveFilesService's destination
             // gates, all of which run before the per-file loop, so no file has
-            // moved and the counts on screen are still right. The mid-batch
-            // abort landed here once and no longer does, being a
-            // MoveAbortedException caught at the call site where the batch's own
-            // tally is still in scope; a rescan here would now be a full folder
-            // walk and API enumeration for nothing.
+            // moved, the counts on screen are still right, and a rescan would be
+            // a full folder walk and API enumeration for nothing. A batch the
+            // destination guard stops part-way throws MoveAbortedException
+            // instead, caught at the call site where the batch's own tally is
+            // still in scope.
             //
-            // No RemoveCreatedDestinationAsync either, and that is a ruling
-            // rather than an oversight: the gates that reach this arm fire
-            // precisely because the destination has just been shown to resolve
-            // into C:\Windows\Installer or a system folder, and deleting a
-            // directory at a path just proven to land somewhere unexpected is
+            // No RemoveCreatedDestinationAsync either: the gates that reach this
+            // arm fire precisely because the destination has just been shown to
+            // resolve into C:\Windows\Installer or a system folder, and deleting
+            // a directory at a path just proven to land somewhere unexpected is
             // the operation those guards exist to prevent. The service's
             // fully-qualified check is not among them: the window refuses a
             // relative destination above, before the batch is handed over.
@@ -1407,12 +1410,11 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
                 // twin already decided what both are, so this takes them: the
                 // all-skipped overlay, and no result-log entry.
                 //
-                // Falling through instead reported a completed operation of zero.
-                // The heading suppression below turns on errors, and there are
-                // none here, so the summary printed "0 files permanently deleted"
-                // against its own comment saying that reports an act that did not
-                // happen, and a bytesFreed of zero reached the result log, where
-                // it is a run that freed nothing rather than a run that never was.
+                // It returns here rather than falling through: the heading
+                // suppression below turns on errors and there are none here, so the
+                // summary below would report a completed delete of zero files, and
+                // the result log would take a bytesFreed of zero as a run that freed
+                // nothing rather than a run that never was.
                 await RefreshAfterBatchAsync();
                 _completion.ShowReverifyAllSkipped(reverify, deleting: true);
                 OperationProgress = string.Empty;
@@ -1447,8 +1449,9 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
                 deletedBytes = survivingFiles.Where(f => !errorPaths.Contains(f.FullPath)).Sum(f => f.SizeBytes);
             }
 
-            // Same helper and the same reasoning as the Move path's own
-            // post-batch refresh.
+            // Re-scans through the helper the other ends of a batch use. The
+            // summary card below is filled from the batch's own figures, not the
+            // scan's.
             await RefreshAfterBatchAsync();
 
             _completion.ShowDeleteSummary(deletedCount, deletedBytes, result.Errors, reverify);
@@ -1789,33 +1792,30 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// The refresh every Move or Delete owes the window once its worker has
-    /// returned, run under a FRESH cancellation source with the overlay's Cancel
-    /// button live again.
+    /// The refresh a Move or Delete owes the window at the end of a batch, run
+    /// under a FRESH cancellation source with the overlay's Cancel button live
+    /// again.
     ///
     /// Every caller arrives with one fact and that fact is the whole contract:
-    /// the worker has returned, so the counts on screen are a statement about a
-    /// folder as it was before the batch. How the batch ended does not change
-    /// that. A run that stopped part-way may be offering files it has already
-    /// removed; a run that completed is describing a batch that is over, and a
-    /// re-verify that kept everything back acted on nothing but has just learned
-    /// the API disagrees with the scan. None of the three can leave the previous
-    /// scan's numbers standing.
+    /// the counts on screen are a statement about the folder as it was before the
+    /// batch. How the batch ended does not change that. A run that stopped
+    /// part-way may be offering files it has already removed, a run that completed
+    /// is describing a batch that is over, and a check that held every file back
+    /// acted on nothing but has just found Windows Installer's records disagreeing
+    /// with the scan. So each of them re-scans, and a re-scan that does not finish
+    /// takes the list off the window rather than leaving the previous scan's
+    /// numbers standing (<see cref="ScanViewModel.RefreshAsync"/>).
     ///
-    /// The success path is the one that looks like it does not belong and is the
-    /// reason this covers every path rather than the stopped ones. Its overlay
-    /// read "Deleting..." over "71 of 71" while the delete was finished and a
-    /// scan was running, which is not a lesser version of the problem below: it
-    /// is a false sentence on the most travelled path in the app, and it went
-    /// unremarked for as long as it did because it looks exactly like the pause
-    /// at the end of an operation.
+    /// The success path runs it as well, with the overlay's heading changed to
+    /// the scan's, so a finished delete's overlay says it is scanning rather than
+    /// "Deleting..." over "71 of 71" while a scan runs behind it.
     ///
     /// It cannot reuse the operation's own token, and that is why arming the
     /// Cancel button is not simply a matter of passing the token the caller
     /// already holds. On the cancel paths it is cancelled by definition and would
-    /// abandon the refresh at its first checkpoint, leaving the window showing
-    /// counts from before the batch; on the unforeseen-failure path the caller's
-    /// finally cancels it moments later, which does the same thing from mid-walk;
+    /// abandon the refresh at its first checkpoint, leaving the window with no
+    /// list at all; on the unforeseen-failure path the caller's finally cancels it
+    /// moments later, which does the same thing from mid-walk;
     /// and on a success path a Cancel pressed as the last file finished leaves a
     /// cancelled token behind a batch that reports itself complete. Nor can the
     /// refresh run without a token: this is a full folder walk plus a full API
@@ -1827,16 +1827,15 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     /// So the button is re-armed rather than left dead: clearing
     /// IsCancellationRequested is what re-enables it (IsOperating is still true
     /// here, and the overlay's own finally clears both). A second Cancel then
-    /// stops the refresh too, and the counts stay stale until the next scan,
-    /// which is what RefreshAsync already does on any other failure.
+    /// stops the refresh too, and the window drops the list from before the
+    /// batch rather than showing it, as it does when the refresh fails
+    /// (<see cref="ScanViewModel.RefreshAsync"/>).
     ///
-    /// The overlay's numbers go with the heading, and that is the point rather
-    /// than tidiness: they belong to a batch that is over, the rescan reports no
-    /// progress of its own, and left in place they read as a scan stalled at file
-    /// 34 of 71 for as long as the walk takes, which on the folders this exists
-    /// for is the whole point. A completed batch's "71 of 71" is the same claim
-    /// with a rounder number on it. The caller's finally clears them too, and far
-    /// too late: it runs after the refresh has finished.
+    /// The overlay's numbers go with the heading. They belong to a batch that is
+    /// over and the rescan reports no progress of its own, so left in place they
+    /// would read as a scan stalled at file 34 of 71 for as long as the walk
+    /// takes, and a completed batch's "71 of 71" would make the same claim. The
+    /// caller's finally clears them too, but only once the refresh has finished.
     /// </summary>
     private async Task RefreshAfterBatchAsync()
     {
@@ -1852,12 +1851,10 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
         IsOperationProgressIndeterminate = true;
 
         // The operation's own source is finished with, and this is the one path
-        // that takes the field away from DisposeOperationCts before it runs.
-        // Dropping it undisposed cost nothing at run time and made the teardown
-        // invariant false, which the next person to reason from it would pay
-        // for. No Cancel first: the worker has returned, so nothing holds the
-        // token, and it is either cancelled already or about to be by the
-        // caller's finally.
+        // that takes the field away from DisposeOperationCts before it runs, so
+        // it is disposed here rather than by the teardown. No Cancel first:
+        // nothing still running holds the token, and it is either cancelled
+        // already or about to be by the caller's finally.
         var finished = _operationCts;
         _operationCts = null;
         finished?.Dispose();

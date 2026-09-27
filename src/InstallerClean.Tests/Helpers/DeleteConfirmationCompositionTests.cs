@@ -22,9 +22,9 @@ namespace InstallerClean.Tests.Helpers;
 /// through the door the app opens, with the culture set, so what it asserts is
 /// what the dialog would be handed.
 ///
-/// IntroLeadCompositionTests does this job for the main window's four leads. This
+/// IntroLeadCompositionTests does this job for the main window's leads. This
 /// is the same job for the delete confirmation, which is the one value under the
-/// rule whose form varies by count. None of the four leads goes through
+/// rule whose form varies by count. None of the leads goes through
 /// DisplayHelpers.Pluralise and this value does, so the set read here is every
 /// form Pluralise can choose and not only the pair the neutral declares.
 ///

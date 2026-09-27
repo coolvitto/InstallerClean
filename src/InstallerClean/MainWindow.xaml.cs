@@ -295,6 +295,25 @@ public partial class MainWindow : Window
                 _vm.Scan.OrphanedSummaryText, _vm.Scan.OrphanedSizeDisplay));
     }
 
+    /// <summary>
+    /// Speaks why the window has no list, where the scan after a Move or Delete
+    /// did not finish. That scan ends behind the operating overlay, so nothing is
+    /// announced as the window changes, and once the overlay or the summary card
+    /// has gone, focus lands on Re-scan, which a screen reader announces by name
+    /// alone. Queued at Background, below that focus move, for the reason
+    /// <see cref="AnnounceLiveRegions"/> gives, and cleared first as
+    /// <see cref="OnScanCompleted"/> clears it, so the line is spoken even where
+    /// the announcer already holds it. The message goes in as the view model
+    /// holds it: the announcer is never drawn, so it takes no break characters.
+    /// </summary>
+    private void AnnounceUnfinishedRefresh()
+    {
+        if (!_vm.Scan.HasUnfinishedRefresh) return;
+        ScanResultAnnouncer.Text = string.Empty;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+            ScanResultAnnouncer.Text = _vm.Scan.UnfinishedRefreshMessage);
+    }
+
     private void OnCompletionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // Summary is set on every Show* path before IsComplete flips, so
@@ -321,6 +340,7 @@ public partial class MainWindow : Window
             // gone, so move focus to a sensible non-destructive control rather
             // than letting it drop to the window root.
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => RescanButton.Focus());
+            AnnounceUnfinishedRefresh();
         }
 
         // The Send-summary button collapses the moment the user consents
@@ -516,7 +536,13 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
             {
                 if (!_vm.Completion.IsComplete && !_vm.Scan.IsScanning && !_vm.Cleanup.IsOperating)
+                {
                     FocusResultsDefault();
+                    // A batch that ends with no card can still leave the window
+                    // with no list: a cancel before the first file, or a failure
+                    // reported in a dialog, followed by a scan that did not finish.
+                    AnnounceUnfinishedRefresh();
+                }
             });
         }
 
@@ -534,6 +560,15 @@ public partial class MainWindow : Window
 
     private void OnScanPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // When the scan view model drops its result, the list goes from the
+        // window and the headline naming it goes with it. The announcer is
+        // always rendered and keeps its last text, so browse mode could
+        // otherwise land on a count the window no longer shows. Ahead of the
+        // guard below, because the scan after a Move or Delete ends behind the
+        // operating overlay.
+        if (e.PropertyName == nameof(ScanViewModel.HasScanned) && !_vm.Scan.HasScanned)
+            ScanResultAnnouncer.Text = string.Empty;
+
         if (e.PropertyName == nameof(ScanViewModel.IsScanning) && _vm.Scan.IsScanning)
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => ScanCancelButton.Focus());
 

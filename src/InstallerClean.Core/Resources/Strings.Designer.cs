@@ -150,6 +150,9 @@ public static class Strings
     public static string Body_PendingReboot_RegistryCheckUnreadable => Get("Body.PendingReboot.RegistryCheckUnreadable");
     public static string Body_RegisteredMissingFromDisk => Get("Body.RegisteredMissingFromDisk");
     public static string Body_RegisteredMissingFromDisk_SeeAlso => Get("Body.RegisteredMissingFromDisk.SeeAlso");
+    public static string Body_RescanNotFinished_Lead => Get("Body.RescanNotFinished.Lead");
+    public static string Body_RescanNotFinished_Recorded => Get("Body.RescanNotFinished.Recorded");
+    public static string Body_RescanNotFinished_Why => Get("Body.RescanNotFinished.Why");
     public static string BrowserLaunch_ClipboardFailed => Get("BrowserLaunch.ClipboardFailed");
     public static string BrowserLaunch_ClipboardOk => Get("BrowserLaunch.ClipboardOk");
     public static string BrowserLaunch_FailedTitle => Get("BrowserLaunch.FailedTitle");

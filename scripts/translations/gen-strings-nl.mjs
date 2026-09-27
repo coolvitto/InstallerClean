@@ -542,6 +542,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean heeft administratorrechten nodig om elk programma te zien dat op deze pc is geïnstalleerd, en draait niet als administrator, dus het scant niet. Er is niets gewijzigd. Voer het opnieuw uit vanuit een prompt als administrator.`,
   'Error.ScanInstallerFolderNotFound': `Windows meldt dat {InstallerFolder} niet bestaat op deze pc, dus InstallerClean is gestopt. Er is niets voor opruimen aangeboden en er is niets verwijderd.`,
   'Error.ScanInstallerFolderListFailed': `Windows meldde een fout toen InstallerClean de bestanden in {InstallerFolder} probeerde op te sommen, dus het kon geen volledige lijst krijgen en is gestopt. Er is niets voor opruimen aangeboden en er is niets verwijderd.`,
+  'Body.RescanNotFinished.Lead': `Niets te tonen tot de volgende scan.`,
+  'Body.RescanNotFinished.Why': `De scan die na Verplaatsen of Verwijderen draait, is niet afgerond, dus er is geen lijst om te tonen. Klik op Opnieuw scannen om {InstallerFolder} opnieuw te scannen.`,
+  'Body.RescanNotFinished.Recorded': `Wat de scan heeft gestopt, is vastgelegd in {0}.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

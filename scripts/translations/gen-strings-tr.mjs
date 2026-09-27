@@ -487,6 +487,9 @@ Ayrıntılar şuraya yazıldı:
   'Cli.AdminRightsNeeded': `InstallerClean'in bu bilgisayarda yüklü her programı görebilmesi için yönetici hakları gerekir; şu anda yönetici olarak çalışmıyor, bu yüzden tarama yapmayacak. Hiçbir şey değiştirilmedi. Bir yönetici komut isteminden yeniden çalıştırın.`,
   'Error.ScanInstallerFolderNotFound': `Windows, {InstallerFolder} klasörünün bu bilgisayarda bulunmadığını bildiriyor, bu yüzden InstallerClean durdu. Hiçbir şey sunulmadı ve hiçbir şey kaldırılmadı.`,
   'Error.ScanInstallerFolderListFailed': `InstallerClean, {InstallerFolder} klasöründeki dosyaları listelemeye çalışırken Windows bir hata bildirdi, bu yüzden InstallerClean tam bir liste alamadı ve durdu. Hiçbir şey sunulmadı ve hiçbir şey kaldırılmadı.`,
+  'Body.RescanNotFinished.Lead': `Bir sonraki taramaya kadar gösterilecek bir şey yok.`,
+  'Body.RescanNotFinished.Why': `Taşı veya Sil'den sonra çalışan tarama tamamlanmadı, bu yüzden gösterilecek bir liste yok. {InstallerFolder} klasörünü yeniden taramak için Yeniden tara'ya basın.`,
+  'Body.RescanNotFinished.Recorded': `Taramayı durduran neden {0} içine kaydedildi.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

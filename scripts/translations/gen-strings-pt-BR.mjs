@@ -563,6 +563,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `O InstallerClean precisa de privilégios de administrador para ver todos os programas instalados neste PC e não está sendo executado como administrador, então não vai fazer a análise. Nada foi alterado. Execute-o novamente a partir de um prompt como administrador.`,
   'Error.ScanInstallerFolderNotFound': `O Windows informa que {InstallerFolder} não existe neste PC, então o InstallerClean parou. Nada foi oferecido e nada foi removido.`,
   'Error.ScanInstallerFolderListFailed': `O Windows informou um erro quando o InstallerClean tentou listar os arquivos em {InstallerFolder}, então ele não conseguiu obter uma lista completa e parou. Nada foi oferecido e nada foi removido.`,
+  'Body.RescanNotFinished.Lead': `Nada para mostrar até a próxima análise.`,
+  'Body.RescanNotFinished.Why': `A análise feita depois de Mover ou Excluir não terminou, então não há nenhuma lista para mostrar. Clique em Reanalisar para analisar {InstallerFolder} de novo.`,
+  'Body.RescanNotFinished.Recorded': `O que a interrompeu fica registrado em {0}.`,
 };
 
 // Satellite-only .One override(s). NOT in the neutral; appended before </root>.

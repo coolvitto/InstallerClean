@@ -580,6 +580,9 @@ const MAP = {
   'Cli.AdminRightsNeeded': `InstallerClean perlu hak administrator untuk melihat setiap program yang terpasang di PC ini, dan saat ini tidak berjalan sebagai administrator, jadi tidak akan memindai. Tidak ada yang diubah. Jalankan lagi dari prompt administrator.`,
   'Error.ScanInstallerFolderNotFound': `Windows melaporkan bahwa {InstallerFolder} tidak ada di PC ini, jadi InstallerClean berhenti. Tidak ada yang ditawarkan dan tidak ada yang disingkirkan.`,
   'Error.ScanInstallerFolderListFailed': `Windows melaporkan kesalahan saat InstallerClean mencoba membuat daftar file di {InstallerFolder}, jadi InstallerClean tidak bisa mendapatkan daftar lengkapnya dan berhenti. Tidak ada yang ditawarkan dan tidak ada yang disingkirkan.`,
+  'Body.RescanNotFinished.Lead': `Tidak ada yang ditampilkan sampai pemindaian berikutnya.`,
+  'Body.RescanNotFinished.Why': `Pemindaian yang berjalan setelah Pindahkan atau Hapus tidak selesai, jadi tidak ada daftar untuk ditampilkan. Tekan Pindai ulang untuk memindai {InstallerFolder} lagi.`,
+  'Body.RescanNotFinished.Recorded': `Apa yang menghentikannya dicatat di {0}.`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

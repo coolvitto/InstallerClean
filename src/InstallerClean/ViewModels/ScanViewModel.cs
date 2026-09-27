@@ -61,9 +61,14 @@ public partial class ScanViewModel : ObservableObject
     [ObservableProperty] private string _scanTicker = string.Empty;
 
     /// <summary>
-    /// True once a scan has completed. False before the first one, which is a
-    /// state the user reaches by cancelling the startup scan, and the main
-    /// window has to say so rather than paint a zeroed scan result.
+    /// True while the view model holds the result of a scan that completed. False
+    /// before the first one, which is a state the user reaches by cancelling the
+    /// startup scan, and false again after a scan that stops or fails, and after
+    /// the user cancels the scan that follows a Move or Delete. The main window has
+    /// to say so rather than paint a zeroed scan result, or an earlier one.
+    ///
+    /// A Re-scan the user cancels leaves it as it was. An earlier result stays on
+    /// screen: that scan completed, and nothing has acted on its result since.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasOrphans))]
@@ -74,7 +79,11 @@ public partial class ScanViewModel : ObservableObject
     [ObservableProperty] private int _orphanedFileCount;
     [ObservableProperty] private string _orphanedSizeDisplay = string.Empty;
 
-    /// <summary>Last pending-reboot probe result; null until the first scan.</summary>
+    /// <summary>
+    /// Last pending-reboot probe result. Null until a scan completes, and null
+    /// again at each ending <see cref="HasScanned"/> lists, the banner going with
+    /// the list it sits over.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPendingReboot))]
     [NotifyPropertyChangedFor(nameof(PendingRebootBannerText))]
@@ -158,9 +167,12 @@ public partial class ScanViewModel : ObservableObject
     private string _missingFromDiskPrograms = string.Empty;
 
     /// <summary>
-    /// Cached result of the most recent successful scan. Null until
-    /// the first scan completes; remains the same instance until the
-    /// next scan replaces it.
+    /// The result the main window is showing, from the most recent scan that
+    /// completed. Null until the first scan completes, and null again after a scan
+    /// that stops or fails and after the user cancels the scan that follows a Move
+    /// or Delete (see <see cref="HasScanned"/>), so Move and Delete have no files
+    /// to act on then and the Details windows no list to open. Otherwise the same
+    /// instance until the next scan replaces it.
     /// </summary>
     public ScanResult? LastScanResult { get; private set; }
 
@@ -261,8 +273,9 @@ public partial class ScanViewModel : ObservableObject
         try
         {
             // Compute everything off the call results before touching any
-            // observable property; on throw or cancel the VM stays at its
-            // prior consistent state.
+            // observable property, so a throw or a cancel leaves every property
+            // as this method found it. Which endings keep that earlier result on
+            // screen is the callers' decision, each in its own catch.
             var result = await _scanService.ScanAsync(progress, cancellationToken);
             // Sample reboot after the scan; ordering matters. An MSI install
             // starting mid-scan could flip the _MSIExecute mutex, and
@@ -345,7 +358,7 @@ public partial class ScanViewModel : ObservableObject
     /// (rather than completing or failing). The view reads this when the
     /// scanning overlay collapses to re-announce "Scan cancelled." past the
     /// focus move that would otherwise swallow it, and the main window's
-    /// not-yet-scanned state reads it to say why there is nothing on screen.
+    /// states with no result read it to say why there is nothing on screen.
     /// Reset at the start of every scan.
     ///
     /// Observable, not a plain property: the startup scan is the one that gets
@@ -363,8 +376,11 @@ public partial class ScanViewModel : ObservableObject
 
     /// <summary>
     /// Tailored, safe-to-show message for the most recent scan that FAILED. Empty
-    /// until the first failure, cleared at the start of every scan and left empty
-    /// on a success. Both the user-driven Scan command and the startup scan set it
+    /// until the first failure and cleared by a scan that completes. A Re-scan the
+    /// user cancels leaves it where it was, along with everything else on screen,
+    /// and the scan after a Move or Delete clears it as it starts, carrying a
+    /// message of its own (<see cref="UnfinishedRefreshMessage"/>). Both the
+    /// user-driven Scan command and the startup scan set it
     /// through the one error ladder (<see cref="DescribeScanFailure"/>); the main
     /// window shows it in place of the not-yet-scanned copy, with Re-scan focused,
     /// so a failed startup scan opens the window with the diagnosis rather than
@@ -384,6 +400,77 @@ public partial class ScanViewModel : ObservableObject
 
     /// <summary>True when the last scan failed and its message is on screen.</summary>
     public bool HasScanError => LastScanError.Length > 0;
+
+    /// <summary>
+    /// The heading for <see cref="LastScanError"/>, the one its dialog carries on
+    /// a Re-scan, so the main window and the dialog name the failure alike.
+    /// Meaningful only while <see cref="HasScanError"/> is true. The window
+    /// re-reads its heading when this changes as well as when the message does,
+    /// so the two can be set in either order.
+    /// </summary>
+    public string LastScanErrorTitle
+    {
+        get => _lastScanErrorTitle;
+        private set => SetProperty(ref _lastScanErrorTitle, value);
+    }
+
+    private string _lastScanErrorTitle = string.Empty;
+
+    /// <summary>
+    /// What the main window says in place of a list when the scan after a Move or
+    /// Delete ended without a result: stopped, failed or cancelled. Empty
+    /// otherwise. That scan clears it as it starts and sets it if it ends without
+    /// a result, a Re-scan that completes or fails clears it, and a Re-scan the
+    /// user cancels leaves it where it was, with the rest of the window.
+    ///
+    /// It is its own message rather than the failure's, which is what
+    /// <see cref="LastScanError"/> carries after the other two scans. The account a
+    /// scan gives when it stops, or when Windows refuses it, says that nothing has
+    /// been removed. That is true of the scan, and it reads as false straight after
+    /// a Move or Delete that has moved or deleted files. So the window says only
+    /// that this scan did not finish, whatever ended it, and the account goes to
+    /// the crash log, whose path the message names where the write succeeded. A
+    /// Re-scan gives the account in full if the cause is still there.
+    /// </summary>
+    public string UnfinishedRefreshMessage
+    {
+        get => _unfinishedRefreshMessage;
+        private set
+        {
+            if (SetProperty(ref _unfinishedRefreshMessage, value))
+                OnPropertyChanged(nameof(HasUnfinishedRefresh));
+        }
+    }
+
+    private string _unfinishedRefreshMessage = string.Empty;
+
+    /// <summary>True when the scan after a Move or Delete ended without a result.</summary>
+    public bool HasUnfinishedRefresh => UnfinishedRefreshMessage.Length > 0;
+
+    /// <summary>
+    /// Takes the last result off the view model, at each ending
+    /// <see cref="HasScanned"/> lists. Everything the main window draws from a
+    /// result goes with it: both counts, the missing-files line and the
+    /// pending-reboot banner. So do the commands that act on one, Move and Delete
+    /// having no files to act on and the Details windows no list to open.
+    ///
+    /// <see cref="LastScanResult"/> goes first and <see cref="HasScanned"/> last.
+    /// The result raises nothing when it changes, and the Details commands re-ask
+    /// whether they can run when HasScanned does, so HasScanned going false while
+    /// the result was still here would leave both buttons live over it.
+    /// </summary>
+    private void DropResult()
+    {
+        LastScanResult = null;
+        RegisteredFileCount = 0;
+        RegisteredSizeDisplay = string.Empty;
+        OrphanedFileCount = 0;
+        OrphanedSizeDisplay = string.Empty;
+        MissingFromDiskCount = 0;
+        MissingFromDiskPrograms = string.Empty;
+        PendingRebootResult = null;
+        HasScanned = false;
+    }
 
     /// <summary>
     /// The scan's one error ladder: maps a scan (or act-time re-verify) failure to
@@ -462,8 +549,10 @@ public partial class ScanViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanScan))]
     private async Task ScanAsync()
     {
+        // The two messages stay until this scan has an outcome of its own. A
+        // cancel leaves the window as it was before the click, whichever state
+        // that was.
         LastScanWasCancelled = false;
-        LastScanError = string.Empty;
         ScanProgress = Strings.Status_StartingScan;
         ScanTicker = string.Empty;
         var sw = Stopwatch.StartNew();
@@ -485,6 +574,8 @@ public partial class ScanViewModel : ObservableObject
 
             sw.Stop();
             LastScanDurationMs = sw.ElapsedMilliseconds;
+            LastScanError = string.Empty;
+            UnfinishedRefreshMessage = string.Empty;
             ScanProgress = string.Format(Strings.Status_ScanComplete, DisplayHelpers.FormatElapsed(sw.Elapsed));
             ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
@@ -500,8 +591,16 @@ public partial class ScanViewModel : ObservableObject
             // re-verify. LastScanError is set on every path so the main window can
             // reflect a failed Re-scan the same way it reflects a failed startup
             // scan; the modal is the immediate feedback for the explicit click.
+            //
+            // The earlier scan's result goes, so the window under the modal is the
+            // one a failed startup scan opens: the message, Re-scan, and nothing
+            // from a list this scan did not produce. A cancel, in the arm above,
+            // keeps it.
             var failure = DescribeScanFailure(ex);
+            UnfinishedRefreshMessage = string.Empty;
+            LastScanErrorTitle = failure.Title;
             LastScanError = failure.Message;
+            DropResult();
             ScanProgress = failure.StatusLine;
             if (failure.IsError)
                 _dialogService.ShowError(failure.Message, failure.Title);
@@ -568,6 +667,7 @@ public partial class ScanViewModel : ObservableObject
     {
         LastScanWasCancelled = false;
         LastScanError = string.Empty;
+        UnfinishedRefreshMessage = string.Empty;
         var sw = Stopwatch.StartNew();
         try
         {
@@ -593,7 +693,13 @@ public partial class ScanViewModel : ObservableObject
             // run as administrator and exits. An app that diagnoses "your
             // installer database is empty" and then vanishes is strictly worse than
             // one that says it and offers Re-scan.
-            LastScanError = DescribeScanFailure(ex).Message;
+            //
+            // No scan has completed before this one, so there is nothing to drop,
+            // and the call is here so that every scan that fails ends the same way.
+            var failure = DescribeScanFailure(ex);
+            LastScanErrorTitle = failure.Title;
+            LastScanError = failure.Message;
+            DropResult();
             return;
         }
         sw.Stop();
@@ -621,21 +727,31 @@ public partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Silent refresh used by Cleanup after a Move or Delete completes.
-    /// Skips the scan overlay (IsScanning stays false) so the operating
-    /// overlay can stay visible until its own finally block clears it.
+    /// The silent scan Cleanup runs at the end of a Move or Delete. Skips the scan
+    /// overlay (IsScanning stays false) so the operating overlay can stay visible
+    /// until its own finally block clears it.
     ///
     /// <paramref name="cancellationToken"/> is what makes it interruptible, and
     /// it is not optional in practice: this is a full folder walk plus a full
     /// API enumeration on a folder that can hold millions of files, and the
     /// caller runs it behind an overlay the user has usually just pressed
     /// Cancel on. Without a token every checkpoint inside the scan is unreachable
-    /// and the wait reads as a hang. A cancellation is swallowed like any other
-    /// failure below: the counts stay as they were, which is the same outcome a
-    /// failed refresh already has.
+    /// and the wait reads as a hang.
+    ///
+    /// It never throws, because its callers run it behind the operating overlay
+    /// and go on to report their batch whatever it does. A scan that ends without
+    /// a result, by a failure or by the user's cancel, drops the result on screen
+    /// instead: that list describes the folder as it stood before the batch, so it
+    /// is not a list the window may show or Move and Delete may act on. The
+    /// summary card, where the batch shows one, is filled from the batch's own
+    /// tally and is unaffected. The window says the scan did not finish, in
+    /// <see cref="UnfinishedRefreshMessage"/>.
     /// </summary>
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        LastScanWasCancelled = false;
+        LastScanError = string.Empty;
+        UnfinishedRefreshMessage = string.Empty;
         try
         {
             await RunScanCoreAsync(null, cancellationToken);
@@ -643,21 +759,25 @@ public partial class ScanViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // Cancelled refresh: the completion screen renders from the cached
-            // pre-operation result and the counts behind it are stale until the
-            // next scan. Not written to crash.log, unlike the failure below,
-            // because the user asked for it.
+            // Not written to crash.log, unlike the failure below, because the
+            // user asked for it. LastScanWasCancelled puts "Scan cancelled." under
+            // the message, as it does in the window a cancelled startup scan
+            // leaves.
+            UnfinishedRefreshMessage = Strings.Body_RescanNotFinished_Why;
+            LastScanWasCancelled = true;
+            DropResult();
         }
         catch (Exception ex)
         {
-            // Best-effort refresh. The completion screen still renders
-            // from the cached pre-operation result; the next scan
-            // command will retry with full error reporting. The failure
-            // is logged rather than swallowed silently: this is the one
-            // path that leaves stale registered and orphaned counts on
-            // the completion screen, so "the counts were wrong after
-            // cleaning up" needs a trail in crash.log to be diagnosable.
-            CrashLog.Write(ex);
+            // The account goes to crash.log and the window names the file, in the
+            // two forms DescribeDeliberateStop uses: a message naming a file that
+            // was never written sends somebody looking for it.
+            var crash = CrashLog.TryWrite(ex);
+            UnfinishedRefreshMessage = crash.Written
+                ? Strings.Body_RescanNotFinished_Why + Environment.NewLine + Environment.NewLine
+                    + string.Format(Strings.Body_RescanNotFinished_Recorded, crash.Path)
+                : Strings.Body_RescanNotFinished_Why;
+            DropResult();
         }
     }
 }
