@@ -194,6 +194,7 @@ const MAP = {
   'Status.ScanningCache': `Yükleyici önbellek klasörü taranıyor...`,
   'Status.CheckingRegistry': `Ek paketler için kayıt defteri denetleniyor...`,
   'Status.RegisteredPackagesFound': `Dosyalar yüklü programlarla eşleştiriliyor...`,
+  'Status.CheckingRemaining': `Kalan dosyalar denetleniyor...`,
   'Status.ScanComplete': `Tarama tamamlandı ({0})`,
   'Status.FoundUnused': `Güvenle silebileceğiniz {0} {1} bulundu.`,
   'Status.PreparingDestination': `Hedef klasör hazırlanıyor...`,

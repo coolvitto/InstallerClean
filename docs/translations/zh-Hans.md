@@ -91,8 +91,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Asking Windows about installed software... | 正在向 Windows 查询已安装的软件… |
 | Scanning installer cache folder... | 正在扫描安装程序缓存文件夹… |
 | Checking registry for additional packages... | 正在检查注册表中的其他程序包… |
-| Matching the files against the installed programs... | 正在比对文件与已安装的程序… |
+| Matching files against installed programs... | 正在比对文件与已安装的程序… |
 | {0} of {1} | {1} 个中的 {0} 个 |
+| Checking remaining files... | 正在检查其余文件… |
 | Scan complete ({0}) | 扫描完成（{0}） |
 | Found {0} {1} you can safely delete. | 找到 {0} 个{1}，可安全删除。 |
 | Preparing destination folder... | 正在准备目标文件夹… |

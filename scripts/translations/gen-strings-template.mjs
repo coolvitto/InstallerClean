@@ -284,7 +284,8 @@ const MAP = {
   'Status.CheckingRegistry': `Checking registry for additional packages...`,
 
   // 0 = registered package count, 1 = pluralised "package"/"packages"
-  'Status.RegisteredPackagesFound': `Matching the files against the installed programs...`,
+  'Status.RegisteredPackagesFound': `Matching files against installed programs...`,
+  'Status.CheckingRemaining': `Checking remaining files...`,
 
   // 0 = elapsed time text (e.g. "1.2s")
   'Status.ScanComplete': `Scan complete ({0})`,

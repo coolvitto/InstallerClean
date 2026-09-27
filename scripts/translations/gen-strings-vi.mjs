@@ -213,6 +213,7 @@ const MAP = {
   'Status.ScanningCache': `Đang quét thư mục bộ nhớ đệm trình cài đặt...`,
   'Status.CheckingRegistry': `Đang kiểm tra sổ đăng ký để tìm các gói bổ sung...`,
   'Status.RegisteredPackagesFound': `Đang đối chiếu các tệp với các chương trình đã cài...`,
+  'Status.CheckingRemaining': `Đang kiểm tra các tệp còn lại...`,
 
   // 0 = elapsed time text (e.g. "1.2s")
   'Status.ScanComplete': `Quét xong ({0})`,

@@ -196,6 +196,7 @@ const MAP = {
   'Status.ScanningCache': `インストーラーキャッシュフォルダーをスキャン中...`,
   'Status.CheckingRegistry': `追加パッケージがないかレジストリをチェック中...`,
   'Status.RegisteredPackagesFound': `ファイルとインストール済みプログラムを照合中...`,
+  'Status.CheckingRemaining': `残りのファイルをチェック中...`,
   'Status.ScanComplete': `スキャン完了 ({0})`,
   'Status.FoundUnused': `安全に削除できる {0} 個の {1} が見つかりました。`,
   'Status.PreparingDestination': `移動先フォルダーを準備中...`,

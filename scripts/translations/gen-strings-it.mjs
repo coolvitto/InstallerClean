@@ -211,6 +211,7 @@ const MAP = {
   'Status.ScanningCache': `Scansione cartella cache di installazione...`,
   'Status.CheckingRegistry': `Controllo registro per altri pacchetti...`,
   'Status.RegisteredPackagesFound': `Confronto file con programmi installati...`,
+  'Status.CheckingRemaining': `Controllo file rimanenti...`,
   'Status.ScanComplete': `Scansione completata ({0})`,
   'Status.FoundUnused': `{0} {1} che puoi eliminare in sicurezza.`,
   'Status.PreparingDestination': `Preparazione cartella destinazione...`,

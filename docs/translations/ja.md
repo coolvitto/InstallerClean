@@ -91,8 +91,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Asking Windows about installed software... | Windowsにインストール済みソフトウェアについて問い合わせ中... |
 | Scanning installer cache folder... | インストーラーキャッシュフォルダーをスキャン中... |
 | Checking registry for additional packages... | 追加パッケージがないかレジストリをチェック中... |
-| Matching the files against the installed programs... | ファイルとインストール済みプログラムを照合中... |
+| Matching files against installed programs... | ファイルとインストール済みプログラムを照合中... |
 | {0} of {1} | {1} 個中 {0} 個 |
+| Checking remaining files... | 残りのファイルをチェック中... |
 | Scan complete ({0}) | スキャン完了 ({0}) |
 | Found {0} {1} you can safely delete. | 安全に削除できる {0} 個の {1} が見つかりました。 |
 | Preparing destination folder... | 移動先フォルダーを準備中... |

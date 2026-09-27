@@ -140,7 +140,8 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// True while the overlay is up over work that reports no per-file
-    /// progress, which today is the rescan after a cancel. The bar runs
+    /// progress: the re-verify before a batch's first file, and the rescan
+    /// after a batch. The bar runs
     /// indeterminate and <see cref="ShowOperationProgressDetail"/> takes the
     /// count row and the filename off, because a bar and a count are a claim
     /// about how far through something is and there is no answer to give.
@@ -883,6 +884,13 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
             // the batch, never act on an un-verified set, so it is surfaced through
             // the scan's own error ladder. A cancellation propagates to the outer
             // OCE catch.
+            //
+            // A moving bar over no count from here until the batch reports its first
+            // file, as on the rescan after a batch: the re-verify reads the records again
+            // and re-checks the files, and the service then takes the installer lock and
+            // re-reads the batch's claims under it, and nothing in that stretch is a
+            // count of the batch. OnOperationProgressUpdate brings the measured bar back.
+            IsOperationProgressIndeterminate = true;
             ReverifyResult reverify;
             try
             {
@@ -1213,9 +1221,12 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
             OperationCurrentFileName = string.Empty;
             OperationProgressAnnouncement = string.Empty;
             _lastAnnouncedDecile = -1;
-            // Back to a measured bar: RefreshAfterBatchAsync sets this on
-            // every path that stops a batch part-way, and the next operation
-            // reports per-file progress.
+            // Back to a measured bar for the next operation, which reports
+            // per-file progress. The re-verify sets this and it stays set until
+            // the batch reports a file, so a re-verify that fails, or a batch
+            // that stops before its first file, returns with it set, and
+            // RefreshAfterBatchAsync sets it on every path that rescans. This
+            // reset clears it on each of them.
             IsOperationProgressIndeterminate = false;
         }
     }
@@ -1291,7 +1302,10 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
             // Re-verify the removable set immediately before acting, as the Move
             // path does, so nothing the check no longer confirms is deleted. A
             // failure STOPS the batch (surfaced through the scan's error ladder);
-            // a cancellation propagates to the outer OCE catch.
+            // a cancellation propagates to the outer OCE catch. The bar moves over no
+            // count from here until the batch reports its first file, as on the Move
+            // path.
+            IsOperationProgressIndeterminate = true;
             ReverifyResult reverify;
             try
             {
@@ -1501,9 +1515,12 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
             OperationCurrentFileName = string.Empty;
             OperationProgressAnnouncement = string.Empty;
             _lastAnnouncedDecile = -1;
-            // Back to a measured bar: RefreshAfterBatchAsync sets this on
-            // every path that stops a batch part-way, and the next operation
-            // reports per-file progress.
+            // Back to a measured bar for the next operation, which reports
+            // per-file progress. The re-verify sets this and it stays set until
+            // the batch reports a file, so a re-verify that fails, or a batch
+            // that stops before its first file, returns with it set, and
+            // RefreshAfterBatchAsync sets it on every path that rescans. This
+            // reset clears it on each of them.
             IsOperationProgressIndeterminate = false;
         }
     }
@@ -1871,6 +1888,9 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
 
     private void OnOperationProgressUpdate(OperationProgress p)
     {
+        // The batch's first count ends the stretch before it, which the bar spends
+        // moving over no count.
+        IsOperationProgressIndeterminate = false;
         OperationCurrentFile = p.CurrentFile;
         OperationTotalFiles = p.TotalFiles;
         OperationCurrentFileName = p.CurrentFileName;

@@ -95,7 +95,8 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         IReadOnlyList<ListedInstallation> installations,
         CancellationToken cancellationToken = default,
         Action<Exception, string>? recordRefusal = null,
-        Func<string, bool?>? namesAFileInInstallerFolder = null)
+        Func<string, bool?>? namesAFileInInstallerFolder = null,
+        Action<int>? candidateReached = null)
     {
         var outcomes = new DeclaredProductOutcome[candidates.Count];
 
@@ -119,6 +120,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         for (var i = 0; i < candidates.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            candidateReached?.Invoke(i + 1);
 
             var candidate = candidates[i];
 

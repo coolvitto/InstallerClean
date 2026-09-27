@@ -229,6 +229,7 @@ const MAP = {
   'Status.ScanningCache': `Installer-Cache-Ordner wird gescannt...`,
   'Status.CheckingRegistry': `Registrierung wird nach weiteren Paketen durchsucht...`,
   'Status.RegisteredPackagesFound': `Dateien werden mit den installierten Programmen abgeglichen...`,
+  'Status.CheckingRemaining': `Übrige Dateien werden geprüft...`,
 
   // 0 = elapsed time text (e.g. "1.2s")
   'Status.ScanComplete': `Scan abgeschlossen ({0})`,

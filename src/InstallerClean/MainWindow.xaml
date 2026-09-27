@@ -693,9 +693,11 @@
                                FontSize="{DynamicResource Type.Heading.Sm}" FontWeight="SemiBold"
                                HorizontalAlignment="Center" Margin="{StaticResource GapBottom.Lg}"
                                AutomationProperties.LiveSetting="Polite"/>
-                    <!-- Indeterminate for the rescan after a cancel, where there
-                         is no per-file progress to report and a filled bar would
-                         be describing the batch that has just stopped. The count
+                    <!-- Indeterminate from the re-verify before a batch until its
+                         first file, and for the rescan after a batch, where there
+                         is no per-file progress to report: before the batch a
+                         filled bar would describe files not yet reached, and after
+                         it the batch that has ended. The count
                          row and the filename below go with it, on the same
                          binding, so the card is a heading and a moving bar,
                          which is what the scanning overlay above already is. -->

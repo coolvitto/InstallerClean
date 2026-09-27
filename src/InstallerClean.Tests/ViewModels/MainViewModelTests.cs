@@ -1924,6 +1924,93 @@ public class MainViewModelTests
         Assert.Contains("1", vm.Completion.Skipped);
     }
 
+    /// <summary>
+    /// Where the card's bar stands in the three stretches of one batch: inside the
+    /// re-verify, when the service is handed the batch, and once the batch has reported
+    /// its first file. The first count comes through the progress reporter, which posts
+    /// its callback, so the last sample waits for it to land.
+    /// </summary>
+    private sealed class BarSamples
+    {
+        public bool? DuringReverify, AtHandOver, ClearedByFirstCount;
+
+        public void Batch(MainViewModel vm, IProgress<OperationProgress>? progress)
+        {
+            AtHandOver = vm.Cleanup.IsOperationProgressIndeterminate;
+            progress?.Report(new OperationProgress(1, 1, "a.msi"));
+            ClearedByFirstCount = SpinWait.SpinUntil(
+                () => !vm.Cleanup.IsOperationProgressIndeterminate, TimeSpan.FromSeconds(5));
+        }
+    }
+
+    private BarSamples SampleTheBarThroughTheReverify(MainViewModel vm)
+    {
+        var samples = new BarSamples();
+        var orphans = new List<OrphanedFile>
+        {
+            new(@"C:\Windows\Installer\a.msi", 1_048_576, false, false, false, Orphaned),
+        };
+        _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ScanResult(orphans, Array.Empty<RegisteredPackage>(), 0));
+        _reverifier.ReverifyAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                samples.DuringReverify = vm.Cleanup.IsOperationProgressIndeterminate;
+                return new ReverifyResult((IReadOnlyList<string>)ci[0]!, Array.Empty<string>());
+            });
+        return samples;
+    }
+
+    [Fact]
+    public async Task MoveAllAsync_bar_moves_over_no_count_until_the_batch_reports_its_first_file()
+    {
+        var vm = CreateViewModel();
+        var samples = SampleTheBarThroughTheReverify(vm);
+        _moveService.MoveFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                samples.Batch(vm, (IProgress<OperationProgress>?)ci[3]);
+                return new MoveResult(1, Array.Empty<FileOperationError>());
+            });
+        _confirmationService.ConfirmMove(
+            Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>()).Returns(true);
+
+        await vm.Scan.ScanWithProgressAsync(null);
+        vm.Cleanup.MoveDestination = Path.Combine(Path.GetTempPath(), "ic-test-reverify-busy-bar");
+
+        await vm.Cleanup.MoveAllCommand.ExecuteAsync(null);
+
+        Assert.True(samples.DuringReverify);
+        Assert.True(samples.AtHandOver);
+        Assert.True(samples.ClearedByFirstCount);
+    }
+
+    [Fact]
+    public async Task DeleteAllAsync_bar_moves_over_no_count_until_the_batch_reports_its_first_file()
+    {
+        var vm = CreateViewModel();
+        var samples = SampleTheBarThroughTheReverify(vm);
+        _deleteService.DeleteFilesAsync(
+                Arg.Any<IEnumerable<string>>(), Arg.Any<UnderLeaseClaims>(),
+                Arg.Any<IProgress<OperationProgress>?>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                samples.Batch(vm, (IProgress<OperationProgress>?)ci[2]);
+                return new DeleteResult(1, Array.Empty<FileOperationError>());
+            });
+        _confirmationService.ConfirmDelete(Arg.Any<int>(), Arg.Any<string>()).Returns(true);
+
+        await vm.Scan.ScanWithProgressAsync(null);
+
+        await vm.Cleanup.DeleteAllCommand.ExecuteAsync(null);
+
+        Assert.True(samples.DuringReverify);
+        Assert.True(samples.AtHandOver);
+        Assert.True(samples.ClearedByFirstCount);
+    }
+
     [Fact]
     public async Task MoveAllAsync_reverify_throwing_stops_the_batch_and_surfaces_the_failure()
     {

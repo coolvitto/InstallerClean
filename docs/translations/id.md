@@ -91,8 +91,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Asking Windows about installed software... | Menanyai Windows tentang perangkat lunak yang terpasang... |
 | Scanning installer cache folder... | Memindai folder cache penginstal... |
 | Checking registry for additional packages... | Memeriksa registri untuk paket tambahan... |
-| Matching the files against the installed programs... | Mencocokkan file dengan program yang terpasang... |
+| Matching files against installed programs... | Mencocokkan file dengan program yang terpasang... |
 | {0} of {1} | {0} dari {1} |
+| Checking remaining files... | Memeriksa file yang tersisa... |
 | Scan complete ({0}) | Pemindaian selesai ({0}) |
 | Found {0} {1} you can safely delete. | Ditemukan {0} {1} yang aman Anda hapus. |
 | Preparing destination folder... | Menyiapkan folder tujuan... |

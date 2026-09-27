@@ -207,6 +207,7 @@ const MAP = {
   'Status.ScanningCache': `Сканирование папки кэша установки...`,
   'Status.CheckingRegistry': `Проверка реестра на дополнительные пакеты...`,
   'Status.RegisteredPackagesFound': `Сопоставление файлов с установленными программами...`,
+  'Status.CheckingRemaining': `Проверка остальных файлов...`,
 
   // 0 = elapsed time text (e.g. "1.2s")
   'Status.ScanComplete': `Сканирование завершено ({0})`,

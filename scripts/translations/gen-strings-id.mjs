@@ -232,6 +232,7 @@ const MAP = {
   'Status.ScanningCache': `Memindai folder cache penginstal...`,
   'Status.CheckingRegistry': `Memeriksa registri untuk paket tambahan...`,
   'Status.RegisteredPackagesFound': `Mencocokkan file dengan program yang terpasang...`,
+  'Status.CheckingRemaining': `Memeriksa file yang tersisa...`,
 
   // 0 = elapsed time text (e.g. "1.2s")
   'Status.ScanComplete': `Pemindaian selesai ({0})`,

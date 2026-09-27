@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using InstallerClean.Helpers;
 using InstallerClean.Models;
 using InstallerClean.Resources;
@@ -20,26 +21,26 @@ public class ScanProgressFillTests
     private const double Ceiling = ScanProgressFill.CeilingPercent;
 
     /// <summary>
-    /// The scan's five milestones divide floor to ceiling into four bands, one per
+    /// The scan's six milestones divide floor to ceiling into five bands, one per
     /// gap between them. Spelled here rather than read off the class, so a change
     /// to the division has to be made in both places and is seen.
     /// </summary>
-    private const double Band = (Ceiling - Floor) / 4;
+    private const double Band = (Ceiling - Floor) / 5;
 
     [Fact]
-    public void The_five_milestones_walk_the_whole_range_in_even_steps()
+    public void The_six_milestones_walk_the_whole_range_in_even_steps()
     {
         var fill = new ScanProgressFill();
         var floors = new[]
         {
             fill.AtMilestone(), fill.AtMilestone(), fill.AtMilestone(),
-            fill.AtMilestone(), fill.AtMilestone(),
+            fill.AtMilestone(), fill.AtMilestone(), fill.AtMilestone(),
         };
 
         // The first opens on the floor the host has already set, and the last
         // opens on the ceiling with the scan's result to show.
         Assert.Equal(Floor, floors[0], 10);
-        Assert.Equal(Ceiling, floors[4], 10);
+        Assert.Equal(Ceiling, floors[5], 10);
 
         // Even steps, because the scan cannot say which phase will cost the most
         // and a share handed out on a guess is a guess drawn on the screen.
@@ -121,7 +122,7 @@ public class ScanProgressFillTests
         // A phase added to the scan with no band left to put it in stays under
         // the host's closing step rather than running past it.
         var fill = new ScanProgressFill();
-        for (var i = 0; i < 5; i++) fill.AtMilestone();
+        for (var i = 0; i < 6; i++) fill.AtMilestone();
 
         Assert.Equal(Ceiling, fill.AtMilestone(), 10);
         Assert.Equal(Ceiling, fill.AtTicker(1, 2), 10);
@@ -140,7 +141,7 @@ public class ScanProgressFillTests
         var fill = new ScanProgressFill();
         Assert.Equal(Floor, fill.At(Floor), 10);
 
-        for (var i = 0; i < 5; i++) fill.AtMilestone();
+        for (var i = 0; i < 6; i++) fill.AtMilestone();
         Assert.Equal(100, fill.At(100), 10);
     }
 }
@@ -224,10 +225,10 @@ public class ScanProgressAgainstTheScanTests
             else fill.AtTicker(update.Position, update.Total);
         }
 
-        // Five milestones and four bands. Asserted through the bar rather than on
+        // Six milestones and five bands. Asserted through the bar rather than on
         // the count alone, because the count on its own says nothing about where
         // the last one lands.
-        Assert.Equal(5, seen.Count(u => u.IsMilestone));
+        Assert.Equal(6, seen.Count(u => u.IsMilestone));
         Assert.Equal(ScanProgressFill.CeilingPercent, fill.Fill, 10);
     }
 
@@ -266,5 +267,50 @@ public class ScanProgressAgainstTheScanTests
         string Line(int position) => string.Format(Strings.Status_MatchingCount,
             DisplayHelpers.FormatCount(position), DisplayHelpers.FormatCount(3));
         Assert.Equal(new[] { Line(1), Line(2), Line(3) }, matching);
+    }
+
+    [Fact]
+    public async Task The_screen_counts_against_the_files_it_was_handed()
+    {
+        // One file the first product claims and three no product claims, so those three
+        // go on to the screen. The reader yields nothing from any of them, which keeps
+        // each one back and still takes each one's turn, the patch file's included.
+        string[] files =
+        {
+            @"C:\Windows\Installer\1.msi",
+            @"C:\Windows\Installer\a.msi", @"C:\Windows\Installer\b.msi", @"C:\Windows\Installer\c.msp",
+        };
+        var collected = new Collected();
+        var query = new InstallerQueryService(
+            MachineWith(2),
+            (_, _) => new InstallerQueryService.FallbackRead(0, 0),
+            crashLogSink: null);
+        var screen = new DeclaredProductCheck(new FakeMsiApi(), new YieldsNothing());
+
+        await new FileSystemScanService(query, new FileSystem(), null, files, null, null, screen)
+            .ScanAsync(collected);
+
+        var screening = collected.Updates
+            .SkipWhile(u => u.Message != Strings.Status_CheckingRemaining).Skip(1)
+            .TakeWhile(u => !u.IsMilestone).ToList();
+
+        string Line(int position) => string.Format(Strings.Status_MatchingCount,
+            DisplayHelpers.FormatCount(position), DisplayHelpers.FormatCount(3));
+        Assert.Equal(new[] { Line(1), Line(2), Line(3) }, screening.Select(u => u.Message));
+        Assert.Equal(new[] { 1, 2, 3 }, screening.Select(u => u.Position));
+        Assert.All(screening, u => Assert.Equal(3, u.Total));
+    }
+
+    /// <summary>
+    /// A reader that yields nothing from any file and says so with an empty detail, as
+    /// the production readers do. The screen keeps each such file back.
+    /// </summary>
+    private sealed class YieldsNothing : IPackageIdentityReader
+    {
+        public PackageIdentity? Read(string filePath, bool isPatch, out string detail)
+        {
+            detail = string.Empty;
+            return null;
+        }
     }
 }

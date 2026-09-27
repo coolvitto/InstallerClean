@@ -249,6 +249,7 @@ const MAP = {
   'Status.ScanningCache': `Skanowanie folderu pamięci podręcznej instalatora...`,
   'Status.CheckingRegistry': `Sprawdzanie rejestru w poszukiwaniu dodatkowych pakietów...`,
   'Status.RegisteredPackagesFound': `Porównywanie plików z zainstalowanymi programami...`,
+  'Status.CheckingRemaining': `Sprawdzanie pozostałych plików...`,
 
   // 0 = elapsed time text (e.g. "1.2s")
   'Status.ScanComplete': `Skanowanie zakończone ({0})`,

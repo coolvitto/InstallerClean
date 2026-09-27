@@ -91,8 +91,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Asking Windows about installed software... | Interrogation de Windows sur les logiciels installés... |
 | Scanning installer cache folder... | Analyse du dossier de cache d'installation... |
 | Checking registry for additional packages... | Vérification du registre pour des paquets supplémentaires... |
-| Matching the files against the installed programs... | Comparaison des fichiers avec les programmes installés... |
+| Matching files against installed programs... | Comparaison des fichiers avec les programmes installés... |
 | {0} of {1} | {0} sur {1} |
+| Checking remaining files... | Vérification des fichiers restants... |
 | Scan complete ({0}) | Analyse terminée ({0}) |
 | Found {0} {1} you can safely delete. | {0} {1} à supprimer sans risque. |
 | Preparing destination folder... | Préparation du dossier de destination... |

@@ -91,8 +91,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Asking Windows about installed software... | Windows vragen naar geïnstalleerde software... |
 | Scanning installer cache folder... | Installatiecache scannen... |
 | Checking registry for additional packages... | Register controleren op extra pakketten... |
-| Matching the files against the installed programs... | Bestanden vergelijken met de geïnstalleerde programma's... |
+| Matching files against installed programs... | Bestanden vergelijken met de geïnstalleerde programma's... |
 | {0} of {1} | {0} van {1} |
+| Checking remaining files... | Overige bestanden controleren... |
 | Scan complete ({0}) | Scan voltooid ({0}) |
 | Found {0} {1} you can safely delete. | Je kunt {0} {1} veilig verwijderen. |
 | Preparing destination folder... | Doelmap voorbereiden... |

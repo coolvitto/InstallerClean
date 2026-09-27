@@ -24,11 +24,11 @@ public sealed class FileSystemScanService : IFileSystemScanService
     private readonly IEnumerable<string>? _overrideFiles;
     private readonly string? _installerFolderOverride;
 
-    // How often the walk and the classification loop report where they have
-    // reached. Both run once per file in a folder whose size is the machine's, so
-    // reporting per file would make the number of updates a property of the
-    // machine: the walk reports on each multiple of the stride, and the
-    // classification divides its own length so that a folder of any size produces
+    // How often the walk, the classification loop and the declared-product screen
+    // report where they have reached. Each runs once per file in a folder whose size
+    // is the machine's, so reporting per file would make the number of updates a
+    // property of the machine: the walk reports on each multiple of the stride, and
+    // the other two divide their own length so that a folder of any size produces
     // about the same number of updates. A host throttles again on its own
     // account; this is what keeps the work off a folder holding millions of
     // files.
@@ -626,9 +626,17 @@ public sealed class FileSystemScanService : IFileSystemScanService
             unclaimedByPath.RemoveAll(HeldWholesale);
         }
 
+        // THE SCREEN IS A PHASE OF ITS OWN IN THE PROGRESS, with a milestone here and a
+        // count against the files it is handed. It reads each file and asks Windows about
+        // what the file declares, so on a folder holding thousands of candidates it runs
+        // long after the matching count has reached its total. The milestone is reported
+        // on every scan, one with nothing left to screen included, so a host dividing its
+        // bar by the milestones divides it the same way on every machine.
+        progress?.Report(new ScanProgressUpdate(Strings.Status_CheckingRemaining));
+
         WithholdCandidatesByWhatTheyDeclare(
             unclaimedByPath, withheld, withheldBy, cacheRoot, query.Installations, cancellationToken,
-            (ex, cause) => refusalLog.Record(ex, cause));
+            (ex, cause) => refusalLog.Record(ex, cause), progress);
 
         // THE LAST DECISION ON THIS HALF, AND IT TAKES WHAT THE SCREEN LET THROUGH.
         // Run after the screen rather than before it, so the screen's own verdicts
@@ -1362,9 +1370,23 @@ public sealed class FileSystemScanService : IFileSystemScanService
         InstallerCacheRoot cacheRoot,
         IReadOnlyList<ListedInstallation> installations,
         CancellationToken cancellationToken,
-        Action<Exception, string>? recordRefusal = null)
+        Action<Exception, string>? recordRefusal = null,
+        IProgress<ScanProgressUpdate>? progress = null)
     {
         if (_declaredProducts is null || candidates.Count == 0) return;
+
+        // Reported on the same stride rule as the matching count, and the last candidate
+        // whatever the stride, so the position ends on the total.
+        var total = candidates.Count;
+        var stride = Math.Max(1, total / ClassifyReportCount);
+        void Reached(int reached)
+        {
+            if (reached % stride == 0 || reached == total)
+                progress?.Report(new ScanProgressUpdate(
+                    string.Format(Strings.Status_MatchingCount,
+                        DisplayHelpers.FormatCount(reached), DisplayHelpers.FormatCount(total)),
+                    IsMilestone: false, Position: reached, Total: total));
+        }
 
         // The folder a product's or a patch's source list is compared against is the
         // root this run resolved, the one every candidate was judged against, and the
@@ -1372,7 +1394,8 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // run's enumeration listed.
         var outcomes = _declaredProducts.Screen(
             candidates, installations, cancellationToken, recordRefusal,
-            path => InstallerCacheHelpers.NamesAFileDirectlyInInstallerFolder(path, cacheRoot));
+            path => InstallerCacheHelpers.NamesAFileDirectlyInInstallerFolder(path, cacheRoot),
+            Reached);
 
         // A screen that answered a different number of candidates than it was
         // given has not answered about these files, and reading it positionally

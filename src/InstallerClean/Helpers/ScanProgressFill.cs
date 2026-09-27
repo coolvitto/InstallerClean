@@ -5,13 +5,13 @@ namespace InstallerClean.Helpers;
 /// Holds the arithmetic and none of the drawing, so it can be exercised without a
 /// window.
 ///
-/// The scan reports five milestones and, between them, a ticker carrying how far
+/// The scan reports six milestones and, between them, a ticker carrying how far
 /// the current phase has reached. Each milestone opens a band of the bar, and the
 /// ticker moves the fill inside that band only. The fill therefore makes one
 /// visible move per phase on every machine, keeps moving while a long phase
 /// works, and no phase can spend a later phase's share of the bar.
 ///
-/// FIVE MILESTONES DIVIDE THE RANGE INTO FOUR BANDS, because a milestone opens a
+/// SIX MILESTONES DIVIDE THE RANGE INTO FIVE BANDS, because a milestone opens a
 /// band rather than closing one: the first lands on the floor, and the last lands
 /// on the ceiling with the scan's result to show. A band for each milestone
 /// instead of for each gap between them makes the range one band longer than the
@@ -32,7 +32,7 @@ internal sealed class ScanProgressFill
     /// <summary>Where the host's closing step takes over and finishes the fill.</summary>
     public const double CeilingPercent = 95;
 
-    private const int BandCount = 4;
+    private const int BandCount = 5;
     private const double BandWidth = (CeilingPercent - FloorPercent) / BandCount;
 
     // How far into its band a phase that reports no total carries the fill: half

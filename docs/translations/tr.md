@@ -91,8 +91,9 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Asking Windows about installed software... | Yüklü yazılımlar için Windows sorgulanıyor... |
 | Scanning installer cache folder... | Yükleyici önbellek klasörü taranıyor... |
 | Checking registry for additional packages... | Ek paketler için kayıt defteri denetleniyor... |
-| Matching the files against the installed programs... | Dosyalar yüklü programlarla eşleştiriliyor... |
+| Matching files against installed programs... | Dosyalar yüklü programlarla eşleştiriliyor... |
 | {0} of {1} | {1} içinden {0} |
+| Checking remaining files... | Kalan dosyalar denetleniyor... |
 | Scan complete ({0}) | Tarama tamamlandı ({0}) |
 | Found {0} {1} you can safely delete. | Güvenle silebileceğiniz {0} {1} bulundu. |
 | Preparing destination folder... | Hedef klasör hazırlanıyor... |

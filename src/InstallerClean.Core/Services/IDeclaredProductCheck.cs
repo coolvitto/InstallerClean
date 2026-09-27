@@ -154,12 +154,18 @@ public interface IDeclaredProductCheck
     /// ruled out, so every candidate whose declared product is installed, and every
     /// candidate whose declared patch is registered, is kept.
     /// </param>
+    /// <param name="candidateReached">
+    /// Told how many candidates the pass has reached, counting the one it is about to
+    /// screen, once for each candidate in order, so the last call carries the length of
+    /// the list. Handed in by the scan, which turns it into the progress it reports.
+    /// </param>
     IReadOnlyList<DeclaredProductOutcome> Screen(
         IReadOnlyList<OrphanedFile> candidates,
         IReadOnlyList<ListedInstallation> installations,
         CancellationToken cancellationToken = default,
         Action<Exception, string>? recordRefusal = null,
-        Func<string, bool?>? namesAFileInInstallerFolder = null);
+        Func<string, bool?>? namesAFileInInstallerFolder = null,
+        Action<int>? candidateReached = null);
 }
 
 /// <summary>

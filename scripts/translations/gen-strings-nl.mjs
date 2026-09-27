@@ -252,6 +252,7 @@ const MAP = {
   'Status.ScanningCache': `Installatiecache scannen...`,
   'Status.CheckingRegistry': `Register controleren op extra pakketten...`,
   'Status.RegisteredPackagesFound': `Bestanden vergelijken met de geïnstalleerde programma's...`,
+  'Status.CheckingRemaining': `Overige bestanden controleren...`,
   'Status.ScanComplete': `Scan voltooid ({0})`,
   'Status.FoundUnused': `Je kunt {0} {1} veilig verwijderen.`,
   'Status.PreparingDestination': `Doelmap voorbereiden...`,
