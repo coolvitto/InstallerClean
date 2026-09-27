@@ -52,11 +52,14 @@ public partial class ScanViewModel : ObservableObject
     [ObservableProperty] private string _scanProgress = string.Empty;
 
     /// <summary>
-    /// Per-product ticker line under the scan overlay's milestone text.
-    /// Display-only: the bound TextBlock carries no LiveSetting because
-    /// the ticker updates once per registered product, up to hundreds in
-    /// a few seconds, and a live region would queue an announcement for
-    /// every one of them.
+    /// Ticker line under the scan overlay's milestone text: a count of the
+    /// folder's files as the scan lists them, the name of each installed
+    /// program as it asks Windows about it, then a count of the files as
+    /// it matches them. Display-only: the bound TextBlock carries no
+    /// LiveSetting because the ticker updates once per program and many
+    /// times while the files are counted, which can run to hundreds of
+    /// updates in a few seconds, and a live region would queue an
+    /// announcement for every one of them.
     /// </summary>
     [ObservableProperty] private string _scanTicker = string.Empty;
 
@@ -562,9 +565,9 @@ public partial class ScanViewModel : ObservableObject
         try
         {
             // Throttled on the same terms as the startup scan's: the ticker fires
-            // once per installed product and once per cached file, and each one
-            // that gets through crosses to the dispatcher and replaces the
-            // overlay's second line.
+            // once per installed program and many times while the files are
+            // counted, and each update that gets through crosses to the
+            // dispatcher and replaces the overlay's second line.
             var progress = new ThrottledScanProgress(
                 new Progress<ScanProgressUpdate>(ApplyProgressUpdate));
             var scanTask = RunScanCoreAsync(progress, cts.Token);
@@ -621,9 +624,9 @@ public partial class ScanViewModel : ObservableObject
 
     /// <summary>
     /// Routes one scan progress update to the overlay's two lines:
-    /// milestones to the announced status text, the per-product ticker
-    /// to the display-only line beneath it. A milestone also clears the
-    /// ticker so the last product name does not sit stale beside the
+    /// milestones to the announced status text, the ticker to the
+    /// display-only line beneath it. A milestone also clears the ticker
+    /// so the last program name or count does not sit stale beside the
     /// next phase's message.
     /// </summary>
     private void ApplyProgressUpdate(ScanProgressUpdate update)

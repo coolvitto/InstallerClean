@@ -548,6 +548,12 @@ Geri koymak için, halihazırda sahip olduğunuz sürümün kurulum programına 
        nothing this line could count is settled yet, and the count the reader is
        waiting for arrives on the line after it. -->
   <data name="Status.RegisteredPackagesFound" xml:space="preserve"><value>Dosyalar yüklü programlarla eşleştiriliyor...</value></data>
+  <!-- The grey line under the scan's step line while the scan matches the
+       folder's files against the installed programs. 0 = files matched so
+       far, 1 = files in the folder, both already formatted for the reader's
+       region. No noun: the step line directly above says what is being
+       counted. -->
+  <data name="Status.MatchingCount" xml:space="preserve"><value>{1} içinden {0}</value></data>
   <!-- 0 = elapsed time text (e.g. "1.2s") -->
   <data name="Status.ScanComplete" xml:space="preserve"><value>Tarama tamamlandı ({0})</value></data>
   <!-- 0 = file count, 1 = pluralised noun ("file"/"files") -->

@@ -92,6 +92,7 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Scanning installer cache folder... | 설치 관리자 캐시 폴더를 검사하는 중... |
 | Checking registry for additional packages... | 레지스트리에서 추가 패키지를 확인하는 중... |
 | Matching the files against the installed programs... | 파일을 설치된 프로그램과 대조하는 중... |
+| {0} of {1} | {1}개 중 {0}개 |
 | Scan complete ({0}) | 검사 완료 ({0}) |
 | Found {0} {1} you can safely delete. | 안전하게 삭제할 수 있는 {1} {0}개를 찾았습니다. |
 | Preparing destination folder... | 대상 폴더를 준비하는 중... |

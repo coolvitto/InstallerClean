@@ -498,6 +498,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `Nada que mostrar hasta el próximo análisis.`,
   'Body.RescanNotFinished.Why': `El análisis que se ejecuta después de Mover o Eliminar no terminó, así que no hay ninguna lista que mostrar. Pulsa Volver a analizar para analizar {InstallerFolder} otra vez.`,
   'Body.RescanNotFinished.Recorded': `Lo que lo detuvo queda registrado en {0}.`,
+  'Status.MatchingCount': `{0} de {1}`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

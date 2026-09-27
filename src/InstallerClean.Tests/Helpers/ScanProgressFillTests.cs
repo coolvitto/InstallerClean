@@ -1,5 +1,6 @@
 using InstallerClean.Helpers;
 using InstallerClean.Models;
+using InstallerClean.Resources;
 using InstallerClean.Services;
 using InstallerClean.Tests.Services;
 
@@ -194,12 +195,12 @@ public class ScanProgressAgainstTheScanTests
     }
 
     /// <summary>
-    /// Runs the scan against an empty file list, so it reaches every milestone
-    /// with no file for the walk or the classification to judge. What is under
-    /// test is the shape of the report stream, which those two phases lengthen
-    /// and do not change.
+    /// Runs the scan against the files given, none unless a test names some, so
+    /// it reaches every milestone with only those for the classification to
+    /// judge. What is under test is the shape of the report stream, which files
+    /// lengthen and do not change.
     /// </summary>
-    private static async Task<IReadOnlyList<ScanProgressUpdate>> Run(int products)
+    private static async Task<IReadOnlyList<ScanProgressUpdate>> Run(int products, params string[] files)
     {
         var collected = new Collected();
         var query = new InstallerQueryService(
@@ -207,7 +208,7 @@ public class ScanProgressAgainstTheScanTests
             (_, _) => new InstallerQueryService.FallbackRead(0, 0),
             crashLogSink: null);
 
-        await new FileSystemScanService(query, Array.Empty<string>()).ScanAsync(collected);
+        await new FileSystemScanService(query, files).ScanAsync(collected);
         return collected.Updates;
     }
 
@@ -250,5 +251,20 @@ public class ScanProgressAgainstTheScanTests
         var ticks = seen.Where(u => !u.IsMilestone).Select(u => u.Message).ToList();
 
         Assert.Equal(new[] { "Product 1", "Product 2", "Product 3" }, ticks);
+    }
+
+    [Fact]
+    public async Task The_matching_phase_counts_against_the_files_in_the_folder()
+    {
+        // Three files, each claimed by one of the first three products, so every
+        // one is matched and none goes on to be judged.
+        var seen = await Run(4,
+            @"C:\Windows\Installer\1.msi", @"C:\Windows\Installer\2.msi", @"C:\Windows\Installer\3.msi");
+        var matching = seen.SkipWhile(u => u.Message != Strings.Status_RegisteredPackagesFound)
+            .Where(u => !u.IsMilestone).Select(u => u.Message).ToList();
+
+        string Line(int position) => string.Format(Strings.Status_MatchingCount,
+            DisplayHelpers.FormatCount(position), DisplayHelpers.FormatCount(3));
+        Assert.Equal(new[] { Line(1), Line(2), Line(3) }, matching);
     }
 }

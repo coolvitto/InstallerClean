@@ -65,9 +65,9 @@ public partial class SplashWindow : Window
             UpdateStep(update.Message, _fill.AtMilestone());
             return;
         }
-        // Ticker: per-item, display-only. The step text (the live
-        // region) is left alone so the splash does not queue one
-        // announcement per installed product.
+        // Ticker: display-only. The step text (the live region) is
+        // left alone so the splash does not queue one announcement per
+        // update.
         ProductTicker.Text = update.Message;
         AnimateProgress(_fill.AtTicker(update.Position, update.Total));
     }

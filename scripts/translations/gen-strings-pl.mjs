@@ -603,6 +603,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `Nic do pokazania do następnego skanowania.`,
   'Body.RescanNotFinished.Why': `Skanowanie uruchamiane po operacji Przenieś lub Usuń nie zakończyło się, więc nie ma listy do pokazania. Naciśnij przycisk Skanuj ponownie, aby jeszcze raz przeskanować {InstallerFolder}.`,
   'Body.RescanNotFinished.Recorded': `Przyczyna zatrzymania jest zapisana w {0}.`,
+  'Status.MatchingCount': `{0}/{1}`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

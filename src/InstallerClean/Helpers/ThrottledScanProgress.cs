@@ -7,13 +7,13 @@ namespace InstallerClean.Helpers;
 /// Passes the scan's milestones straight through and admits one ticker update per
 /// interval.
 ///
-/// The scan's ticker fires once per item, and the items are the machine's
-/// installed products and cached files, so the rate is the machine's rather than
-/// the scan's. Each update that gets through crosses to the dispatcher, replaces
-/// a line of text and starts an animation, and a name replaced faster than a
-/// screen draws is a name nobody reads. Held at the reporting thread, before
-/// anything is posted, so what a phase costs to report is the interval rather
-/// than its item count.
+/// The scan's ticker fires once per installed program and, while it counts the
+/// cached files, once every so many of them, so the rate is the machine's rather
+/// than the scan's. Each update that gets through crosses to the dispatcher,
+/// replaces a line of text and starts an animation, and a name replaced faster
+/// than a screen draws is a name nobody reads. Held at the reporting thread,
+/// before anything is posted, so what a phase costs to report is the interval
+/// rather than its item count.
 ///
 /// The scan's phases run one after another and never report at once, but each
 /// reports from whichever thread it runs on, so the timestamp crosses threads and

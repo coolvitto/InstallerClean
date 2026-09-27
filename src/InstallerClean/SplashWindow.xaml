@@ -29,7 +29,7 @@
                      step line as one block, the way the operating
                      overlay pairs its count and filename lines. -->
                 <RowDefinition Height="4"/>     <!-- gap -->
-                <RowDefinition Height="Auto"/>  <!-- product ticker -->
+                <RowDefinition Height="Auto"/>  <!-- ticker -->
                 <RowDefinition Height="12"/>    <!-- gap -->
                 <RowDefinition Height="Auto"/>  <!-- cancel button -->
                 <RowDefinition Height="*"/>     <!-- bottom spacer -->
@@ -68,11 +68,13 @@
                        HorizontalAlignment="Center"
                        AutomationProperties.LiveSetting="Polite"/>
 
-            <!-- Per-product ticker: names each package as the enumeration
-                 passes it. Display-only; no LiveSetting, because it
-                 updates once per installed product and a live region
-                 would queue one announcement per product. The step text
-                 above stays the announced line. -->
+            <!-- Ticker: a count of the folder's files as the scan lists
+                 them, the name of each installed program as it asks
+                 Windows about it, then a count of the files as it matches
+                 them. Display-only; no LiveSetting, because it updates once
+                 per program and many times while the files are counted, and
+                 a live region would queue one announcement per update. The
+                 step text above stays the announced line. -->
             <TextBlock Grid.Row="9"
                        x:Name="ProductTicker"
                        Foreground="{StaticResource Text.Dim}"

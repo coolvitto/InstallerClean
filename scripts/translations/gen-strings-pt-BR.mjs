@@ -566,6 +566,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `Nada para mostrar até a próxima análise.`,
   'Body.RescanNotFinished.Why': `A análise feita depois de Mover ou Excluir não terminou, então não há nenhuma lista para mostrar. Clique em Reanalisar para analisar {InstallerFolder} de novo.`,
   'Body.RescanNotFinished.Recorded': `O que a interrompeu fica registrado em {0}.`,
+  'Status.MatchingCount': `{0} de {1}`,
 };
 
 // Satellite-only .One override(s). NOT in the neutral; appended before </root>.

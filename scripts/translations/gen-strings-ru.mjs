@@ -482,6 +482,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `До следующего сканирования показывать нечего.`,
   'Body.RescanNotFinished.Why': `Сканирование, которое выполняется после «Переместить» или «Удалить», не завершилось, поэтому нет списка, который можно показать. Нажмите «Повторить сканирование», чтобы снова просканировать {InstallerFolder}.`,
   'Body.RescanNotFinished.Recorded': `Причина остановки записана в {0}.`,
+  'Status.MatchingCount': `{0}/{1}`,
 };
 
 // Russian CLDR-category overrides beyond the neutral one/other split. They do NOT

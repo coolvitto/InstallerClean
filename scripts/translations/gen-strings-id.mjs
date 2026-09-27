@@ -583,6 +583,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `Tidak ada yang ditampilkan sampai pemindaian berikutnya.`,
   'Body.RescanNotFinished.Why': `Pemindaian yang berjalan setelah Pindahkan atau Hapus tidak selesai, jadi tidak ada daftar untuk ditampilkan. Tekan Pindai ulang untuk memindai {InstallerFolder} lagi.`,
   'Body.RescanNotFinished.Recorded': `Apa yang menghentikannya dicatat di {0}.`,
+  'Status.MatchingCount': `{0} dari {1}`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -92,6 +92,7 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Scanning installer cache folder... | Сканування папки кешу інсталятора... |
 | Checking registry for additional packages... | Перевірка реєстру на додаткові пакети... |
 | Matching the files against the installed programs... | Зіставлення файлів зі встановленими програмами... |
+| {0} of {1} | {0} з {1} |
 | Scan complete ({0}) | Сканування завершено ({0}) |
 | Found {0} {1} you can safely delete. | Знайдено {0} {1} для безпечного видалення. |
 | Preparing destination folder... | Підготовка папки призначення... |

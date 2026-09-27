@@ -92,6 +92,7 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Scanning installer cache folder... | Đang quét thư mục bộ nhớ đệm trình cài đặt... |
 | Checking registry for additional packages... | Đang kiểm tra sổ đăng ký để tìm các gói bổ sung... |
 | Matching the files against the installed programs... | Đang đối chiếu các tệp với các chương trình đã cài... |
+| {0} of {1} | {0}/{1} |
 | Scan complete ({0}) | Quét xong ({0}) |
 | Found {0} {1} you can safely delete. | Đã tìm thấy {0} {1} bạn có thể xóa an toàn. |
 | Preparing destination folder... | Đang chuẩn bị thư mục đích... |

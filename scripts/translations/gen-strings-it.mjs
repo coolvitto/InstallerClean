@@ -494,6 +494,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `Niente da mostrare fino alla prossima scansione.`,
   'Body.RescanNotFinished.Why': `La scansione eseguita dopo Sposta o Elimina non è terminata, quindi non c'è nessun elenco da mostrare. Premi Ripeti scansione per eseguire di nuovo la scansione di {InstallerFolder}.`,
   'Body.RescanNotFinished.Recorded': `Il motivo dell'interruzione è registrato in {0}.`,
+  'Status.MatchingCount': `{0} di {1}`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -634,6 +634,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `Nothing to show until the next scan.`,
   'Body.RescanNotFinished.Why': `The scan that runs after a Move or Delete didn't finish, so there's no list to show. Press Re-scan to scan {InstallerFolder} again.`,
   'Body.RescanNotFinished.Recorded': `What stopped it is recorded in {0}.`,
+  'Status.MatchingCount': `{0} of {1}`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

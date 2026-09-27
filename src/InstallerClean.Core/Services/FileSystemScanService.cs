@@ -359,8 +359,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
             classified++;
             if (classified % classifyStride == 0 || classified == diskFiles.Count)
                 progress?.Report(new ScanProgressUpdate(
-                    DisplayHelpers.FormatCount(classified), IsMilestone: false,
-                    Position: classified, Total: diskFiles.Count));
+                    string.Format(Strings.Status_MatchingCount,
+                        DisplayHelpers.FormatCount(classified),
+                        DisplayHelpers.FormatCount(diskFiles.Count)),
+                    IsMilestone: false, Position: classified, Total: diskFiles.Count));
 
             var filePath = walked.FullPath;
             if (registeredPaths.Contains(filePath))

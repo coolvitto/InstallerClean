@@ -92,6 +92,7 @@ A few lines (the app name, version, file-size formats, and the command-line tool
 | Scanning installer cache folder... | Сканирование папки кэша установки... |
 | Checking registry for additional packages... | Проверка реестра на дополнительные пакеты... |
 | Matching the files against the installed programs... | Сопоставление файлов с установленными программами... |
+| {0} of {1} | {0}/{1} |
 | Scan complete ({0}) | Сканирование завершено ({0}) |
 | Found {0} {1} you can safely delete. | Найдено {0} {1} для безопасного удаления. |
 | Preparing destination folder... | Подготовка папки назначения... |

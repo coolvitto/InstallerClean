@@ -370,10 +370,10 @@ public partial class App : Application
             var splashClose = TimeSpan.FromMilliseconds(200);
 
             // Throttled, because the scan's ticker fires once per installed
-            // product and once per cached file, so its rate belongs to the
-            // machine. Wrapped outside the Progress<T> rather than inside it, so
-            // an update the interval drops is never posted to the dispatcher at
-            // all.
+            // program and many times while the files are counted, so its rate
+            // belongs to the machine. Wrapped outside the Progress<T> rather
+            // than inside it, so an update the interval drops is never posted
+            // to the dispatcher at all.
             var splashProgress = new ThrottledScanProgress(
                 new Progress<ScanProgressUpdate>(splash.OnScanProgress));
             var cancelled = false;

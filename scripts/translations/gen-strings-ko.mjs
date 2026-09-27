@@ -561,6 +561,7 @@ const MAP = {
   'Body.RescanNotFinished.Lead': `다음 검사 전까지 표시할 내용이 없습니다.`,
   'Body.RescanNotFinished.Why': `이동 또는 삭제 후에 실행되는 검사가 완료되지 않아 표시할 목록이 없습니다. 다시 검사를 눌러 {InstallerFolder}를 한 번 더 검사하세요.`,
   'Body.RescanNotFinished.Recorded': `중단된 원인은 {0}에 기록되어 있습니다.`,
+  'Status.MatchingCount': `{1}개 중 {0}개`,
 };
 
 // PARSE CONTROL. About the READING and not about the content, and it exits 2,

@@ -428,6 +428,7 @@ public static class Strings
     public static string Status_Deleting => Get("Status.Deleting");
     public static string Status_Done => Get("Status.Done");
     public static string Status_FoundUnused => Get("Status.FoundUnused");
+    public static string Status_MatchingCount => Get("Status.MatchingCount");
     public static string Status_MoveCancelled_Partial => Get("Status.MoveCancelled.Partial");
     public static string Status_MoveFailed => Get("Status.MoveFailed");
     public static string Status_MoveFailed_NoLog => Get("Status.MoveFailed.NoLog");
