@@ -299,9 +299,10 @@ public sealed record AppInfo(string Version, string Language, string WindowsLang
 /// <see cref="EnumerationCensus.SecondInstanceNotRuledOut"/>, which fires on this
 /// count, on an InstanceType read that failed, or on a product the registry names
 /// that nothing shows was asked. It is a withholding leg, so a machine carrying one
-/// of these products has its walk-derived offer withheld whole; the re-verification
-/// pass puts the same question again between the scan and the click; and the
-/// command line prints a line naming it among the reasons a run could not be
+/// of these products has its walk-derived installation packages withheld whole, and
+/// its walk-derived patch files put to every installation the scan listed; the
+/// re-verification pass puts the same question again between the scan and the click;
+/// and the command line prints a line naming it among the reasons a run could not be
 /// certain.
 ///
 /// A machine fact rather than a run observation, which is what puts it in this
@@ -883,9 +884,10 @@ public sealed record MachineInfo(
 /// this count less that total is the candidates the screen kept on its own read.
 /// </param>
 /// <param name="WithheldWholesaleCount">
-/// Candidates kept back in one go, the whole walk-derived offer having been withheld on
-/// a fact about the machine rather than about any file:
-/// <c>ScanResult.WithheldBy.WholesaleCount</c>.
+/// Candidates kept back in one go on a fact about the machine rather than about any
+/// file: the whole walk-derived offer, or its installation packages alone where the only
+/// fact is a program that may be installed more than once and that the scan could ask
+/// about by name (<c>ScanResult.WithheldBy.WholesaleCount</c>).
 ///
 /// NO CAUSE TRAVELS WITH IT. Three named conditions reach that branch and any
 /// combination of them can be true at once, so nothing may say which one held a

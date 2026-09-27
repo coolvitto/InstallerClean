@@ -8,11 +8,12 @@ namespace InstallerClean.Tests.Services;
 /// THE ACT-TIME HALF OF THE SCAN'S WHOLESALE WITHHOLDING.
 ///
 /// The scan offers no walk-derived file on a machine whose recorded paths it could not
-/// settle, or one carrying the same program installed twice. This pass re-runs the whole
-/// enumeration immediately before a Move or a Delete and asks both questions again, so on
-/// a machine that reached one of those states between the list appearing and the button
-/// being pressed, the walk-derived files leave the batch as the scan would by then have
-/// held them back. Nothing need be wrong with any file in it; the machine has changed
+/// settle, and no walk-derived installation package on one carrying the same program
+/// installed twice, its patch files too where the registry names a product it could not
+/// ask about. This pass re-runs the whole enumeration immediately before a Move or a
+/// Delete and asks both questions again, so on a machine that reached one of those states
+/// between the list appearing and the button being pressed, the walk-derived files leave
+/// the batch as the scan would by then have held them back. Nothing need be wrong with any file in it; the machine has changed
 /// underneath it.
 ///
 /// IT DROPS THE WALK-DERIVED HALF AND NOT THE WHOLE BATCH. A superseded registration is
@@ -29,6 +30,7 @@ public class RemovableReverifierSecondInstanceTests
 {
     private const string Orphan = @"C:\Windows\Installer\orphan.msi";
     private const string Superseded = @"C:\Windows\Installer\superseded.msp";
+    private const string PatchOrphan = @"C:\Windows\Installer\orphan.msp";
     private const string Code = "{00000000-0000-0000-0000-000000000001}";
 
     private static RemovableReverifier Reverifier(IInstallerQueryService query) =>
@@ -93,17 +95,41 @@ public class RemovableReverifierSecondInstanceTests
     [Fact]
     public async Task A_recorded_path_that_will_not_settle_drops_it_too()
     {
-        // THE SECOND CONDITION, AND IT PREDATES THIS WORK. The scan has emptied its walk
-        // offer on an unsettled recorded path since 3.0.0 and this pass never re-applied
-        // that either, so the gap being closed here is wider than the condition that
-        // exposed it. Asked of the census where the members live, so a cause added to
-        // either question is re-applied without this file being edited.
+        // THE SECOND CONDITION. The scan withholds its whole walk offer on an unsettled
+        // recorded path, and this pass re-applies that too. Asked of the census where the
+        // members live, so a cause added to either question is re-applied without this
+        // file being edited.
         var svc = Reverifier(Query(new EnumerationCensus(PathResolverOpenRefusedCount: 1)));
 
         var result = await svc.ReverifyAsync(new[] { Orphan });
 
         Assert.Equal(Orphan, Assert.Single(result.Dropped));
         Assert.Equal(1, result.Reasons.OwnershipUnestablished);
+    }
+
+    [Fact]
+    public async Task A_second_instance_leaves_a_walk_derived_patch_file_to_the_checks_on_the_file()
+    {
+        // The installation package leaves the batch. The patch file goes on to the checks
+        // the scan makes on the file itself, none of which is injected here, and stays.
+        var svc = Reverifier(Query(new EnumerationCensus(InstanceProductCount: 1)));
+
+        var result = await svc.ReverifyAsync(new[] { Orphan, PatchOrphan });
+
+        Assert.Equal(PatchOrphan, Assert.Single(result.Surviving));
+        Assert.Equal(Orphan, Assert.Single(result.Dropped));
+        Assert.Equal(1, result.Reasons.OwnershipUnestablished);
+    }
+
+    [Fact]
+    public async Task A_product_nobody_could_ask_about_drops_the_patch_file_as_well()
+    {
+        var svc = Reverifier(Query(new EnumerationCensus(UnansweredProductCount: 1)));
+
+        var result = await svc.ReverifyAsync(new[] { Orphan, PatchOrphan });
+
+        Assert.Empty(result.Surviving);
+        Assert.Equal(2, result.Reasons.OwnershipUnestablished);
     }
 
     [Fact]

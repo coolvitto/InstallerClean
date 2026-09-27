@@ -145,15 +145,33 @@ public class CliHeldBackBesideAnOfferTests
     public async Task A_wholesale_withholding_beside_a_live_offer_gets_the_wholesale_lead()
     {
         // The same machine as above but for the condition that emptied the walk-derived
-        // half, so the pair is held apart here as it is where nothing was offered. One
-        // sentence for both would be false of one of them.
+        // half, with superseded patches offered beside it, so the pair is held apart here
+        // as it is where nothing was offered. One sentence for both would be false of one
+        // of them.
         var (_, stdout) = await Run(Scan(
             offer: 2, withheld: 2,
-            split: new WithholdingSplit(WholesaleCount: 2)));
+            split: new WithholdingSplit(WholesaleCount: 2),
+            offerSuperseded: true));
 
         Assert.Contains(HeldBackLead(Strings.Cli_NothingListed_Plural, 2),
             stdout, StringComparison.Ordinal);
         Assert.DoesNotContain(HeldBackLead(Strings.Cli_NothingListedPerFile_Plural, 2),
+            stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_wholesale_withholding_beside_files_the_walk_found_gets_the_per_file_lead()
+    {
+        // The wholesale arm took the installation packages and the walk's patch files
+        // were offered. The wholesale lead would say the scan could not be certain which
+        // cached files belong to the programs, which the offered files show it could.
+        var (_, stdout) = await Run(Scan(
+            offer: 2, withheld: 2,
+            split: new WithholdingSplit(WholesaleCount: 2)));
+
+        Assert.Contains(HeldBackLead(Strings.Cli_NothingListedPerFile_Plural, 2),
+            stdout, StringComparison.Ordinal);
+        Assert.DoesNotContain(HeldBackLead(Strings.Cli_NothingListed_Plural, 2),
             stdout, StringComparison.Ordinal);
     }
 
@@ -225,25 +243,28 @@ public class CliHeldBackBesideAnOfferTests
         return count;
     }
 
-    // WHICH LEAD A RUN GETS IS DECIDED BY THE SPLIT AND NOTHING ELSE, so the split is
-    // the only thing these fixtures vary for it: ScanResult.Withholding compares the
+    // WHICH LEAD A RUN GETS IS DECIDED BY THE SPLIT AND THE OFFER, so those are the
+    // only things these fixtures vary for it: ScanResult.Withholding compares the
     // withheld count against the split's wholesale count and its silent arms' counts,
-    // and reads no flag.
+    // and asks whether anything the walk found is on the offer.
     private static ScanResult Scan(int offer, int withheld, WithholdingSplit split, long positiveBytes = 0,
-        long patchBytes = 0) =>
-        new(Files(offer, OfferA, OfferB), Array.Empty<RegisteredPackage>(), 0,
+        long patchBytes = 0, bool offerSuperseded = false) =>
+        new(Files(offer, OfferA, OfferB, offerSuperseded), Array.Empty<RegisteredPackage>(), 0,
             WithheldFiles: Files(withheld, HeldA, HeldB),
             WithheldBy: split,
             WithheldDeclaredProductInstalledBytes: positiveBytes,
             WithheldDeclaredPatchRegisteredBytes: patchBytes);
 
-    private static OrphanedFile[] Files(int n, string first, string second) =>
+    /// <param name="superseded">
+    /// Registered superseded patches rather than files the walk found.
+    /// </param>
+    private static OrphanedFile[] Files(int n, string first, string second, bool superseded = false) =>
         n switch
         {
             0 => Array.Empty<OrphanedFile>(),
-            1 => [new OrphanedFile(first, 1024, false, false, false, "unclaimed")],
-            _ => [new OrphanedFile(first, 1024, false, false, false, "unclaimed"),
-                  new OrphanedFile(second, 1024, false, false, false, "unclaimed")],
+            1 => [new OrphanedFile(first, 1024, superseded, superseded, false, "unclaimed")],
+            _ => [new OrphanedFile(first, 1024, superseded, superseded, false, "unclaimed"),
+                  new OrphanedFile(second, 1024, superseded, superseded, false, "unclaimed")],
         };
 
     private static async Task<(int ExitCode, string Stdout)> Run(

@@ -80,6 +80,25 @@ public class ScanResultTests
         Assert.Equal(WithholdingAccount.WholeWalkOffer, result.Withholding);
     }
 
+    [Theory]
+    [InlineData(false, WithholdingAccount.PerFile)]
+    [InlineData(true, WithholdingAccount.WholeWalkOffer)]
+    public void A_wholesale_arm_beside_a_walked_file_on_the_offer_reads_as_per_file(
+        bool offeredIsSuperseded, WithholdingAccount expected)
+    {
+        // The wholesale arm took the installation packages and a patch file went on to
+        // the checks on the file and was offered. The wholesale sentences say nothing
+        // the folder walk found was offered, which is false of that run. A superseded
+        // patch on the offer comes from its own registration, and leaves them true.
+        var offered = new OrphanedFile(@"C:\Windows\Installer\c.msp", 4096, IsPatch: true,
+            IsRemovablePatch: offeredIsSuperseded, IsObsoleted: false, Strings.Reason_Orphaned);
+        var result = new ScanResult([offered], [], 0,
+            WithheldFiles: [File("a.msi", 1024), File("b.msi", 2048)],
+            WithheldBy: new WithholdingSplit(WholesaleCount: 2));
+
+        Assert.Equal(expected, result.Withholding);
+    }
+
     [Fact]
     public void A_withholding_with_no_wholesale_share_reads_as_per_file()
     {

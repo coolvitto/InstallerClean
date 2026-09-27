@@ -191,29 +191,8 @@ public class EnumerationCensusTests
         // AND THE MUST-MISS HALF IS CARRIED BY THE SAME COMPARISON, which is the point
         // of an equality rather than a set of assertions: every other member on the
         // record is in this run and is required NOT to fire.
-        var ctor = Primary();
-        var parameters = ctor.GetParameters();
-
-        // The denominator, printed as an assertion rather than assumed: a walk that
-        // found the wrong constructor would report nothing fired, which reads exactly
-        // like a property that answers false for everything.
-        Assert.True(parameters.Length >= SecondInstanceMembers.Length + 15,
-            $"The census constructor has {parameters.Length} parameters, which is too few for this "
-            + "walk to be measuring what it claims.");
-
-        var fired = new List<string>();
-        foreach (var parameter in parameters)
-        {
-            var args = new object[parameters.Length];
-            for (var i = 0; i < args.Length; i++) args[i] = 0;
-            args[parameter.Position] = 1;
-
-            var census = (EnumerationCensus)ctor.Invoke(args);
-            if (census.SecondInstanceNotRuledOut) fired.Add(parameter.Name!);
-        }
-
         var expected = SecondInstanceMembers.OrderBy(n => n, StringComparer.Ordinal).ToArray();
-        var actual = fired.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        var actual = MembersFiring(census => census.SecondInstanceNotRuledOut);
 
         Assert.True(expected.SequenceEqual(actual, StringComparer.Ordinal),
             "SecondInstanceNotRuledOut fires on a different set of members than the withholding "
@@ -226,6 +205,18 @@ public class EnumerationCensusTests
             + "which is files offered that it meant to keep back. An EXTRA member is the scan "
             + "emptying an offer on a fact that is not the second-instance question. Neither is a "
             + "test to relax.");
+    }
+
+    [Fact]
+    public void Exactly_the_two_members_naming_a_product_nobody_could_ask_hold_the_patch_files_too()
+    {
+        // The same walk, for the narrower property the walk-derived patch files are held
+        // on. A member left out of it is a patch file offered that a product nobody could
+        // ask about may hold; a member added to it holds every patch file on a machine
+        // where each installation could be asked.
+        Assert.Equal(
+            new[] { "UnansweredProductCount", "UnparseableProductKeyNames" },
+            MembersFiring(census => census.RegistryProductUnaskable));
     }
 
     [Fact]
@@ -259,4 +250,33 @@ public class EnumerationCensusTests
         typeof(EnumerationCensus).GetConstructors()
             .OrderByDescending(c => c.GetParameters().Length)
             .First();
+
+    /// <summary>
+    /// The census members that make <paramref name="property"/> answer true on their own,
+    /// in ordinal order: each member set to one in turn, every other at zero.
+    /// </summary>
+    private static string[] MembersFiring(Func<EnumerationCensus, bool> property)
+    {
+        var ctor = Primary();
+        var parameters = ctor.GetParameters();
+
+        // The denominator, printed as an assertion rather than assumed: a walk that
+        // found the wrong constructor would report nothing fired, which reads exactly
+        // like a property that answers false for everything.
+        Assert.True(parameters.Length >= SecondInstanceMembers.Length + 15,
+            $"The census constructor has {parameters.Length} parameters, which is too few for this "
+            + "walk to be measuring what it claims.");
+
+        var fired = new List<string>();
+        foreach (var parameter in parameters)
+        {
+            var args = new object[parameters.Length];
+            for (var i = 0; i < args.Length; i++) args[i] = 0;
+            args[parameter.Position] = 1;
+
+            if (property((EnumerationCensus)ctor.Invoke(args))) fired.Add(parameter.Name!);
+        }
+
+        return fired.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+    }
 }

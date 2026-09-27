@@ -775,18 +775,21 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// <summary>
     /// What Windows holds for one declared patch, asked once per patch code and target
     /// list per pass: every registration the machine-wide patch enumeration lists for
-    /// the code, unioned with every installation of a named target product that
-    /// answers the keyed patch read with a state or with no value at all.
+    /// the code, unioned with every installation of a named target product, and every
+    /// installation the caller's enumeration listed, that answers the keyed patch read
+    /// with a state or with no value at all.
     ///
-    /// THE UNION IS WHY IT IS BOTH. The enumeration names a registration against a
+    /// THE UNION IS WHY IT IS ALL THREE. The enumeration names a registration against a
     /// product the patch's Template does not list; the keyed read reaches an
-    /// installation of a listed product the enumeration does not name. Each can only
-    /// add a registration.
+    /// installation of a listed product the enumeration does not name; and put to every
+    /// installation the caller listed, it reaches one that holds the patch whether or
+    /// not the Template names its product or the enumeration lists it. Each can only add
+    /// a registration.
     ///
-    /// AND EITHER FAILING KEEPS THE FILE. An enumeration that did not run to its end, a
-    /// named product whose installations would not list or were listed without one the
-    /// caller's enumeration listed, and an installation that would not answer the keyed
-    /// read each leave registrations unfound, and the answer is
+    /// AND ANY OF THEM FAILING KEEPS THE FILE. An enumeration that did not run to its
+    /// end, a named product whose installations would not list or were listed without
+    /// one the caller's enumeration listed, and an installation that would not answer
+    /// the keyed read each leave registrations unfound, and the answer is
     /// <see cref="DeclaredProductOutcome.DeclaredPatchUnestablished"/>. The enumeration
     /// is walked once per pass, so where it fails, every patch copy the pass asks about
     /// is kept.
@@ -804,6 +807,29 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         var registrations = new List<(string ProductCode, string? Sid, MsiInstallContext Context)>();
         if (holders.TryGetValue(code, out var listed)) registrations.AddRange(listed);
 
+        // False where the installation gave no answer that can be used.
+        bool AskInstallation(string productCode, string? sid, MsiInstallContext context)
+        {
+            // Already a registration: the enumeration listed it, and its copy is read
+            // below whatever the keyed read would say.
+            if (IsListed(registrations, productCode, sid, context)) return true;
+
+            var state = pass.PatchStateOf(code, productCode, sid, context);
+
+            // ONLY THE INSTALLATION ANSWERING THAT IT HOLDS NO RECORD OF THE PATCH IS
+            // SKIPPED, and that answer is read first because it is marked unreadable as
+            // well, for the other readers of the same call. An answer that the
+            // installation's product is not installed is not that answer: the keyed
+            // product enumeration, or the caller's own, listed this installation in this
+            // account and context, so it contradicts what the pass established and keeps
+            // the file with every other read that did not answer.
+            if (state.PatchNotHeld) return true;
+            if (state.Unreadable) return false;
+
+            registrations.Add((productCode, sid, context));
+            return true;
+        }
+
         foreach (var target in targets)
         {
             pass.CancellationToken.ThrowIfCancellationRequested();
@@ -813,35 +839,50 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
                 return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchUnestablished, null);
 
             foreach (var (sid, context) in resolved.Instances)
-            {
-                // Already a registration: the enumeration listed it, and its copy is
-                // read below whatever the keyed read would say.
-                if (IsListed(registrations, target, sid, context)) continue;
-
-                var state = InstallerQueryService.GetPatchProperty(
-                    _msi, code, target, sid, context, MsiInstallProperty.State);
-
-                // ONLY THE INSTALLATION ANSWERING THAT IT HOLDS NO RECORD OF THE PATCH IS
-                // SKIPPED, and that answer is read first because it is marked unreadable
-                // as well, for the other readers of the same call. An answer that the
-                // installation's product is not installed is not that answer: the keyed
-                // product enumeration listed this installation moments earlier, in this
-                // account and context, so it contradicts what the pass established and
-                // keeps the file with every other read that did not answer.
-                if (state.PatchNotHeld) continue;
-                if (state.Unreadable)
+                if (!AskInstallation(target, sid, context))
                     return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchUnestablished, null);
+        }
 
-                registrations.Add((target, sid, context));
-            }
+        // WHERE A REGISTRATION FOUND SO FAR OPENS A COPY THAT CANNOT BE SEEN, EVERY COPY
+        // OF THE PATCH IS ALREADY KEPT, and the reads below could only add registrations,
+        // so they are not made.
+        IReadOnlyList<FileIdentity>? copies = null;
+        if (registrations.Count > 0)
+        {
+            copies = CopiesOpenedBy(code, registrations, namesAFileInInstallerFolder);
+            if (copies is null)
+                return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchRegistered, null);
+        }
+
+        // AND EVERY INSTALLATION THE CALLER'S ENUMERATION LISTED, PUT THE SAME QUESTION.
+        // The Template names the products that can accept the patch, and a registration
+        // against a product it does not name is not ruled out: Windows documents applying
+        // a patch to one instance of a program by that instance's own product code, and
+        // does not say that code has to be in the Template. An installation holding the
+        // patch answers by the patch's code whatever the Template says, and its copy is
+        // compared like any other registration's. Most installations answer in one call
+        // that they hold no record of the patch, and each answer is kept for the pass, so
+        // a second copy declaring the same patch asks nothing again.
+        var found = registrations.Count;
+        foreach (var installation in pass.Installations)
+        {
+            pass.CancellationToken.ThrowIfCancellationRequested();
+
+            if (!AskInstallation(installation.ProductCode, installation.UserSid, (MsiInstallContext)installation.Context))
+                return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchUnestablished, null);
         }
 
         if (registrations.Count == 0)
             return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchNotRegistered, null);
 
+        if (registrations.Count == found)
+            return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchRegistered, copies);
+
+        var more = CopiesOpenedBy(
+            code, registrations.GetRange(found, registrations.Count - found), namesAFileInInstallerFolder);
         return new DeclarationAnswer(
             DeclaredProductOutcome.DeclaredPatchRegistered,
-            CopiesOpenedBy(code, registrations, namesAFileInInstallerFolder));
+            more is null ? null : [.. copies ?? [], .. more]);
     }
 
     /// <summary>
@@ -1008,10 +1049,33 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         {
             _msi = msi;
             _listed = InstallerQueryService.InstallationsByCode(installations);
+            Installations = installations;
             CancellationToken = cancellationToken;
         }
 
         internal CancellationToken CancellationToken { get; }
+
+        /// <summary>Every installation the caller's enumeration listed.</summary>
+        internal IReadOnlyList<ListedInstallation> Installations { get; }
+
+        private readonly Dictionary<(string PatchCode, string ProductCode, string? Sid, MsiInstallContext Context),
+            InstallerQueryService.PropertyRead> _patchStates = new();
+
+        /// <summary>
+        /// One installation's answer to the keyed read of a patch's <c>State</c>, asked
+        /// once per pass whichever copy of the patch, and whichever of its target lists,
+        /// asks. The codes and the account compare without case.
+        /// </summary>
+        internal InstallerQueryService.PropertyRead PatchStateOf(
+            string patchCode, string productCode, string? sid, MsiInstallContext context)
+        {
+            var key = (patchCode.ToUpperInvariant(), productCode.ToUpperInvariant(), sid?.ToUpperInvariant(), context);
+            if (!_patchStates.TryGetValue(key, out var read))
+                _patchStates[key] = read = InstallerQueryService.GetPatchProperty(
+                    _msi, patchCode, productCode, sid, context, MsiInstallProperty.State);
+
+            return read;
+        }
 
         /// <summary>Each declared patch's answer, keyed by patch code and target list.</summary>
         internal Dictionary<string, DeclarationAnswer> Patches { get; } = new(StringComparer.Ordinal);

@@ -256,9 +256,9 @@ namespace InstallerClean.Models;
 /// (<see cref="WithholdingSplit.ContainmentRefusedCount"/> and
 /// <see cref="WithholdingSplit.ContainmentUnestablishedCount"/>); or the scan could not
 /// establish which cached files belong to which programs, which
-/// withholds the whole walk-derived set at once
+/// withholds the whole walk-derived set at once, or its installation packages alone
 /// (<see cref="WithholdingSplit.WholesaleCount"/>, and <see cref="WithholdingLeg"/> for
-/// the three findings that empty the offer wholesale); or this one candidate's own
+/// the three findings behind it); or this one candidate's own
 /// identity could not be read, so nothing could compare it against the
 /// registrations and it is kept back while the rest stand
 /// (<see cref="CandidateIdentityReads"/>); or the screen kept the candidate on what the
@@ -280,18 +280,20 @@ namespace InstallerClean.Models;
 /// lookup of a program that might have used the file. Both are true of every row
 /// whichever cause put it there, and there is no per-file record of which did.
 ///
-/// WHY THE FIRST CAUSE TAKES THE WHOLE WALK-DERIVED SET AND NOT ONE FILE, and the
-/// answer is the same shape for all three findings behind it: the app knows a needed
-/// file may be sitting in the candidate list and cannot say WHICH. For an unspellable
-/// claim, the claim is kept in the raw spelling Windows gave, so it matches nothing the
-/// walk produces, and the identity match cannot help either, because a value the path
-/// API refuses is a value CreateFile refuses too and there is nothing to open and
-/// compare. For a second copy of one program, the cached package registered to it
-/// declares the base product code, so the per-file screen can be told there is no such
-/// record while the second copy's own registration still needs the file, and nothing in
-/// the scan can work out which cached file belongs to that copy. Every unclaimed file is
+/// WHY THE FIRST CAUSE TAKES A WHOLE SET AND NOT ONE FILE, and the answer is the same
+/// shape for all three findings behind it: the app knows a needed file may be sitting in
+/// the candidate list and cannot say WHICH. For an unspellable claim, the claim is kept
+/// in the raw spelling Windows gave, so it matches nothing the walk produces, and the
+/// identity match cannot help either, because a value the path API refuses is a value
+/// CreateFile refuses too and there is nothing to open and compare. For a second copy of
+/// one program, the cached package registered to it declares the base product code, so
+/// the per-file screen can be told there is no such record while the second copy's own
+/// registration still needs the file, and nothing in the scan can work out which cached
+/// installation package belongs to that copy. Every unclaimed file of the set is
 /// therefore one that could have been meant, and the app cannot say of any of them that
-/// nothing needs it.
+/// nothing needs it. The set is the installation packages alone where the only finding
+/// is a second copy the scan could ask about by name, the screen putting each patch
+/// file's code to that copy (<see cref="WithholdingLegs.AnyHoldingPatchFiles"/>).
 ///
 /// THE SUPERSEDED HALF OF THE OFFER IS NEVER PUT HERE. Those rows are judged on
 /// products, through registry keys read by product code and patch code, and the
@@ -523,6 +525,15 @@ public record ScanResult(
     /// Read the other way round, an uncounted file would have been swept into a cause
     /// nobody established.
     ///
+    /// AND THE WHOLESALE READING NEEDS NOTHING WALK-DERIVED ON THE OFFER. The wholesale
+    /// arm can hold the installation packages alone while the patch files go on to the
+    /// per-file checks (<see cref="WithholdingLegs.AnyHoldingPatchFiles"/>), and a patch
+    /// file those checks let through is offered. The wholesale sentences say the scan
+    /// offered nothing it found by looking in the folder, which is false of that run, so
+    /// it takes the per-file reading, whose sentences are true of every held file. An
+    /// offered superseded patch comes from its own registration and not from the folder,
+    /// so it does not count against the wholesale reading.
+    ///
     /// A RUN WHOSE WITHHELD FILES WERE ALL COUNTED BY THE DECLARED-PRODUCT-INSTALLED,
     /// UNDER-A-DAY-OLD AND DECLARED-PATCH-REGISTERED ARMS READS AS
     /// <see cref="WithholdingAccount.KeptWithoutNotice"/>. The test is that those three
@@ -540,7 +551,8 @@ public record ScanResult(
             var withheld = WithheldFiles?.Count ?? 0;
             if (withheld == 0) return WithholdingAccount.Nothing;
 
-            if (WithheldBy.WholesaleCount == withheld)
+            if (WithheldBy.WholesaleCount == withheld
+                && RemovableFiles.All(file => file.IsRemovablePatch))
                 return WithholdingAccount.WholeWalkOffer;
 
             return WithheldBy.DeclaredProductInstalledCount
@@ -714,8 +726,8 @@ public record ScanResult(
 /// passed over.
 ///
 /// IT IS A READING OF A RESULT AND NOT A DECISION OF ITS OWN. Nothing sets one of
-/// these; <see cref="ScanResult.Withholding"/> derives it from the withheld list and
-/// the split, so it cannot drift from either.
+/// these; <see cref="ScanResult.Withholding"/> derives it from the withheld list, the
+/// split and the offer, so it cannot drift from any of them.
 /// </summary>
 public enum WithholdingAccount
 {
@@ -726,8 +738,9 @@ public enum WithholdingAccount
     Nothing,
 
     /// <summary>
-    /// Every file kept back was kept by the wholesale arm, so the sentence naming what
-    /// the scan could not establish about the machine's records is true of all of them.
+    /// Every file kept back was kept by the wholesale arm and nothing the folder walk
+    /// found is on the offer, so the sentence naming what the scan could not establish
+    /// about the machine's records is true of all of them.
     /// </summary>
     WholeWalkOffer,
 
@@ -1124,7 +1137,12 @@ public enum WithholdingLeg
     /// <summary>The identity of a file named in those records would not read.</summary>
     FileIdentityUnestablished,
 
-    /// <summary>A product may be installed more than once on this machine.</summary>
+    /// <summary>
+    /// A product may be installed more than once on this machine. It holds the
+    /// walk-derived installation packages, and the walk-derived patch files as well only
+    /// where the registry names a product the scan could not ask about
+    /// (<see cref="EnumerationCensus.RegistryProductUnaskable"/>).
+    /// </summary>
     SecondInstanceNotRuledOut,
 }
 
@@ -1133,7 +1151,8 @@ public enum WithholdingLeg
 /// rather than an expression written twice.
 ///
 /// THE GATE AND THE HOST THAT EXPLAINS IT READ THE SAME CALL. The scan asks whether
-/// anything fired; the command line asks which. Written as two expressions they agree
+/// anything fired, and whether what fired holds the patch files; the command line asks
+/// which. Written as two expressions they agree
 /// until one of them changes, after which the gate can grow a fourth condition while
 /// the breakdown under it goes on naming three, every test still green and the output
 /// still looking like an answer. Here a leg added to the enum is a leg the gate acts
@@ -1165,7 +1184,8 @@ public static class WithholdingLegs
     }
 
     /// <summary>
-    /// Whether the walk-derived offer is withheld wholesale: any leg at all.
+    /// Whether the walk-derived installation packages are withheld wholesale: any leg at
+    /// all.
     ///
     /// It calls <see cref="Fired"/> rather than repeating its conditions, which is the
     /// whole point of the type. The list is at most three entries and is built once per
@@ -1174,4 +1194,31 @@ public static class WithholdingLegs
     public static bool Any(
         EnumerationCensus census, FileIdentityReadTally registrationIdentityReads) =>
         Fired(census, registrationIdentityReads).Count > 0;
+
+    /// <summary>
+    /// Whether the walk-derived patch files are withheld wholesale as well: some leg that
+    /// fired holds them. Every leg does except
+    /// <see cref="WithholdingLeg.SecondInstanceNotRuledOut"/>, which holds them only where
+    /// <see cref="EnumerationCensus.RegistryProductUnaskable"/>: the check on a patch file
+    /// puts its patch code to every installation the scan listed, so a second copy the
+    /// scan listed answers for itself.
+    ///
+    /// A LEG ADDED LATER HOLDS PATCH FILES, the default arm below, until somebody decides
+    /// otherwise for it. It implies <see cref="Any"/>.
+    /// </summary>
+    public static bool AnyHoldingPatchFiles(
+        EnumerationCensus census, FileIdentityReadTally registrationIdentityReads)
+    {
+        foreach (var leg in Fired(census, registrationIdentityReads))
+        {
+            var holdsPatchFiles = leg switch
+            {
+                WithholdingLeg.SecondInstanceNotRuledOut => census.RegistryProductUnaskable,
+                _ => true,
+            };
+            if (holdsPatchFiles) return true;
+        }
+
+        return false;
+    }
 }

@@ -1016,9 +1016,9 @@ internal static class Program
     /// </remarks>
     private static void ReportScanSignals(string arg, ScanResult scanResult)
     {
-        // THE WALK OFFER WAS EMPTIED WHOLESALE. An audit line for every machine that
-        // meets it, and on stdout a lead, a header and one line per condition the run
-        // met. The lead is the one part that is gated, on whether anything was offered
+        // FILES THE FOLDER WALK FOUND WERE HELD BACK, IN ONE GO OR ONE AT A TIME. An
+        // audit line for every machine that meets it, and on stdout a lead, a header and
+        // one line per condition the run met. The lead is the one part that is gated, on whether anything was offered
         // beside the withheld half, and the comment at that line says what decides it.
         //
         // THIS BLOCK IS HERE RATHER THAN INSIDE THE EMPTY-OFFER BRANCH ABOVE THIS

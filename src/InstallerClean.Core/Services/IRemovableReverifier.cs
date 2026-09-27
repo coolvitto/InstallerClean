@@ -208,8 +208,8 @@ public enum HeldBackReason
 
     /// <summary>
     /// The re-enumeration met a condition under which the scan itself offers no
-    /// walk-derived file at all, so a file this batch carries is one the app would
-    /// not put on a list now.
+    /// walk-derived file of this file's kind, so a file this batch carries is one the app
+    /// would not put on a list now.
     ///
     /// IT IS ABOUT THE MACHINE AND NOT ABOUT THE FILE, which is what separates it
     /// from the three above. Those are findings about the registration that names
@@ -217,9 +217,10 @@ public enum HeldBackReason
     /// This one rests on a fact about the machine and on nothing about the file,
     /// which is why it earns a count of its own even though no sentence names it.
     ///
-    /// WHAT REACHES IT is <see cref="WithholdingLegs.Any"/>, the expression the
-    /// scan's own withholding asks, put to the re-enumeration's census and to the
-    /// registration side of the identity comparison this check re-runs: a leg added
+    /// WHAT REACHES IT is <see cref="WithholdingLegs.Any"/> for an installation package
+    /// and <see cref="WithholdingLegs.AnyHoldingPatchFiles"/> for a patch file, the
+    /// expressions the scan's own withholding asks, put to the re-enumeration's census and
+    /// to the registration side of the identity comparison this check re-runs: a leg added
     /// there is acted on here without this file being edited. Several different
     /// findings reach it, which is one reason among several that the copy names no
     /// cause at all.

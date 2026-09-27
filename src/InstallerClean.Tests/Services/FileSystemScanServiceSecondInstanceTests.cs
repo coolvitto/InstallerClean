@@ -8,13 +8,16 @@ namespace InstallerClean.Tests.Services;
 /// <summary>
 /// What a scan offers on a PC carrying the same program installed twice.
 ///
-/// THE CONDITION AND WHY IT EMPTIES ANYTHING. A product installed under an instance
-/// transform registers under a product code the transform produced, while the package
-/// cached for it declares the base code. The declared-product screen reads a product
-/// code OUT OF the candidate file and asks Windows about it, so on such a machine that
-/// screen can be told there is no record while the second copy's own registration still
-/// needs the file. Nothing in the scan can work out WHICH cached file belongs to the
-/// second copy, so no walk-derived file is offered.
+/// THE CONDITION AND WHAT IT HOLDS. A product installed under an instance transform
+/// registers under a product code the transform produced, while the package cached for
+/// it declares the base code. The declared-product screen reads a product code OUT OF
+/// the candidate file and asks Windows about it, so on such a machine that screen can be
+/// told there is no record while the second copy's own registration still needs the
+/// file. Nothing in the scan can work out WHICH cached installation package belongs to
+/// the second copy, so no walk-derived installation package is offered. A walk-derived
+/// patch file goes on to the screen, which puts its patch code to every installation the
+/// scan listed; only where the registry names a product the scan could not ask about is
+/// it held with the packages.
 ///
 /// READ WHAT THESE FIXTURES SET UP AND NOT WHAT THEY ASSERT. Every one of them differs
 /// from <see cref="An_ordinary_machine_keeps_every_file_it_would_have_offered"/> in the
@@ -96,6 +99,37 @@ public class FileSystemScanServiceSecondInstanceTests
     }
 
     [Fact]
+    public async Task A_second_instance_holds_the_installation_package_and_leaves_the_patch_file_to_the_checks()
+    {
+        // A product answered that it is a second instance of itself, which the scan could
+        // ask about by name. The walked patch file goes on to the per-file checks, none of
+        // which is injected here, and is offered.
+        var result = await Scan(new EnumerationCensus(InstanceProductCount: 1), walkPatchOrphan: true);
+
+        Assert.Equal(PatchOrphan, Assert.Single(result.RemovableFiles).FullPath);
+        Assert.Equal(Orphan, Assert.Single(result.WithheldFiles!).FullPath);
+        Assert.Equal(1, result.WithheldBy.WholesaleCount);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_product_nobody_could_ask_about_holds_the_patch_file_as_well(bool unanswered)
+    {
+        // A code Windows would not say was installed, or a key whose name is no code: no
+        // question the screen could put reaches that product.
+        var census = unanswered
+            ? new EnumerationCensus(UnansweredProductCount: 1)
+            : new EnumerationCensus(UnparseableProductKeyNames: 1);
+
+        var result = await Scan(census, walkPatchOrphan: true);
+
+        Assert.Empty(result.RemovableFiles);
+        Assert.Equal(2, result.WithheldFiles!.Count);
+        Assert.Equal(2, result.WithheldBy.WholesaleCount);
+    }
+
+    [Fact]
     public async Task A_wholesale_withholding_that_caught_nothing_does_not_report_itself()
     {
         // THE WHOLESALE COUNT SAYS WHAT THE WITHHOLDING TOOK, NOT THAT THE BRANCH WAS
@@ -112,6 +146,9 @@ public class FileSystemScanServiceSecondInstanceTests
 
     private const string Superseded = @"C:\Windows\Installer\superseded.msp";
 
+    /// <summary>A walked patch file no registration names.</summary>
+    private const string PatchOrphan = @"C:\Windows\Installer\orphan.msp";
+
     /// <param name="census">
     /// The only thing that varies between the fixtures here. Handed through the query
     /// seam exactly as the enumeration would produce it.
@@ -124,14 +161,19 @@ public class FileSystemScanServiceSecondInstanceTests
     /// Adds a registered patch that reached this point still carrying its removable
     /// verdict, which is the half of the offer the walk-derived rule does not cover.
     /// </param>
+    /// <param name="walkPatchOrphan">
+    /// Whether the folder also holds a patch file no registration names.
+    /// </param>
     private static async Task<ScanResult> Scan(
         EnumerationCensus census,
         bool walkOrphan = true,
-        bool supersededOffer = false)
+        bool supersededOffer = false,
+        bool walkPatchOrphan = false)
     {
         var walked = new List<string> { Anchor };
         if (walkOrphan) walked.Add(Orphan);
         if (supersededOffer) walked.Add(Superseded);
+        if (walkPatchOrphan) walked.Add(PatchOrphan);
 
         var fs = new MockFileSystem();
         fs.AddDirectory(CacheRoot);

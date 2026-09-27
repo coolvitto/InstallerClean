@@ -258,8 +258,10 @@ public sealed class RemovableReverifier : IRemovableReverifier
     /// held rather than left for the action services' own guard, which runs later
     /// against a root of its own and could answer differently.
     ///
-    /// WHERE A LEG FIRES, EVERY FILE STILL STANDING IS HELD AND THE LAST TWO STEPS DO
-    /// NOT RUN, as in the scan: each file is already kept on a fact about the machine.
+    /// WHERE A LEG FIRES, EVERY INSTALLATION PACKAGE STILL STANDING IS HELD, AND EVERY
+    /// PATCH FILE TOO WHERE THE LEG HOLDS THEM, as in the scan: each is already kept on a
+    /// fact about the machine, and the last two steps run on what is left. A patch file is
+    /// told by its extension, as the screen's own call below tells it.
     /// </summary>
     private void HoldWalkDerivedFilesTheScanWouldHold(
         List<string> walkDerived,
@@ -304,14 +306,15 @@ public sealed class RemovableReverifier : IRemovableReverifier
             });
         }
 
-        // THE SCAN'S OWN WHOLESALE WITHHOLDING, asked through the expression the scan
+        // THE SCAN'S OWN WHOLESALE WITHHOLDING, asked through the expressions the scan
         // asks it through, so a leg added there is acted on here without this file
         // being edited. Where the identity comparison did not run, its tally is zero
         // attempts and the enumeration's two legs answer alone.
         if (WithholdingLegs.Any(query.Census, registrationReads))
         {
-            foreach (var path in standing) held.TryAdd(path, HeldBackReason.OwnershipUnestablished);
-            return;
+            var patchFilesToo = WithholdingLegs.AnyHoldingPatchFiles(query.Census, registrationReads);
+            standing = Keep(standing, held, path =>
+                patchFilesToo || !IsPatchFile(path) ? HeldBackReason.OwnershipUnestablished : null);
         }
 
         if (_declaredProducts is not null && cacheRoot is not null && standing.Count > 0)
@@ -346,7 +349,7 @@ public sealed class RemovableReverifier : IRemovableReverifier
             .Select(path => new OrphanedFile(
                 FullPath: path,
                 SizeBytes: 0,
-                IsPatch: Path.GetExtension(path).Equals(".msp", StringComparison.OrdinalIgnoreCase),
+                IsPatch: IsPatchFile(path),
                 IsRemovablePatch: false,
                 IsObsoleted: false,
                 Reason: Resources.Strings.Reason_Orphaned))
@@ -417,6 +420,10 @@ public sealed class RemovableReverifier : IRemovableReverifier
 
         return kept;
     }
+
+    /// <summary>Whether a walk-derived path is a patch file, by its extension as the scan tells it.</summary>
+    private static bool IsPatchFile(string path) =>
+        Path.GetExtension(path).Equals(".msp", StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     /// <remarks>

@@ -3,20 +3,21 @@ using InstallerClean.Models;
 namespace InstallerClean.Tests.Models;
 
 /// <summary>
-/// The expression that decides whether the walk-derived offer is withheld wholesale,
-/// pinned over every combination of its three conditions.
+/// The expressions that decide whether the walk-derived offer, or its installation
+/// packages alone, is withheld wholesale, pinned over every combination of their three
+/// conditions.
 ///
 /// THE TABLE IS WRITTEN OUT BY HAND AND NOT COMPUTED. Eight rows, each carrying the
-/// legs it expects and the verdict it expects, both as literals. A test that worked
+/// legs it expects and the two verdicts it expects, all as literals. A test that worked
 /// out its expectation from the thing under test would agree with itself over any
 /// behaviour at all, and the assertions would look exactly the same. This is the one
 /// place a reader can check what the gate does without reading the gate.
 ///
-/// WHAT IT IS FOR IS THE REFACTOR AND NOT THE ARITHMETIC. The three conditions used to
-/// be written out at the gate and would have been written out again at the host that
-/// explains them; they are one call now, and this table says the behaviour did not move
-/// when they became one. It is also what a fourth condition has to be added to, which
-/// is the point at which somebody has to decide what the host says about it.
+/// WHAT IT IS FOR IS THE WIRING AND NOT THE ARITHMETIC. The three conditions are one
+/// call that the gate and the host explaining it both read, and this table says what
+/// that call answers. It is also what a fourth condition has to be added to, which is
+/// the point at which somebody has to decide what the host says about it and whether
+/// it holds the patch files.
 /// </summary>
 public class WithholdingLegsTests
 {
@@ -29,29 +30,34 @@ public class WithholdingLegsTests
     private static FileIdentityReadTally Reads(bool unestablished) =>
         new(AttemptCount: 1, OpenRefusedCount: unestablished ? 1 : 0);
 
-    public static TheoryData<bool, bool, bool, WithholdingLeg[], bool> Table() => new()
+    /// <summary>
+    /// The second instance here is a product that answered it is one, which the scan
+    /// could ask about by name, so its row holds the installation packages alone. The
+    /// members that hold the patch files as well have a theory of their own below.
+    /// </summary>
+    public static TheoryData<bool, bool, bool, WithholdingLeg[], bool, bool> Table() => new()
     {
-        // recordedPath, identity, secondInstance,  legs expected,  gate expected
-        { false, false, false, [], false },
-        { true,  false, false, [WithholdingLeg.RecordedPathUnestablished], true },
-        { false, true,  false, [WithholdingLeg.FileIdentityUnestablished], true },
-        { false, false, true,  [WithholdingLeg.SecondInstanceNotRuledOut], true },
+        // recordedPath, identity, secondInstance,  legs expected,  gate expected,  patch gate expected
+        { false, false, false, [], false, false },
+        { true,  false, false, [WithholdingLeg.RecordedPathUnestablished], true, true },
+        { false, true,  false, [WithholdingLeg.FileIdentityUnestablished], true, true },
+        { false, false, true,  [WithholdingLeg.SecondInstanceNotRuledOut], true, false },
         { true,  true,  false, [WithholdingLeg.RecordedPathUnestablished,
-                                WithholdingLeg.FileIdentityUnestablished], true },
+                                WithholdingLeg.FileIdentityUnestablished], true, true },
         { true,  false, true,  [WithholdingLeg.RecordedPathUnestablished,
-                                WithholdingLeg.SecondInstanceNotRuledOut], true },
+                                WithholdingLeg.SecondInstanceNotRuledOut], true, true },
         { false, true,  true,  [WithholdingLeg.FileIdentityUnestablished,
-                                WithholdingLeg.SecondInstanceNotRuledOut], true },
+                                WithholdingLeg.SecondInstanceNotRuledOut], true, true },
         { true,  true,  true,  [WithholdingLeg.RecordedPathUnestablished,
                                 WithholdingLeg.FileIdentityUnestablished,
-                                WithholdingLeg.SecondInstanceNotRuledOut], true },
+                                WithholdingLeg.SecondInstanceNotRuledOut], true, true },
     };
 
     [Theory]
     [MemberData(nameof(Table))]
     public void Every_combination_fires_the_legs_the_table_says(
         bool recordedPath, bool identity, bool secondInstance,
-        WithholdingLeg[] expected, bool expectedGate)
+        WithholdingLeg[] expected, bool expectedGate, bool expectedPatchGate)
     {
         var census = Census(recordedPath, secondInstance);
         var reads = Reads(identity);
@@ -60,13 +66,33 @@ public class WithholdingLegsTests
         // to it changes what a reader meets and is not an implementation detail.
         Assert.Equal(expected, WithholdingLegs.Fired(census, reads));
         Assert.Equal(expectedGate, WithholdingLegs.Any(census, reads));
+        Assert.Equal(expectedPatchGate, WithholdingLegs.AnyHoldingPatchFiles(census, reads));
+    }
+
+    [Theory]
+    [InlineData(nameof(EnumerationCensus.InstanceProductCount), false)]
+    [InlineData(nameof(EnumerationCensus.InstanceTypeUnreadableCount), false)]
+    [InlineData(nameof(EnumerationCensus.UnansweredProductCount), true)]
+    [InlineData(nameof(EnumerationCensus.UnparseableProductKeyNames), true)]
+    public void The_second_instance_leg_holds_the_patch_files_only_for_a_product_nobody_could_ask(
+        string member, bool holdsPatchFiles)
+    {
+        // Each of the leg's four members on its own. The installation packages are held
+        // on every one; the patch files only where the registry names a product the scan
+        // could not put the patch's code to.
+        var census = CensusWithOnly(member);
+        var reads = default(FileIdentityReadTally);
+
+        Assert.Equal([WithholdingLeg.SecondInstanceNotRuledOut], WithholdingLegs.Fired(census, reads));
+        Assert.True(WithholdingLegs.Any(census, reads));
+        Assert.Equal(holdsPatchFiles, WithholdingLegs.AnyHoldingPatchFiles(census, reads));
     }
 
     [Theory]
     [MemberData(nameof(Table))]
     public void The_result_reads_the_same_legs_the_gate_was_given(
         bool recordedPath, bool identity, bool secondInstance,
-        WithholdingLeg[] expected, bool expectedGate)
+        WithholdingLeg[] expected, bool expectedGate, bool expectedPatchGate)
     {
         // The host reads them off the result rather than off the two values, so the
         // property is held to the same table. It calls the same static, which is what
@@ -81,6 +107,9 @@ public class WithholdingLegsTests
 
         Assert.Equal(expected, result.WithholdingLegsFired);
         Assert.Equal(expectedGate, result.WithholdingLegsFired.Count > 0);
+        // And the two values the patch-file gate reads travel on the result unchanged.
+        Assert.Equal(expectedPatchGate,
+            WithholdingLegs.AnyHoldingPatchFiles(result.Census, result.RegistrationIdentityReads));
     }
 
     /// <summary>
@@ -115,6 +144,22 @@ public class WithholdingLegsTests
 
         Assert.Equal(WithholdingLegs.Fired(census, reads).Count > 0,
             WithholdingLegs.Any(census, reads));
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryCensusMember))]
+    public void The_patch_file_gate_fires_only_where_the_gate_does_for_every_member_on_its_own(string member)
+    {
+        // The patch files are never held where the installation packages are not, and
+        // the two gates part only on the two members that say a product answered, or
+        // would not answer, whether it is a second instance of itself.
+        var census = CensusWithOnly(member);
+        var reads = default(FileIdentityReadTally);
+        var partsFromTheGate = member is nameof(EnumerationCensus.InstanceProductCount)
+            or nameof(EnumerationCensus.InstanceTypeUnreadableCount);
+
+        Assert.Equal(WithholdingLegs.Any(census, reads) && !partsFromTheGate,
+            WithholdingLegs.AnyHoldingPatchFiles(census, reads));
     }
 
     [Theory]

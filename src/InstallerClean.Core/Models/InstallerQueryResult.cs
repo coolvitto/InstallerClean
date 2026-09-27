@@ -55,7 +55,8 @@ namespace InstallerClean.Models;
 /// decides from it whether the superseded rows are withheld, before
 /// <see cref="Packages"/> is returned. The scan and the check made just before a Move or
 /// Delete decide from it, with the registration side's identity reads, whether the
-/// walk-derived offer is withheld wholesale (see <see cref="WithholdingLegs"/>). The
+/// walk-derived offer, or its installation packages alone, is withheld wholesale (see
+/// <see cref="WithholdingLegs"/>). The
 /// scan carries it into its own result, where the opt-in report reads it and the
 /// command line names the withholding legs that fired.
 /// Default on a result built by anything that does not enumerate, which reads as a
@@ -233,10 +234,11 @@ public record InstallerQueryResult(
 /// enumeration's completeness follows from an unanswered question.
 ///
 /// IT WITHHOLDS TWICE. The superseded class is withheld, each such code being one of the
-/// program entries this scan could not check. And the walk-derived offer is
-/// withheld, through <see cref="SecondInstanceNotRuledOut"/>: a product Windows would
-/// not answer about was never asked its <c>InstanceType</c>, so nothing shows it is
-/// not a second instance of itself.
+/// program entries this scan could not check. And the whole walk-derived offer is
+/// withheld, through <see cref="SecondInstanceNotRuledOut"/> and
+/// <see cref="RegistryProductUnaskable"/>: a product Windows would not answer about was
+/// never asked its <c>InstanceType</c>, so nothing shows it is not a second instance of
+/// itself, and it cannot be asked whether it holds a patch.
 /// </param>
 /// <param name="UnparseableProductKeyNames">
 /// Registry product key names that yielded no product code, so there was nothing
@@ -254,10 +256,10 @@ public record InstallerQueryResult(
 /// Counted while walking every product key, not only the ones the enumeration
 /// missed, so it is a property of the registry's contents rather than of a run.
 ///
-/// It withholds on the same two terms as the count above, the walk-derived offer
-/// through <see cref="SecondInstanceNotRuledOut"/> included: a key whose name yields
-/// no code cannot be matched to any product that was asked, so nothing shows the
-/// product it belongs to was asked its <c>InstanceType</c>.
+/// It withholds on the same two terms as the count above, the whole walk-derived offer
+/// included: a key whose name yields no code cannot be matched to any product that was
+/// asked, so nothing shows the product it belongs to was asked its <c>InstanceType</c>
+/// or whether it holds a patch.
 ///
 /// Between them these three report, per machine, what proportion of its registry
 /// keys really were residue. The difference between the two product totals cannot
@@ -576,11 +578,12 @@ public readonly record struct EnumerationCensus(
 
     /// <summary>
     /// Whether this scan failed to establish that every product it knows of is an
-    /// ordinary single-instance installation. THE ONE THING THE SECOND-INSTANCE
-    /// WITHHOLDING ASKS, and it is here rather than in the service that acts on it for
-    /// the reason <see cref="AnyRecordedPathUnestablished"/> is: a rule that named the
-    /// members itself would be one edit away from silently not acting on a member added
-    /// later, with a green build and a counter still reporting.
+    /// ordinary single-instance installation. THE ONE THING THE SECOND-INSTANCE LEG FIRES
+    /// ON, with <see cref="RegistryProductUnaskable"/> deciding whether it takes the
+    /// walk-derived patch files as well, and it is here rather than in the service that
+    /// acts on it for the reason <see cref="AnyRecordedPathUnestablished"/> is: a rule
+    /// that named the members itself would be one edit away from silently not acting on a
+    /// member added later, with a green build and a counter still reporting.
     ///
     /// FOUR MEMBERS, AND THE SUPERORDINATE IS EXACT. <see cref="InstanceProductCount"/>
     /// is a positive answer that a product IS a second instance of itself.
@@ -598,8 +601,15 @@ public readonly record struct EnumerationCensus(
     /// declares the base code. So <see cref="Services.DeclaredProductCheck"/>, which
     /// reads a product code OUT OF A CACHED FILE and puts it to Windows, can be told
     /// there is no such record while a live registration still needs that file. The app
-    /// has no way to tell WHICH cached file belongs to the second copy, which is the
-    /// whole condition, so the walk-derived offer is withheld.
+    /// has no way to tell WHICH cached installation package belongs to the second copy,
+    /// which is the whole condition, so the walk-derived installation packages are
+    /// withheld.
+    ///
+    /// WALK-DERIVED PATCH FILES ARE WITHHELD ONLY ON <see cref="RegistryProductUnaskable"/>.
+    /// A patch file declares its patch code, and the check puts that code to every
+    /// installation this scan listed, a second copy included, so a copy holding the patch
+    /// answers for itself. A product the registry names that this scan could not ask about
+    /// is the one such a question cannot reach.
     ///
     /// AND NOT KNOWING WITHHOLDS ON THE SAME TERMS AS KNOWING. A read that failed leaves
     /// the machine in exactly the state the positive reading describes as far as this rule
@@ -626,5 +636,22 @@ public readonly record struct EnumerationCensus(
         InstanceProductCount > 0
         || InstanceTypeUnreadableCount > 0
         || UnansweredProductCount > 0
+        || UnparseableProductKeyNames > 0;
+
+    /// <summary>
+    /// Whether the registry names a product this scan could not put a question to by
+    /// name: a code Windows would not say was installed
+    /// (<see cref="UnansweredProductCount"/>), or a product key whose name yields no code
+    /// (<see cref="UnparseableProductKeyNames"/>). Two of
+    /// <see cref="SecondInstanceNotRuledOut"/>'s four members, and the two on which the
+    /// walk-derived patch files are withheld as well as the installation packages.
+    ///
+    /// WHY THESE TWO. The check on a walk-derived patch file puts the patch's code to every
+    /// installation this scan listed and to every installation of a product the file
+    /// names. Neither reaches a product this scan could not ask about, which may hold the
+    /// patch, or be a second copy of a program that does.
+    /// </summary>
+    public bool RegistryProductUnaskable =>
+        UnansweredProductCount > 0
         || UnparseableProductKeyNames > 0;
 }

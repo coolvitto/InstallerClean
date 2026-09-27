@@ -2901,6 +2901,105 @@ public class DeclaredProductCheckTests
         Assert.False(outcome.Withholds());
     }
 
+    // ---- Every installation the caller listed, asked about the patch ----
+    //
+    // A patch's Template names the products that can accept it, and the machine-wide
+    // enumeration need not list every registration. Product B below is an installation
+    // the caller listed that neither names: the keyed read put to it is the only way to
+    // hear that it holds the patch.
+
+    /// <summary>
+    /// Patch Q, naming product A, which answers that it holds no record of Q. The
+    /// machine-wide enumeration lists nothing. The caller listed A and B.
+    /// </summary>
+    private static (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi)
+        APatchOnlyAnUnnamedInstallationCanHold()
+    {
+        var packages = new ScriptedPackageIdentities();
+        packages.DeclaresPatch(PatchCopy, PatchQ, ProductA);
+
+        var msi = new ScriptedMsiProducts();
+        msi.Installed(ProductA);
+        msi.HoldsNoPatches();
+        msi.PatchStateAnswers(PatchQ, ProductA, null, MsiInstallContext.Machine, MsiError.UnknownPatch);
+
+        return (packages, msi);
+    }
+
+    private static readonly ListedInstallation[] ListedAAndB =
+        [ListedPerMachine(ProductA), ListedPerMachine(ProductB)];
+
+    [Fact]
+    public void A_listed_installation_the_patch_does_not_name_is_asked_and_its_registration_keeps_the_copy()
+    {
+        var (packages, msi) = APatchOnlyAnUnnamedInstallationCanHold();
+        msi.PatchState(PatchQ, ProductB, null, MsiInstallContext.Machine, "1");
+
+        var outcome = new DeclaredProductCheck(msi, packages)
+            .Screen(new[] { Patch(PatchCopy) }, ListedAAndB)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredPatchRegistered, outcome);
+        Assert.True(outcome.Withholds());
+    }
+
+    [Fact]
+    public void The_same_installation_holding_no_record_of_the_patch_leaves_the_copy_where_it_was()
+    {
+        var (packages, msi) = APatchOnlyAnUnnamedInstallationCanHold();
+        msi.PatchStateAnswers(PatchQ, ProductB, null, MsiInstallContext.Machine, MsiError.UnknownPatch);
+
+        var outcome = new DeclaredProductCheck(msi, packages)
+            .Screen(new[] { Patch(PatchCopy) }, ListedAAndB)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredPatchNotRegistered, outcome);
+        Assert.Contains((PatchQ, ProductB, (string?)null, MsiInstallContext.Machine), msi.PatchStateReads);
+    }
+
+    [Fact]
+    public void The_same_installation_giving_no_answer_keeps_the_copy()
+    {
+        var (packages, msi) = APatchOnlyAnUnnamedInstallationCanHold();
+        msi.PatchStateAnswers(PatchQ, ProductB, null, MsiInstallContext.Machine, 1610);
+
+        var outcome = new DeclaredProductCheck(msi, packages)
+            .Screen(new[] { Patch(PatchCopy) }, ListedAAndB)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredPatchUnestablished, outcome);
+    }
+
+    [Fact]
+    public void Copies_of_one_patch_naming_different_products_ask_each_installation_once()
+    {
+        // Two target lists put two questions about the patch, and each installation's
+        // answer about it is the same whichever list asks.
+        const string SecondCopy = @"C:\Windows\Installer\copy2.msp";
+        var (packages, msi) = APatchOnlyAnUnnamedInstallationCanHold();
+        packages.DeclaresPatch(SecondCopy, PatchQ, ProductA, ProductB);
+        msi.Installed(ProductB);
+        msi.PatchStateAnswers(PatchQ, ProductB, null, MsiInstallContext.Machine, MsiError.UnknownPatch);
+
+        var outcomes = new DeclaredProductCheck(msi, packages)
+            .Screen(new[] { Patch(PatchCopy), Patch(SecondCopy) }, ListedAAndB);
+
+        Assert.All(outcomes, o => Assert.Equal(DeclaredProductOutcome.DeclaredPatchNotRegistered, o));
+        Assert.Equal(2, msi.PatchStateReads.Count);
+    }
+
+    [Fact]
+    public void Where_a_registration_already_keeps_every_copy_the_other_installations_are_not_asked()
+    {
+        // The registration the enumeration lists records no copy, so every copy of the
+        // patch is kept whatever else holds it. B is left unscripted, and a read put to it
+        // would throw.
+        var f = APatchCopyBesideTheRecordedCopy();
+        f.Msi.RecordsPatchPackage(PatchQ, ProductA, null, MsiInstallContext.Machine, "");
+
+        var outcome = ScreenThePatchCopy(f, installations: ListedAAndB);
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredPatchRegistered, outcome);
+        Assert.Empty(f.Msi.PatchStateReads);
+    }
+
     // ---- What the outcomes mean, pinned over the whole enum ----
 
     [Fact]

@@ -72,12 +72,16 @@ namespace InstallerClean.Services;
 /// registration in a per-user-unmanaged context keeps it as well, the patch's source
 /// list there not being read.
 ///
-/// A PATCH'S REGISTRATIONS ARE FOUND TWO WAYS, AND THE TWO ARE UNIONED. The
+/// A PATCH'S REGISTRATIONS ARE FOUND THREE WAYS, AND THE THREE ARE UNIONED. The
 /// machine-wide patch enumeration lists the registrations it names, each with its
 /// product, account and context. The keyed patch read puts the patch to every
 /// installation of every product the patch's own Template names, which reaches a
-/// registration of those products that the enumeration does not list. Either can
-/// only add a registration, and so only add a reason to keep the file.
+/// registration of those products that the enumeration does not list. And the same
+/// read is put to every installation the caller's enumeration listed, which reaches a
+/// registration against a product the Template does not name, a second copy of a
+/// program among them. Each can only add a registration, and so only add a reason to
+/// keep the file. Where the registrations the first two found already keep every
+/// copy, the third is not asked.
 ///
 /// EVERY ANSWER ABOUT A PRODUCT IS HELD AGAINST THE CALLER'S OWN ENUMERATION. The
 /// check asks Windows for the installations of one product code at a time, and the
@@ -278,10 +282,10 @@ public enum DeclaredProductOutcome
     /// a list of GUIDs or names no product. The others are about the RECORDS: the
     /// machine-wide patch enumeration did not run to its end, a product the patch names
     /// would not list its installations or listed them without one the caller's own
-    /// enumeration listed, or an installation of one would not answer the keyed patch
-    /// read. That last includes an installation answering that its product is not
-    /// installed, which contradicts the keyed product enumeration that listed it
-    /// moments earlier. What they share, and the whole of what this value claims, is
+    /// enumeration listed, or an installation of one, or one the caller's enumeration
+    /// listed, would not answer the keyed patch read. That last includes an installation
+    /// answering that its product is not installed, which contradicts the enumeration
+    /// that listed it. What they share, and the whole of what this value claims, is
     /// that nothing was established.
     ///
     /// A PATCH HAS A VERDICT OF ITS OWN FOR THIS RATHER THAN SHARING
@@ -293,11 +297,11 @@ public enum DeclaredProductOutcome
     /// <summary>
     /// The file is a patch, and Windows positively answered that it holds no
     /// registration of the patch the file declares: the machine-wide patch enumeration
-    /// ran to its end and listed none, and every installation of every product the
-    /// patch names, every one the caller's own enumeration listed among them, answered
-    /// that it holds no record of the patch, or no such product is installed and that
-    /// enumeration listed no installation of it. The candidate goes on being decided by
-    /// everything else.
+    /// ran to its end and listed none, every installation of every product the patch
+    /// names answered that it holds no record of the patch, or no such product is
+    /// installed and the caller's own enumeration listed no installation of it, and every
+    /// installation that enumeration listed answered the same. The candidate goes on
+    /// being decided by everything else.
     ///
     /// A POSITIVE ANSWER AND NOT AN ABSENCE OF ONE, as for
     /// <see cref="DeclaredProductNotInstalled"/>. Only ERROR_UNKNOWN_PATCH from the keyed

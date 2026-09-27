@@ -562,9 +562,9 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // not act on, with a green build, a counter still reporting it and nothing to
         // show for it but files still being offered. So the question is spelled once,
         // where the members are.
-        // ASKED ONCE AND KEPT, rather than asked here and asked again where the
-        // result is reported. The hosts need to know that this branch was taken, and
-        // a second reading of the census further down would be a copy of this rule
+        //
+        // THE HOSTS READ THE SAME EXPRESSION OFF THE RESULT (ScanResult.WithholdingLegsFired)
+        // rather than a second reading of the census, which would be a copy of this rule
         // able to answer differently from it after any edit to either.
         //
         // AND THE SIXTH, WHICH IS THE SAME ARGUMENT ABOUT THE OTHER HALF OF THE
@@ -589,46 +589,55 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // and the per-file screen below reads a code out of a file and asks Windows
         // about it. On such a machine that screen can be told there is no record while
         // a live registration still needs the file, and no part of this scan can work
-        // out WHICH cached file belongs to the second copy. So where the scan cannot
-        // establish that no product is such a copy, the screen is not run and nothing
-        // walk-derived is offered. The question is asked of the census, where its
-        // members live, on the same rule as the other two.
+        // out WHICH cached installation package belongs to the second copy. So where the
+        // scan cannot establish that no product is such a copy, no walk-derived
+        // installation package is offered. The question is asked of the census, where
+        // its members live, on the same rule as the other two.
         //
-        // AND IT IS ONE CALL RATHER THAN THREE CONDITIONS SPELLED OUT HERE. A host
-        // names which of these held, so the gate and that host read the same
+        // A PATCH FILE IS SCREENED ON THAT THIRD CONDITION RATHER THAN HELD. It declares
+        // its patch code, and the screen puts that code to every installation this scan
+        // listed, so a second copy the scan listed that holds the patch answers for
+        // itself. Where the registry names a product the scan could not ask about, which
+        // two of the condition's members are, the patch files are held as well; the
+        // first two conditions hold them always.
+        //
+        // AND IT IS ONE CALL PER KIND RATHER THAN THREE CONDITIONS SPELLED OUT HERE. A
+        // host names which of these held, so the gate and that host read the same
         // expression: a condition added to WithholdingLeg is one this line acts on and
-        // one that host prints. A condition written in beside this call instead,
+        // one that host prints. A condition written in beside these calls instead,
         // which would withhold an offer the breakdown has nothing to say about, is
         // what FileSystemScanServiceWithholdingLegsTests holds this line against.
-        var withholdWalkOfferWholesale =
-            WithholdingLegs.Any(query.Census, registrationIdentityReads);
+        var holdPackagesWholesale = WithholdingLegs.Any(query.Census, registrationIdentityReads);
+        var holdPatchFilesWholesale =
+            WithholdingLegs.AnyHoldingPatchFiles(query.Census, registrationIdentityReads);
 
-        if (withholdWalkOfferWholesale)
+        if (holdPackagesWholesale)
         {
-            // Every candidate is already kept back on a fact about the machine, so
-            // the per-file screen below could only reach the same answer at the cost
-            // of opening every one of them. Skipped rather than run and thrown away.
+            // Every candidate of a kind held here is already kept back on a fact about
+            // the machine, so the per-file screen below could only reach the same answer
+            // at the cost of opening it. It is not handed to the screen.
             //
             // Candidates the identity pass already withheld one at a time are on the
             // withheld list and off this one, so nothing lands on it twice.
-            withheld.AddRange(unclaimedByPath);
-            withheldBy.Wholesale(unclaimedByPath.Count);
+            bool HeldWholesale(OrphanedFile candidate) => holdPatchFilesWholesale || !candidate.IsPatch;
+            var heldWholesale = unclaimedByPath.Where(HeldWholesale).ToList();
+            withheld.AddRange(heldWholesale);
+            withheldBy.Wholesale(heldWholesale.Count);
+            unclaimedByPath.RemoveAll(HeldWholesale);
         }
-        else
-        {
-            WithholdCandidatesByWhatTheyDeclare(
-                unclaimedByPath, withheld, withheldBy, cacheRoot, query.Installations, cancellationToken,
-                (ex, cause) => refusalLog.Record(ex, cause));
 
-            // THE LAST DECISION ON THIS HALF, AND IT TAKES WHAT THE SCREEN LET THROUGH.
-            // Run after the screen rather than before it, so the screen's own verdicts
-            // are counted where they always were and this counts only what it kept
-            // back from the offer.
-            WithholdCandidatesNotShownADayOld(
-                unclaimedByPath, withheld, withheldBy, scanClock, cancellationToken);
+        WithholdCandidatesByWhatTheyDeclare(
+            unclaimedByPath, withheld, withheldBy, cacheRoot, query.Installations, cancellationToken,
+            (ex, cause) => refusalLog.Record(ex, cause));
 
-            removable.AddRange(unclaimedByPath);
-        }
+        // THE LAST DECISION ON THIS HALF, AND IT TAKES WHAT THE SCREEN LET THROUGH.
+        // Run after the screen rather than before it, so the screen's own verdicts
+        // are counted where they always were and this counts only what it kept
+        // back from the offer.
+        WithholdCandidatesNotShownADayOld(
+            unclaimedByPath, withheld, withheldBy, scanClock, cancellationToken);
+
+        removable.AddRange(unclaimedByPath);
 
         // Stat every registered package once here so the Details window
         // doesn't have to hit disk on the UI thread when it opens.

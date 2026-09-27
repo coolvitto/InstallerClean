@@ -732,8 +732,9 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // that would not answer the question. NEITHER MAY BE READ WITHOUT THE OTHER,
         // and there is a rule that obeys that rather than a note saying it:
         // EnumerationCensus.SecondInstanceNotRuledOut asks them together and the walk's
-        // offer is withheld wholesale on the answer. See that property for what the
-        // pair means and InstanceProductCount for what a positive reading rests on.
+        // installation packages are withheld wholesale on the answer. See that property
+        // for what the pair means and InstanceProductCount for what a positive reading
+        // rests on.
         //
         // FED FROM TWO PLACES AND NOT ONE. The loop below asks every product the
         // enumeration returned; the pass after it asks every product the enumeration
