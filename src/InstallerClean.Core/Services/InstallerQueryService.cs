@@ -1742,7 +1742,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
 
             if (holders is null)
             {
-                Downgrade(claimed, path, withheld: true);
+                Downgrade(claimed, path, withheld: true, scanWide: true);
                 continue;
             }
 
@@ -2335,9 +2335,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// and a tautology for one that is not, and only a reader holding the filesystem
     /// can say which. See <see cref="RegisteredPackage.WithheldOnUnreadableFile"/>.
     /// </param>
+    /// <param name="scanWide">
+    /// Records that the read which established nothing was the machine-wide list of
+    /// patch registrations, which did not run to its end. Like
+    /// <paramref name="unreadableFile"/>, every caller passing it also passes
+    /// <paramref name="withheld"/> true. See <see cref="RegisteredPackage.WithheldScanWide"/>.
+    /// </param>
     private static void Downgrade(
         Dictionary<string, RegisteredPackage> claimed, string path, bool withheld,
-        bool unreadableFile = false)
+        bool unreadableFile = false, bool scanWide = false)
     {
         if (!claimed.TryGetValue(path, out var row) || !row.IsRemovable) return;
         claimed[path] = row with
@@ -2345,6 +2351,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
             IsRemovable = false,
             RemovableWithheld = withheld,
             WithheldOnUnreadableFile = unreadableFile,
+            WithheldScanWide = scanWide,
         };
     }
 
@@ -3448,15 +3455,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
             //
             // THE OFFER DOES NOT MOVE BY ONE ROW, and that is why this is safe to do here
             // rather than only at the consumer. The caller already downgrades every
-            // removable path when route A returns null, so a removable row is withheld
-            // either way and arrives at the split carrying the same two flags; all this
-            // changes is which pass got there first. What it DOES change is the row that
-            // was never removable, chiefly an obsoleted registration, which the caller's
-            // downgrade cannot touch because Downgrade takes a verdict away and there is
-            // none to take. Such a row would otherwise carry a positively clean verdict
-            // off a product set route A had refused to complete, and the missing-files
-            // split would read that as the app having established the absence was
-            // harmless.
+            // removable path when route A returns null, so a removable row is kept either
+            // way, and where no product's removable patch claims it, it arrives at the
+            // split carrying the same flags whichever pass got there first. What it DOES
+            // change is the row that was never removable, chiefly an obsoleted
+            // registration, which the caller's downgrade cannot touch because Downgrade
+            // takes a verdict away and there is none to take. Such a row would otherwise
+            // carry a positively clean verdict off a product set route A had refused to
+            // complete, and the missing-files split would read that as the app having
+            // established the absence was harmless.
             //
             // IT IS THE SAME MISTAKE THE SPLIT'S OWN NOTE WARNS ABOUT, arriving where that
             // note was not looking: trusting for the purpose of staying quiet what the
@@ -3478,8 +3485,13 @@ public sealed class InstallerQueryService : IInstallerQueryService
             // the app having established that something on this product can be
             // uninstalled, the other is the app unable to establish that nothing can.
             // Both keep the file.
+            //
+            // A ROW WITHHELD WHILE ROUTE A DID NOT ANSWER IS WITHHELD SCAN-WIDE, since
+            // every removable row on such a run starts from Unestablished. One a
+            // product's removable patch downgrades is a claim and is not.
             if (!row.IsRemovable) continue;
-            Downgrade(claimed, path, withheld: verdict == ProductPatchSet.Unestablished);
+            var withheld = verdict == ProductPatchSet.Unestablished;
+            Downgrade(claimed, path, withheld, scanWide: withheld && holders is null);
         }
     }
 

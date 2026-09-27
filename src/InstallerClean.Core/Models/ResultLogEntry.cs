@@ -751,9 +751,10 @@ public sealed record MachineInfo(
 /// read that established nothing, a scan unable to check every program entry in Windows
 /// Installer's records or to match every cached patch file to a program it asks, a
 /// product whose patch set could not be established at all, and a recorded path the
-/// scan could not settle. The report counts the files the scan-wide withholding took in
-/// <c>supersededScanWideWithheldCount</c>, and of those the ones taken while a recorded
-/// path was unsettled in <c>supersededRecordedPathUnestablishedCount</c>. Reports from
+/// scan could not settle. The report counts the files a condition on the whole machine
+/// held back in <c>supersededScanWideWithheldCount</c>, and of those the ones the scan-wide
+/// withholding took while a recorded path was unsettled in
+/// <c>supersededRecordedPathUnestablishedCount</c>. Reports from
 /// builds that offered no registered file carry it as zero.
 /// Obsoleted files are not in it: they are not withheld, they are simply not
 /// offered, and they have their own count.
@@ -1025,8 +1026,11 @@ public sealed record MachineInfo(
 /// products.
 /// </param>
 /// <param name="SupersededScanWideWithheldCount">
-/// Superseded files the scan-wide withholding took, on whichever of its conditions held,
-/// whose file is on disk (<c>ScanResult.SupersededScanWideWithheldCount</c>).
+/// Superseded files a condition on the whole machine held back, whose file is on disk
+/// (<c>ScanResult.SupersededScanWideWithheldCount</c>): a program entry the scan could not
+/// check, a cached patch file it could not match to a program it asks about, a recorded
+/// path it could not settle, or a machine-wide list of patch registrations that did not
+/// run to its end.
 ///
 /// A SUB-COUNT OF <paramref name="WithheldPatchCount"/>, never added to it. The rest of
 /// that count is files a check of the file's own patch withheld, so the two tell a hold

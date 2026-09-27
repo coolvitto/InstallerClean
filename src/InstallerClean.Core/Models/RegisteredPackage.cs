@@ -106,11 +106,16 @@ namespace InstallerClean.Models;
 /// It decides nothing.
 /// </param>
 /// <param name="WithheldScanWide">
-/// The scan-wide withholding took this row's removable verdict away, on whichever of its
-/// conditions held. Set by that one loop and nowhere else, so a row an earlier pass had
-/// already withheld, or had downgraded on a claim, never carries it. It separates the
-/// superseded files one condition on the whole machine holds back from those a check of
-/// the file's own patch held back, which is what
+/// A condition on the whole machine took this row's removable verdict away. There are four:
+/// a program entry the scan could not check, a cached patch file it could not match to a
+/// program it asks about, a recorded path it could not settle, and a machine-wide list of
+/// patch registrations that did not run to its end. The scan-wide withholding sets it on
+/// the first three, and the two passes that judge a patch against its products set it on
+/// the fourth, wherever they withhold the row while that list is short.
+///
+/// A row withheld for a reason about its own patch alone, or downgraded on a claim, never
+/// carries it. It separates the superseded files a condition on the whole machine holds back
+/// from those a check of the file's own patch held back, which is what
 /// <see cref="ScanResult.SupersededScanWideWithheldCount"/> counts. It decides nothing.
 /// </param>
 public record RegisteredPackage(

@@ -128,9 +128,9 @@ namespace InstallerClean.Models;
 /// machine that withhold every such row at once, a program entry the scan could not
 /// check, a cached patch file it could not match to a program it asks about, a recorded
 /// path it could not settle and a machine-wide list of patch registrations that did not
-/// run to its end. <see cref="SupersededScanWideWithheldCount"/> counts the rows the
-/// first three withheld, and <see cref="SupersededRecordedPathUnestablishedCount"/> those
-/// withheld while the third held.
+/// run to its end. <see cref="SupersededScanWideWithheldCount"/> counts the rows those
+/// four withheld, and <see cref="SupersededRecordedPathUnestablishedCount"/> those the
+/// scan-wide withholding took while the third held.
 ///
 /// THE ON-DISK QUALIFIER IS THE WHOLE DIFFERENCE FROM
 /// <see cref="RegisteredWithheldCount"/> AND IT IS LOAD-BEARING. A row whose file
@@ -665,10 +665,9 @@ public record ScanResult(
         RegisteredPackages.Count(p => p.WithheldOnRecordedPathUnestablished && p.FileExists);
 
     /// <summary>
-    /// How many superseded files the enumeration's scan-wide withholding took, on
-    /// whichever of its conditions held: rows carrying
-    /// <see cref="RegisteredPackage.WithheldScanWide"/> whose file is on disk. The opt-in
-    /// report carries it as a count of its own.
+    /// How many superseded files a condition on the whole machine held back: rows carrying
+    /// <see cref="RegisteredPackage.WithheldScanWide"/> whose file is on disk. The four
+    /// conditions are named there. The opt-in report carries it as a count of its own.
     ///
     /// A SUB-COUNT OF <see cref="WithheldCount"/>, over the same on-disk test. The rest of
     /// that count is superseded files a check of the file's own patch withheld, so the

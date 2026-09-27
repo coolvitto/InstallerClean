@@ -258,6 +258,101 @@ public class InstallerQueryServiceRouteATests
         Assert.False(MissingFilesReport.Affected(row with { FileExists = false }));
     }
 
+    private const string SecondProduct = "{B}";
+    private const string SecondProductFile = @"C:\Windows\Installer\route-a-second.msi";
+    private const string SecondPatchFile = @"C:\Windows\Installer\route-a-second.msp";
+
+    /// <summary>
+    /// Two products, each holding a superseded patch of its own with its own cached file, and
+    /// both patch sets clean unless <paramref name="secondCanRollBack"/> says the second
+    /// product's set holds something that can be uninstalled.
+    /// </summary>
+    private static async Task<InstallerQueryResult> EnumerateTwoSupersededPatches(
+        bool routeARefuses, bool secondCanRollBack = false)
+    {
+        var msi = new FakeMsiApi();
+        msi.AddProduct(Enumerated);
+        msi.SetProductProperty(Enumerated, "LocalPackage", ProductFile);
+        msi.SetProductProperty(Enumerated, "ProductName", "Test Product");
+        msi.AddPatch(Enumerated, "{P}", PatchFile, state: "2", uninstallable: "0");
+        msi.AddProduct(SecondProduct);
+        msi.SetProductProperty(SecondProduct, "LocalPackage", SecondProductFile);
+        msi.SetProductProperty(SecondProduct, "ProductName", "Second Product");
+        msi.AddPatch(SecondProduct, "{Q}", SecondPatchFile, state: "2", uninstallable: "0");
+
+        var sets = new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase)
+        {
+            [Enumerated] = ProductPatchSet.AllNonRemovable,
+            [SecondProduct] = secondCanRollBack
+                ? ProductPatchSet.RemovablePatchPresent
+                : ProductPatchSet.AllNonRemovable,
+        };
+
+        if (routeARefuses) msi.RouteAResult = 5;   // ERROR_ACCESS_DENIED
+
+        return await new InstallerQueryService(msi,
+                (_, _) => new InstallerQueryService.FallbackRead(0, sets.Count, ProductPatchSets: sets),
+                crashLogSink: null, identityReader: new DeclaringReader())
+            .GetRegisteredPackagesAsync();
+    }
+
+    private static RegisteredPackage PatchRow(InstallerQueryResult result, string productCode) =>
+        result.Packages.Single(p => p.PatchState == 2 && p.ProductCode == productCode);
+
+    private static int ScanWideCount(InstallerQueryResult result) =>
+        new ScanResult(Array.Empty<OrphanedFile>(), result.Packages, 0).SupersededScanWideWithheldCount;
+
+    [Fact]
+    public async Task Every_superseded_row_withheld_while_the_machine_wide_enumeration_refused_is_counted_as_scan_wide()
+    {
+        // A refusal here withholds every superseded row on the machine, whatever each row's
+        // own patch would have answered, so the opt-in report has to count those rows with
+        // the other holds on the whole machine and not as holds on one file.
+        var result = await EnumerateTwoSupersededPatches(routeARefuses: true);
+
+        foreach (var row in new[] { PatchRow(result, Enumerated), PatchRow(result, SecondProduct) })
+        {
+            Assert.False(row.IsRemovable);
+            Assert.True(row.RemovableWithheld);
+            Assert.True(row.WithheldScanWide);
+        }
+        Assert.Equal(2, ScanWideCount(result));
+    }
+
+    [Fact]
+    public async Task A_row_a_removable_patch_claims_is_not_counted_as_scan_wide_when_the_enumeration_refused()
+    {
+        // A product whose patch set holds something that can be uninstalled is a finding about
+        // this file, and it outranks the refusal, so the row is kept on that claim. It is not
+        // withheld, so it stays out of the scan-wide count, which is a part of the withheld
+        // count. The other product's row is still withheld scan-wide.
+        var result = await EnumerateTwoSupersededPatches(routeARefuses: true, secondCanRollBack: true);
+
+        var claimed = PatchRow(result, SecondProduct);
+        Assert.Equal(ProductPatchSet.RemovablePatchPresent, claimed.ProductPatchSetVerdict);
+        Assert.False(claimed.IsRemovable);
+        Assert.False(claimed.RemovableWithheld);
+        Assert.False(claimed.WithheldScanWide);
+
+        Assert.True(PatchRow(result, Enumerated).WithheldScanWide);
+        Assert.Equal(1, ScanWideCount(result));
+    }
+
+    [Fact]
+    public async Task The_same_two_rows_are_offered_when_the_enumeration_answered()
+    {
+        // The control, differing in the one return code, so neither test above passes on a
+        // fixture that never produced a removable row.
+        var result = await EnumerateTwoSupersededPatches(routeARefuses: false);
+
+        foreach (var row in new[] { PatchRow(result, Enumerated), PatchRow(result, SecondProduct) })
+        {
+            Assert.True(row.IsRemovable);
+            Assert.False(row.WithheldScanWide);
+        }
+        Assert.Equal(0, ScanWideCount(result));
+    }
+
     [Fact]
     public async Task The_same_machine_without_that_row_offers_the_patch()
     {
