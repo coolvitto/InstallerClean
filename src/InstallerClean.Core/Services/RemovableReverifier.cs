@@ -434,13 +434,15 @@ public sealed class RemovableReverifier : IRemovableReverifier
     ///
     /// A KEYED READ COMES BACK IN FOUR SHAPES. They are a value, a positive "there is
     /// no such record", a read that failed, and an answer that came back empty without
-    /// having failed. The batch's own pairings tell the first three apart. The sibling
-    /// reads tell two: a read that failed and an answer that there is no such record
-    /// are both an inability, and any value but a zero is a live claim on the rollback.
-    /// In both halves an empty answer counts as a value that holds the path back. Only
-    /// a clean value lets a path through, a removable reading for the batch's own
-    /// pairings and a zero for a sibling, so what the other shapes decide between is
-    /// the cause counted for the path and not whether it is held back.
+    /// having failed. The batch's own pairings tell the first three apart, and an empty
+    /// answer there is a value that is not removable, which is how the scan reads the
+    /// patch's own row. The sibling reads tell two. A read that failed, an answer that
+    /// there is no such record and an empty answer are an inability, which is how the
+    /// scan's reading of a product's patch set takes each of them, and a value that is
+    /// present and not zero is a live claim on the rollback. Only a clean value lets a
+    /// path through, a removable reading for the batch's own pairings and a zero for a
+    /// sibling, so what the other shapes decide between is the cause counted for the
+    /// path and not whether it is held back.
     ///
     /// THE SET IT RE-READS IS BUILT FROM THE CLAIMS. The batch's pairings are the ones
     /// the pre-lease enumeration recorded as claims, and the siblings are the other
@@ -573,20 +575,27 @@ public sealed class RemovableReverifier : IRemovableReverifier
                     Interop.MsiInstallProperty.Uninstallable);
 
                 // A POSITIVE ZERO IS THE ONLY CLEAN ANSWER, and the scan reads a
-                // zero the same way. Anything else condemns: a read that failed, a
-                // value that is absent, and an answer that the installation holds no
-                // record of the patch or that its product is not installed. The
+                // zero the same way. Anything else condemns: a read that failed, an
+                // answer that came back empty, and an answer that the installation holds
+                // no record of the patch or that its product is not installed. The
                 // sibling claims are the pairings the pre-lease re-verify's enumeration
                 // listed moments before the lease was taken (UnderLeaseClaims.From),
-                // and each is read in its own account and context, so either of those
-                // answers contradicts that listing. Where the patch or the installation
-                // has really gone in between, the batch path is held back all the same.
+                // and each is read in its own account and context, so an answer that
+                // the patch or the product is not there contradicts that listing. Where
+                // the patch or the installation has really gone in between, the batch
+                // path is held back all the same.
                 if (!siblingUninstallable.Unreadable && siblingUninstallable.Value == "0") continue;
 
                 // Every batch path registered to this product goes, with the cause the
-                // read supports: a read that failed is an inability, and a patch that
-                // answered something other than zero is a live claim on the rollback.
-                var siblingReason = siblingUninstallable.Unreadable
+                // read supports. A read that failed and an answer that came back empty
+                // are an inability, since neither says whether the patch can be
+                // uninstalled. A value that is present and not zero is a live claim on
+                // the rollback. The scan reads an answer that came back empty into a
+                // product's patch set as unestablished, and the pre-lease pass counts
+                // the file it holds for that under RecordsUnreadable. Change this arm
+                // and that reading together, or one answer is counted under two causes
+                // depending on which pass met it.
+                var siblingReason = siblingUninstallable.Unreadable || siblingUninstallable.Value.Length == 0
                     ? HeldBackReason.RecordsUnreadable
                     : HeldBackReason.Reclaimed;
 

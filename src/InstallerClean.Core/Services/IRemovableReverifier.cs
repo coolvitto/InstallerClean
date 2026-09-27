@@ -145,14 +145,15 @@ public enum HeldBackReason
     ///
     /// TWO ROUTES REACH IT and what is said of it has to hold for both. A patch the
     /// scan found superseded or obsoleted whose claim now says needed, back at Applied
-    /// or still uninstallable and so needed to roll back with; and a candidate the
-    /// scan found no claim on at all, which the re-enumeration finds claimed, by its
-    /// path or by the file its path names. The
-    /// second is the one the name flatters: nothing was reclaimed, because nothing
-    /// this app saw ever held it, and whether the claim is new is not something
-    /// either route can be told apart on (see this file's interface remarks). What
-    /// is true of both, and the whole of what may be said, is that the records
-    /// claim the file now.
+    /// or still uninstallable and so needed to roll back with, or registered to a
+    /// product on which another patch now answers that it can be uninstalled and so
+    /// could roll back onto its file; and a candidate the scan found no claim on at
+    /// all, which the re-enumeration finds claimed, by its path or by the file its
+    /// path names. The second is the one the name flatters: nothing was reclaimed,
+    /// because nothing this app saw ever held it, and whether the claim is new is not
+    /// something either route can be told apart on (see this file's interface
+    /// remarks). What is true of both, and the whole of what may be said, is that the
+    /// records claim the file now.
     /// </summary>
     Reclaimed,
 
@@ -183,12 +184,12 @@ public enum HeldBackReason
     /// something the offer needs, such as its products' patch sets, every installed
     /// product or every recorded path
     /// (<see cref="Models.RegisteredPackage.RemovableWithheld"/>); and a read under the
-    /// installer lease failing: the same pairing's, or the Uninstallable read of a
-    /// patch on a product the batch's pairings name, where an answer that the
-    /// installation holds no record of the patch or that the product is not installed
-    /// counts as failing too. A walk-derived file whose identity matches a row of
-    /// either of the first two kinds is counted here as well, the row deciding the
-    /// cause. The merged count does not distinguish them.
+    /// installer lease failing, the same pairing's or the Uninstallable read of a patch
+    /// on a product the batch's pairings name. That second read reaches it too where it
+    /// answers that the installation holds no record of the patch or that the product
+    /// is not installed, or comes back empty. A walk-derived file whose identity
+    /// matches a row of either of the first two kinds is counted here as well, the row
+    /// deciding the cause. The merged count does not distinguish them.
     ///
     /// Anything else that reaches it is held to the same test against the code that
     /// builds the set, never against this list.

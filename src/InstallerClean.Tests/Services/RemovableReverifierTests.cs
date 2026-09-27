@@ -358,10 +358,14 @@ public class RemovableReverifierTests
     }
 
     [Fact]
-    public void A_sibling_whose_Uninstallable_will_not_read_holds_the_batch_path_back()
+    public void A_sibling_whose_Uninstallable_comes_back_empty_holds_the_batch_path_back_as_unread()
     {
-        // Anything that is not a positive zero refuses, and the cause is the inability
-        // rather than a claim: the app has not established that nothing can roll back.
+        // Anything that is not a positive zero refuses. An answer that came back empty
+        // is counted as the inability it is rather than as a claim: it does not say
+        // whether the sibling can be uninstalled, so the app has not established that
+        // nothing can roll back. The scan's reading of a product's patch set takes the
+        // same answer as unestablished, and the pre-lease pass counts the file it holds
+        // for that the same way.
         const string path = @"C:\Windows\Installer\superseded.msp";
         var msi = new ScriptedPatchApi();
         msi.Set(PatchA, ProductOne, state: "2", uninstallable: "0");
@@ -373,6 +377,7 @@ public class RemovableReverifierTests
             new[] { Claim(path, PatchA, ProductOne), Claim(@"C:\Windows\Installer\other.msp", PatchB, ProductOne) }));
 
         Assert.Equal(new[] { path }, recheck.HeldBack);
+        Assert.Equal(new HeldBackReasons(RecordsUnreadable: 1), recheck.Reasons);
     }
 
     [Fact]
