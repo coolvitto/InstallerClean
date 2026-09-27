@@ -757,17 +757,13 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
         // would mean a second way of reaching that verdict, and the two hosts
         // agreeing about it is the reason the rule lives in Core at all.
         //
-        // THAT IS TWO VOLUME QUERIES NOW AND IT WAS ONE, SO THE ARGUMENT BELOW
-        // COVERS TWO PATHS AND USED TO COVER ONE. The cache side of the question
-        // was a value resolved once for the life of the process, on the ground
-        // that the volume running Windows cannot be remounted underneath it. It
-        // asked about the Windows system directory rather than the installer
-        // cache, which is a different volume wherever one is mounted at
-        // C:\Windows\Installer, and the ground went with the subject when that
-        // was corrected: a volume mounted there is precisely the thing that can
-        // appear or vanish while the app is open. So the cache side is a real
-        // call per operation now and has to earn its place on this thread the
-        // way the destination side does.
+        // THAT IS TWO VOLUME QUERIES, ONE FOR EACH PATH, AND THE ARGUMENT BELOW
+        // COVERS BOTH. The cache side is resolved on every call and must not be
+        // kept for the life of the process: it asks about the installer cache,
+        // which is a volume of its own wherever one is mounted at
+        // C:\Windows\Installer, and a volume mounted there can appear or vanish
+        // while the app is open. So the cache side has to earn its place on this
+        // thread the way the destination side does.
         //
         // WHAT HAS ALREADY HAPPENED TO EACH PATH BEFORE THIS LINE RUNS, which is
         // the argument, rather than a claim that neither of them can stall. The
@@ -940,11 +936,10 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
             {
                 // The destination could no longer be confirmed part-way through,
                 // so the service stopped and handed back what it had done. Caught
-                // here rather
-                // than at the method's own arms so the surviving list and the
-                // destination kind are still in scope to report with; the warning
-                // over the summary carries the reason. No result-log entry, for
-                // the reason recorded on the cancel arm below.
+                // here rather than at the method's own arms so the surviving list
+                // and the destination kind are still in scope to report with; the
+                // warning over the summary carries the reason. No result-log entry,
+                // for the reason recorded on the cancel arm below.
                 await RefreshAfterBatchAsync();
                 // Same fold as the main path: a batch the destination guard
                 // stopped still owes an account of anything the under-lease re-read
@@ -1088,9 +1083,8 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
                 // than throwing the tally away. Report the partial on the
                 // completion overlay, and write no result-log entry for a
                 // cancelled run, which keeps the public reports stats meaning
-                // what they mean. Only raise the overlay when
-                // something actually moved or errored; a cancel that reached no
-                // file just clears.
+                // what they mean. Only raise the overlay when something actually
+                // moved or errored; a cancel that reached no file just clears.
                 await RefreshAfterBatchAsync();
                 if (result.MovedCount > 0 || result.Errors.Count > 0)
                 {
@@ -1524,12 +1518,8 @@ public partial class CleanupViewModel : ObservableObject, IDisposable
     /// producers earn no line of their own. The tallies are ADDED rather than
     /// merged, because the two hold back DIFFERENT files: the one number the user
     /// reads is every file the run held back, and anything that merged rather than
-    /// added would under-count it.
-    ///
-    /// THAT ARGUMENT USED TO BE ABOUT CAUSES rather than about the total, adding
-    /// keeping one line per cause carrying its own count. There is one line now and
-    /// it names no cause. The per-cause counts survive underneath, for the opt-in
-    /// result log, and adding is what keeps those right as well.
+    /// added would under-count it. The count per cause under that number is added
+    /// for the same reason, and the opt-in result log is what reads it.
     ///
     /// The SURVIVING claims move with the paths, because those three collections
     /// describe one set of files and have to agree: a path leaving

@@ -1630,9 +1630,10 @@ public class InstallerQueryServiceUnitTests
     //
     // Claims meet on a row by their normalised path, so a registration kept in a spelling
     // nothing resolves need not land on the row for the file it means, and where it does
-    // not, that row never hears from it. Which file such a claim names cannot be
-    // established, so the scan-wide withholding takes every superseded row off the offer,
-    // as it does on a scan that could not account for every installed product.
+    // not, its claim never reaches that row. Which file such a claim names cannot be
+    // established, so the scan-wide withholding takes every superseded row still carrying
+    // its removable verdict off the offer, as it does on a scan that could not account for
+    // every installed product.
     //
     // THE UNSETTLED VALUES HERE CARRY AN EMBEDDED NULL, which the normalisation refuses
     // before the resolver is asked, so they are unsettled wherever the suite runs. Rows are
@@ -1671,13 +1672,13 @@ public class InstallerQueryServiceUnitTests
     }
 
     [Fact]
-    public async Task A_second_registration_of_a_superseded_patch_in_an_unsettled_spelling_withholds_it()
+    public async Task A_second_registration_of_a_superseded_patch_in_an_unsettled_spelling_is_asked_about_it()
     {
         // The patch is superseded under A, and applied and not uninstallable under B, and
         // both registrations name one cached file. B's value carries an embedded null and
         // is kept exactly as recorded, so its claim lands on a row of its own and A's row
-        // carries no sign of it. The per-pairing pass skips (P, B), the product loop having
-        // read it already.
+        // carries no sign of it. The per-pairing pass asks B about the patch, and B's
+        // answer keeps A's row as a live claim before the scan-wide withholding runs.
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
         msi.AddProduct("{B}");
@@ -1686,7 +1687,10 @@ public class InstallerQueryServiceUnitTests
 
         var result = await RunHealthy(msi);
 
-        AssertWithheldOnAnUnsettledPath(Assert.Single(result.Packages, r => r.PatchState == 2));
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        Assert.False(row.IsRemovable);
+        Assert.False(row.RemovableWithheld);
+        Assert.False(row.WithheldOnRecordedPathUnestablished);
         Assert.Single(result.Packages, r => r.PatchState == 1);
         Assert.True(result.Census.AnyRecordedPathUnestablished);
         Assert.Equal(0, result.UnaccountedProductCount);
@@ -1713,6 +1717,30 @@ public class InstallerQueryServiceUnitTests
         Assert.False(row.RemovableWithheld);
         Assert.False(row.WithheldOnRecordedPathUnestablished);
         Assert.False(result.Census.AnyRecordedPathUnestablished);
+    }
+
+    [Fact]
+    public async Task A_second_registration_holding_the_patch_superseded_in_an_unsettled_spelling_withholds_it()
+    {
+        // The patch is superseded and no longer uninstallable under A and under B, and B's
+        // value carries an embedded null, so B's claim lands on a row of its own. Asking B
+        // about the patch finds nothing to keep the file for. The unsettled value is what
+        // takes the verdict: it names a file the scan cannot place, and the scan-wide
+        // withholding takes every superseded row off the offer, A's included, and B's with
+        // it.
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddProduct("{B}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+        msi.AddPatch("{B}", "{P}", localPackage: SharedPatchUnsettled, state: "2", uninstallable: "0");
+
+        var result = await RunHealthy(msi);
+
+        var superseded = result.Packages.Where(r => r.PatchState == 2).ToList();
+        Assert.Equal(2, superseded.Count);
+        Assert.All(superseded, AssertWithheldOnAnUnsettledPath);
+        Assert.True(result.Census.AnyRecordedPathUnestablished);
+        Assert.Equal(0, result.UnaccountedProductCount);
     }
 
     [Fact]
@@ -1930,6 +1958,77 @@ public class InstallerQueryServiceUnitTests
 
         Assert.Equal(new[] { candidate }, result.Surviving);
         Assert.Empty(result.Dropped);
+    }
+
+    // ---- A second registration of a superseded patch recording another path ----
+    //
+    // Two registrations of one patch whose recorded paths differ land on two rows, so the
+    // superseded row carries no sign of the product holding the patch applied. The
+    // per-pairing pass asks every installation it knows of about the patch itself, so that
+    // product's answer reaches the superseded row whatever path its record names. Nothing
+    // here says whether the two paths are one file, and the pass never compares them.
+
+    private const string SharedPatchRecordedElsewhere = @"C:\Windows\Installer\shared-recorded-elsewhere.msp";
+
+    /// <summary>
+    /// Product A holds the patch superseded and no longer uninstallable at
+    /// <see cref="SharedPatch"/>, and product B holds it with <paramref name="bState"/> at
+    /// <see cref="SharedPatchRecordedElsewhere"/>.
+    /// </summary>
+    private static FakeMsiApi APatchRecordedUnderTwoPaths(string bState)
+    {
+        var msi = new FakeMsiApi();
+        msi.AddProduct("{A}");
+        msi.AddProduct("{B}");
+        msi.AddPatch("{A}", "{P}", localPackage: SharedPatch, state: "2", uninstallable: "0");
+        msi.AddPatch("{B}", "{P}", localPackage: SharedPatchRecordedElsewhere, state: bState, uninstallable: "0");
+        return msi;
+    }
+
+    [Fact]
+    public async Task A_second_registration_holding_the_patch_applied_under_another_path_keeps_it()
+    {
+        var result = await RunHealthy(APatchRecordedUnderTwoPaths(bState: "1"));
+
+        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        // The per-product condition passed the row through, so what took the verdict is
+        // B's answer to the per-pairing pass.
+        Assert.Equal(ProductPatchSet.AllNonRemovable, row.ProductPatchSetVerdict);
+        Assert.False(row.IsRemovable);
+        // A live claim, not a withholding.
+        Assert.False(row.RemovableWithheld);
+        Assert.Single(result.Packages, r => r.PatchState == 1);
+    }
+
+    [Fact]
+    public async Task The_same_machine_with_that_registration_holding_the_patch_superseded_offers_both_rows()
+    {
+        // THE MUST-MISS FOR THE TEST ABOVE, differing in B's one registration: B holds the
+        // patch superseded and no longer uninstallable, so asking B finds nothing to keep
+        // the file for.
+        var result = await RunHealthy(APatchRecordedUnderTwoPaths(bState: "2"));
+
+        var superseded = result.Packages.Where(r => r.PatchState == 2).ToList();
+        Assert.Equal(2, superseded.Count);
+        Assert.All(superseded, r => AssertOffered(r, expectedState: 2));
+    }
+
+    [Fact]
+    public async Task The_check_before_a_Move_or_Delete_drops_a_superseded_patch_held_applied_under_another_path()
+    {
+        // The re-verify runs the same enumeration and its per-pairing pass asks B the same
+        // question, so the file comes out of the batch under the cause a live claim
+        // supports.
+        var msi = APatchRecordedUnderTwoPaths(bState: "1");
+        var query = HealthyQuery(msi);
+        var candidate = Assert.Single(
+            (await query.GetRegisteredPackagesAsync()).Packages, r => r.PatchState == 2).LocalPackagePath;
+
+        var result = await new RemovableReverifier(query, msi).ReverifyAsync(new[] { candidate });
+
+        Assert.Empty(result.Surviving);
+        Assert.Equal(new[] { candidate }, result.Dropped);
+        Assert.Equal(new HeldBackReasons(Reclaimed: 1), result.Reasons);
     }
 
     // ---- A superseded patch's file is read whatever it is called ----

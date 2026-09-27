@@ -30,16 +30,16 @@ namespace InstallerClean.Models;
 /// screen.
 ///
 /// IT IS NOT A LIST OF FILES SHOWN TO BE NEEDED, and no surface may describe it
-/// as one. Two populations are in here and only the first carries a claim: a
+/// as one. Three populations are in here and only the first carries a claim: a
 /// path a live registration names, superseded and obsoleted patches included
-/// (Windows holds those too, and their state is not a statement about the file);
-/// and a patch whose State or Uninstallable read failed
-/// (<c>VerdictUnreadable</c>), about which nothing was established at all. Both
-/// are kept, which is the safe direction and is not in question. What they do
-/// not share is a sentence, which is why they are counted apart in
-/// <see cref="RegisteredClaimedCount"/> and
-/// <see cref="RegisteredUnjudgedCount"/>. <see cref="RegisteredWithheldCount"/>
-/// is the third and counts what the per-product condition held back.
+/// (Windows holds those too, and their state is not a statement about the file),
+/// counted in <see cref="RegisteredClaimedCount"/>; a superseded patch whose
+/// removable verdict the scan took away, because it could not establish something
+/// the offer needs (<c>RemovableWithheld</c>), counted in
+/// <see cref="RegisteredWithheldCount"/>; and a patch whose State or Uninstallable
+/// read failed (<c>VerdictUnreadable</c>), about which nothing was established at
+/// all, counted in <see cref="RegisteredUnjudgedCount"/>. All three are kept. What
+/// they do not share is a sentence, which is why each has its own count.
 /// </param>
 /// <param name="RegisteredTotalBytes">
 /// Sum of <see cref="RegisteredPackage.FileSizeBytes"/> across
@@ -70,12 +70,10 @@ namespace InstallerClean.Models;
 /// has declined to rely on that verdict does not rely on it to leave the row out of
 /// this count, the notice or the program's name.
 ///
-/// IT STATES NO CAUSE AND NOTHING BUILT ON IT MAY EITHER. One cause named for a set
-/// that can have several is false of some of its members, and this
-/// application is itself a candidate cause on any machine that ran v1.0.0 to
-/// v2.3.0: those versions offered superseded patches, and deleting one leaves
-/// exactly this record. What the number says is that Windows holds records naming
-/// files that are not there.
+/// IT STATES NO CAUSE AND NOTHING BUILT ON IT MAY EITHER. A cached file can go
+/// missing in more than one way, and one cause named for a set that can have
+/// several is false of some of its members. What the number says is that Windows
+/// holds records naming files that are not there.
 /// </param>
 /// <param name="MissingUnaffectedCount">
 /// The other half: registrations whose file is not on disk and whose absence this
@@ -114,20 +112,16 @@ namespace InstallerClean.Models;
 /// is earned on such a run.
 /// </param>
 /// <param name="WithheldCount">
-/// What withholding the removable class cost a run: superseded packages whose file
-/// was on disk and which the scan would have offered, had it been able to say that
-/// no installed product still needed them.
+/// What withholding the removable class cost a run: superseded patches whose file
+/// was on disk and whose removable verdict the scan took away, because it could not
+/// establish something the offer needs.
 ///
-/// WHAT THE WITHHOLDING COST THIS RUN: rows Windows reports superseded whose
-/// file is on disk and which declared themselves non-removable, held back because the
-/// scan could not establish something the offer needs, about the patch or about the
-/// machine as a whole. Obsoleted rows are NOT in it; they are not
-/// withheld, they are simply not offered, and they have their own count. The predicate
-/// settles it: nothing reaches the flag without having carried IsRemovable, and
-/// IsRemovablePatch requires state 2. THAT IS A
-/// USER-FACING CLAIM RATHER THAN AN INTERNAL ONE: the command line names the class
-/// in as many words (<c>Cli.SupersededHeldBack</c>), so this count and that noun
-/// have to agree.
+/// SUPERSEDED ROWS ONLY. Obsoleted rows are NOT in it; they are not withheld, they
+/// are simply not offered, and they have their own count. The predicate settles it:
+/// nothing reaches the flag without having carried IsRemovable, and IsRemovablePatch
+/// requires state 2. THAT IS A USER-FACING CLAIM RATHER THAN AN INTERNAL ONE: the
+/// command line names the class in as many words (<c>Cli.SupersededHeldBack</c>), so
+/// this count and that noun have to agree.
 ///
 /// AND A PRODUCT THAT COULD ROLL BACK ONTO THE FILE IS NOT IN IT EITHER. That
 /// condition is
@@ -167,19 +161,20 @@ namespace InstallerClean.Models;
 /// rather than as whichever setting a document guesses is usual.
 /// </param>
 /// <param name="RegisteredClaimedCount">
-/// Kept files a live registration positively claims: a product's own cached
-/// package, an applied patch, a path the registry fallback named, or a patch
-/// Windows reports superseded or obsoleted. The one population in
-/// <see cref="RegisteredPackages"/> that a sentence about being needed is true
-/// of.
+/// Kept rows carrying neither <c>RemovableWithheld</c> nor <c>VerdictUnreadable</c>.
+/// Each is a file a live registration positively claims (a product's own cached
+/// package, an applied patch, a path the registry fallback named, or a patch Windows
+/// reports superseded or obsoleted), except a superseded patch that kept its removable
+/// verdict and that the containment check refused or could not place, which is kept on
+/// that finding. Apart from that row, the one population in
+/// <see cref="RegisteredPackages"/> that a sentence about being needed is true of.
 ///
-/// SUPERSEDED AND OBSOLETED PATCHES ARE INSIDE IT AND THAT IS THE CORRECTION
-/// RATHER THAN A LOOSENING. Microsoft's own word for both states is "applied",
-/// and Windows opens the cached file of every patch registered to a product
-/// whether or not it has been superseded, so such a row is a live claim and
-/// counting it as one is the true reading.
-/// <see cref="RegisteredSupersededCount"/> is a sub-count of this, not a fourth
-/// population.
+/// SUPERSEDED AND OBSOLETED PATCHES CARRYING NEITHER FLAG ARE IN IT. Microsoft's own
+/// word for both states is "applied", and Windows opens the cached file of every patch
+/// registered to a product whether or not it has been superseded.
+/// <see cref="RegisteredSupersededCount"/> counts rows in this, in
+/// <see cref="RegisteredWithheldCount"/> and in <see cref="RegisteredUnjudgedCount"/>,
+/// so it is added to none of them.
 /// </param>
 /// <param name="RegisteredClaimedBytes">
 /// The same population's bytes, files on disk only, on the same rule as
@@ -189,10 +184,9 @@ namespace InstallerClean.Models;
 /// scan says are needed.
 /// </param>
 /// <param name="RegisteredWithheldCount">
-/// Kept ROWS the records called superseded or obsoleted and a scan would not act
-/// on, because it could not establish that no installed product still needed
-/// them: every row carrying <c>RemovableWithheld</c>, whether or not its file is
-/// still on the disk.
+/// Kept ROWS Windows reports superseded whose removable verdict the scan took away,
+/// because it could not establish something the offer needs: every row carrying
+/// <c>RemovableWithheld</c>, whether or not its file is still on the disk.
 ///
 /// NEARLY THE SAME POPULATION AS <see cref="WithheldCount"/> AND DELIBERATELY NOT
 /// THE SAME COUNT. This one is a member of a three-way partition of the kept list,
@@ -206,9 +200,9 @@ namespace InstallerClean.Models;
 ///
 /// Counted off the kept list rather than tallied through the loop that built it, so
 /// the number shown and the rows shown cannot come apart. It reads zero on a machine
-/// with no superseded patch and on a machine whose every superseded patch passed the
-/// condition, and those are different findings that this count cannot separate; the
-/// scan-time registration counts are what separate them.
+/// with no superseded patch and on a machine whose every superseded patch was offered,
+/// and those are different findings that this count cannot separate; the scan-time
+/// registration counts are what separate them.
 /// </param>
 /// <param name="RegisteredUnjudgedCount">
 /// Kept files whose patch state no read established, one per path
@@ -222,23 +216,24 @@ namespace InstallerClean.Models;
 /// <param name="RegisteredSupersededCount">
 /// Kept files whose registration is a patch Windows reports superseded (2) or
 /// obsoleted (4), and whose file is on disk. The population this scan is KEEPING,
-/// which is not the same as the population that exists: every superseded row that
-/// passed the per-product condition has left this list for the offer, so what is
-/// counted here is the withheld superseded rows plus every obsoleted row, the latter
-/// never being offered at all.
+/// which is not the same as the population that exists: a superseded row the scan
+/// offers has left this list, so what is counted here is every superseded row it
+/// did not offer and every obsoleted row, which it never offers.
 ///
-/// A SUB-COUNT AND NOT A PARTITION MEMBER. Nearly all of these rows are inside
-/// <see cref="RegisteredClaimedCount"/>; one shape falls under
-/// <see cref="RegisteredUnjudgedCount"/> instead, a patch whose State read gave 2
-/// or 4 and whose Uninstallable read then failed, so the two must never be added.
-/// Ones whose file has already gone are in one of the two missing counts,
-/// decided by <c>MissingFilesReport.Affected</c> rather than by the state.
+/// A SUB-COUNT AND NOT A PARTITION MEMBER, and its rows can sit in any of the three.
+/// A row carrying neither flag is in <see cref="RegisteredClaimedCount"/>;
+/// a superseded row whose removable verdict the scan took away, because it could not
+/// establish something the offer needs, is in <see cref="RegisteredWithheldCount"/>;
+/// and a patch whose State read gave 2 or 4 and whose Uninstallable read then failed
+/// is in <see cref="RegisteredUnjudgedCount"/>. So it is added to none of them.
+/// A superseded or obsoleted row whose file has already gone is in one of the two
+/// missing counts instead, decided by <c>MissingFilesReport.Affected</c> rather than
+/// by the state.
 /// </param>
 /// <param name="RegisteredSupersededBytes">
-/// The same population's bytes. It is the figure nobody had: the field data
-/// records superseded patches by count only, so how much space they occupy on a
-/// real machine has only ever been estimated. Files on disk only, on the same
-/// rule as <see cref="RegisteredTotalBytes"/>.
+/// The same population's bytes: the space on disk taken by the superseded and
+/// obsoleted patches this scan keeps. Files on disk only, on the same rule as
+/// <see cref="RegisteredTotalBytes"/>.
 /// </param>
 /// <param name="SupersededRegistrationCount">
 /// Cached patch paths whose merged row Windows reports superseded (2), one per path

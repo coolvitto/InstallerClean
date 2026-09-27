@@ -83,10 +83,9 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// whose subject is what the scan reports about the machine.
     /// </summary>
     /// <param name="shortNames">
-    /// Null in every test that is not about this, which reports the setting as
-    /// unreadable: a scan nobody sampled must not read as a machine whose policy
-    /// is known, and the alternative of defaulting to a plausible setting would
-    /// put a figure nobody measured into the one payload that exists to measure.
+    /// Null in every test that is not about this, and a scan without one reports the
+    /// setting as <see cref="ShortNameCreationLabels.Unreadable"/>, which says nothing
+    /// was established, rather than as any setting a machine can have.
     /// </param>
     /// <param name="fileIdentities">
     /// Null in every test that is not about it, which leaves the path comparison a
@@ -94,10 +93,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// classification go on pinning it.
     /// </param>
     /// <param name="declaredProducts">
-    /// Null in every test that is not about it, on the same rule and for the same
-    /// reason: the screen it performs can only ever keep a file back, so a scan
-    /// built without one is the rest of the scan, unchanged. The tests whose
-    /// subject IS the screen inject one.
+    /// Null in every test that is not about it, on the same rule. A scan built
+    /// without one skips the declared-product screen and nothing else: no candidate
+    /// is kept back on its account, and nothing from it reaches the refusal log or
+    /// the withholding split. The tests whose subject IS the screen inject one.
     ///
     /// DEFAULTED, WHICH IS THE ONE THING TO BE CAREFUL OF HERE. Every other seam on
     /// this constructor has to be spelled, so a test carries a null for each
@@ -898,17 +897,16 @@ public sealed class FileSystemScanService : IFileSystemScanService
             .Sum(p => p.FileSizeBytes);
         var registeredUnjudged = stillUsed.Count(p => p.VerdictUnreadable);
 
-        // SUPERSEDED AND OBSOLETED ROWS THIS SCAN IS KEEPING. Every superseded row
-        // that passed the per-product condition has left the kept list for the offer,
-        // so what is counted here is the class the app declined to offer: superseded
-        // rows some product could roll back onto or whose patch set could not be
-        // established, plus every obsoleted row, which is not offered at all. Files on
-        // disk only, a registration whose file has already gone having no space to give
-        // back and belonging to the missing counts.
+        // SUPERSEDED AND OBSOLETED ROWS THIS SCAN IS KEEPING. A superseded row the scan
+        // offers has left the kept list at the loop above, so what is counted here is
+        // every superseded row it did not offer, plus every obsoleted row, which is not
+        // offered at all. Files on disk only, a registration whose file has already gone
+        // having no space to give back and belonging to the missing counts.
         //
-        // A sub-count of the claimed rows rather than a fourth population (one shape
-        // falls under the unjudged instead, a State that read 2 or 4 whose Uninstallable
-        // read then failed), so the two are never added.
+        // Its rows can sit in any of the three counts above: a live claim in the
+        // claimed, a verdict taken away in the withheld, and a State that read 2 or 4
+        // whose Uninstallable read then failed in the unjudged. So it is added to none
+        // of them.
         var registeredSuperseded = stillUsed
             .Count(p => p.IsSupersededOrObsoleted && p.FileExists);
         var registeredSupersededBytes = stillUsed
@@ -1558,10 +1556,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// all: calling such a file orphaned would be asking Windows about a file it
     /// was never told to track. Root-only makes the candidate set "files at the
     /// root that no registered package claims", which cannot acquire a new blind
-    /// spot. Recursing instead needs a denylist ($PatchCache$, the patch
-    /// engine's baseline payload copies), and a denylist can only ever exclude a
-    /// subtree after it has already bitten someone; root-only puts that whole
-    /// subtree out of scope to begin with.
+    /// spot. A recursive walk would need a list of subtrees to leave out, such as
+    /// $PatchCache$, the patch engine's baseline payload copies, and would walk any
+    /// subfolder that list does not name. The root-only walk leaves every subfolder
+    /// out, named or not.
     ///
     /// One pass, not a pass for "*.msi" concatenated with a pass for "*.msp":
     /// each pattern is a complete traversal of the folder's index, and the

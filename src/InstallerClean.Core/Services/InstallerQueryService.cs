@@ -296,10 +296,10 @@ public sealed class InstallerQueryService : IInstallerQueryService
 
     /// <summary>
     /// Which step of <see cref="NormaliseLocalPackagePath"/> a recorded path was
-    /// being put through when it was refused. A marker in scope rather than three
-    /// separate try blocks, because that method is on the path every claim takes
-    /// and restructuring its control flow to improve a counter is the wrong trade:
-    /// the value it hands back on refusal is pinned by a test and must not move.
+    /// being put through when it was refused. The embedded-null test counts its own
+    /// refusal. Every step after it sets the marker as it starts, inside one try block
+    /// whose catch counts the refusal against the step the marker names. Whichever step
+    /// refuses, the method hands back the value exactly as recorded.
     /// </summary>
     internal enum NormalisationStage
     {
@@ -1160,12 +1160,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // the reason it withholds the walk-derived offer: nothing says which file the
         // claim it came from names. Claims meet on a row by their normalised path, so
         // a claim kept in a spelling nothing resolves need not land on the row for the
-        // file it means, and where it does not, that row never hears from it. That
+        // file it means, and where it does not, the claim never reaches that row. That
         // claim can be a second registration of a superseded patch, holding it applied
         // under another product, or any other registration aimed at the patch's file.
-        // The per-pairing pass skips every pairing the product loop has already read,
-        // wherever its claim landed, and the per-product condition asks about patch
-        // sets, so neither brings such a claim back to the file. The claim names a
+        // The per-pairing pass asks every installation it knows of about the patch
+        // itself, so a second registration of that patch, held by an installation the
+        // scan listed, is answered there wherever its claim landed. A registration of
+        // anything else aimed at the file, another patch's or a product's own package,
+        // reaches the file only by landing on its row: the per-pairing pass asks about
+        // this patch and the per-product condition about patch sets. The claim names a
         // file the scan cannot place, so it can be any of them, and scan-wide is again
         // the finest granularity there is.
         //
@@ -1340,7 +1343,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// about the patch, instead of inferring it from each product's patch list
     /// having come back whole.
     ///
-    /// WHAT IT CLOSES, and it is not the mis-spelling class. A cached patch is
+    /// A PATCH LIST THAT ENDS EARLY IS ONE THING IT CLOSES. A cached patch is
     /// claimed once and shared by every product holding it, and the merge is
     /// downgrade-only, so a patch that is Superseded under one product and
     /// Applied under another stays non-removable ONLY IF the Applied row reaches
@@ -1366,7 +1369,9 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// takes a patch and a product and walks no list, so a product that holds the
     /// patch answers whether or not its enumeration would have named it. Asking
     /// every enumerated product means the answer does not depend on any
-    /// enumeration having been complete.
+    /// enumeration having been complete, and asking each of them, the ones whose
+    /// patch rows the product loop has already read included, means it does not
+    /// depend on which path any record names either.
     ///
     /// WHAT IT COSTS, stated because it is the one thing here that scales with
     /// the machine rather than with the fault: enumerated products multiplied by
@@ -1464,23 +1469,6 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // called at all.
         // What is left is the machine-wide enumeration below, which reads no file and
         // which every machine that offers anything already pays for on every scan.
-        //
-        // The pairings the product loop already read, keyed by the INSTANCE that
-        // answered and not by the product code alone. Re-asking gets the same answer
-        // for the same reason only where the same instance is being asked: one product
-        // code can be installed for two accounts, or per-machine and per-user at once,
-        // and each instance holds its own patch registrations and answers for itself.
-        // So the account and the context are part of what makes a pairing already
-        // asked, and an instance this loop never reached is asked below rather than
-        // taken as answered by another. What this pass is for is the pairings no
-        // enumeration produced.
-        //
-        // The context is the raw API value on both sides. A claim carries it as an int
-        // because the models keep no dependency on the interop layer, and the
-        // enumerated form is cast to match rather than the claim being widened.
-        var alreadyAsked = new HashSet<(string PatchCode, string ProductCode, string? UserSid, int Context)>();
-        foreach (var claim in patchClaims)
-            alreadyAsked.Add((claim.PatchCode, claim.ProductCode, claim.UserSid, claim.Context));
 
         // ROUTE A. Every (patch, product) pairing the API will name when asked
         // about no product in particular, which is the only way to hear about a
@@ -1577,6 +1565,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
             // and are unioned rather than chosen between, because each sees
             // something the others cannot and every one of them can only add a
             // product to ask.
+            //
+            // EVERY INSTALLATION ON THE LIST IS ASKED, THE ONES WHOSE PATCH ROWS THE
+            // PRODUCT LOOP HAS ALREADY READ INCLUDED. The loop's reading of a pairing
+            // reaches this row through the merge only where that pairing's recorded path
+            // normalises to this row's path, and a recorded path normalising to any other
+            // lands on a row of its own. Asking every installation here means the answer
+            // does not depend on which path any record names. Skipping the pairings the
+            // loop has read would take each one's answer as already on this row, which
+            // holds only where its recorded path normalises to this one.
             var toAsk = new List<(string ProductCode, string? Sid, MsiInstallContext Context)>(products);
             toAsk.AddRange(recovered);
             if (holders.TryGetValue(patchCode, out var named)) toAsk.AddRange(named);
@@ -1616,8 +1613,6 @@ public sealed class InstallerQueryService : IInstallerQueryService
 
             foreach (var (productCode, userSid, context) in toAsk)
             {
-                if (alreadyAsked.Contains((patchCode, productCode, userSid, (int)context))) continue;
-
                 ct.ThrowIfCancellationRequested();
 
                 // State first and alone where it settles the pairing. A product
@@ -2284,15 +2279,17 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// from. Handing the resolver the Win32 spelling is what stops the resolution
     /// answering about a path assembled out of the running process's location.
     ///
-    /// A PATH THE KERNEL DECLINES TO RESOLVE is kept as GetFullPath spells it, which
-    /// need not be how the walk spells the file it names, so the refusal is counted and
+    /// A PATH THE RESOLVER DOES NOT SETTLE is kept as GetFullPath spells it, or exactly
+    /// as recorded where GetFullPath refuses it as well, and neither need be how the walk
+    /// spells the file it names, so the refusal is counted and
     /// <c>EnumerationCensus.AnyRecordedPathUnestablished</c> withholds the whole
     /// walk-derived offer and every superseded row on it: nothing says WHICH file the
     /// unresolved claim meant, so no narrower set can be held back. Resolving a final
     /// path is <see cref="InstallerCacheHelpers.ResolveFinalPathOutcome"/>, which names
-    /// the outcome it reached; expanding an environment variable has no failure to
-    /// report, and what it does with a variable the machine has never heard of is pinned
-    /// by a test.
+    /// the outcome it reached. The catch counts an exception from the expansion, the
+    /// prefix strip or GetFullPath against the step it was thrown in. A variable that is
+    /// not set in this process's environment is left in the value as written, '%' signs
+    /// and all.
     /// </summary>
     private static string NormaliseLocalPackagePath(string value, PathCensus census)
     {
@@ -2327,12 +2324,10 @@ public sealed class InstallerQueryService : IInstallerQueryService
             return value;
         }
 
-        // A MARKER IN SCOPE RATHER THAN A TRY BLOCK PER STAGE, and the reason is what
-        // this method is: the last thing between a registry value and a claim, whose
-        // refusal behaviour is pinned by a test. Splitting the try to sharpen a
-        // counter would restructure the control flow of a safety-critical path to
-        // improve instrumentation, which is the wrong way round. The marker costs an
-        // assignment and the catch reads it.
+        // A MARKER IN SCOPE RATHER THAN A TRY BLOCK PER STAGE. Each step sets it as it
+        // starts, and the one catch below counts the refusal against the step it names
+        // and hands back the value exactly as recorded, whichever step threw. The marker
+        // costs an assignment and changes nothing about what a refusal returns.
         //
         // THE FOUR ARE COUNTED APART BECAUSE THEY ARE NOT ONE FINDING. A value
         // carrying a character no path can carry, one the expansion refused, one the

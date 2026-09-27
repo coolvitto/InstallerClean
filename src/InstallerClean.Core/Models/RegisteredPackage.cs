@@ -167,10 +167,10 @@ public record RegisteredPackage(
     ///
     /// SO NO SENTENCE MAY GRADE THE THREE STATES. Applied, superseded and obsoleted
     /// reach this property on the same terms, the recovery step is the same, and the
-    /// only thing that ever differed is what removed the file, which no surface may
-    /// speak to (any tool that removed one, this one included up to v2.3.0, leaves
-    /// an identical record). The split survives as two counts on
-    /// <see cref="ScanResult"/> so the data keeps it; the copy does not.
+    /// only thing that can differ is what removed the file, which no surface may
+    /// speak to: whatever removed it leaves an identical record. The split survives
+    /// as two counts on <see cref="ScanResult"/> so the data keeps it; the copy does
+    /// not.
     /// </summary>
     public bool IsMissingFromDisk => !FileExists;
 

@@ -50,6 +50,9 @@ public class InstallerQueryServicePatchTruncationTests
 
     private const string Shared = @"C:\Windows\Installer\shared.msp";
 
+    /// <summary>A second product's recorded path for <see cref="Patch"/>, other than <see cref="Shared"/>.</summary>
+    private const string OtherRecordedPath = @"C:\Windows\Installer\recorded-elsewhere.msp";
+
     /// <summary>The account a second installation of one product code sits under.</summary>
     private const string PerUserSid = "S-1-5-21-1111111111-2222222222-3333333333-1001";
 
@@ -432,11 +435,12 @@ public class InstallerQueryServicePatchTruncationTests
     }
 
     [Fact]
-    public void A_pairing_the_enumeration_already_read_is_not_asked_again()
+    public void Pairings_the_enumeration_already_read_are_asked_again_and_leave_the_patch_offered()
     {
-        // Both products enumerated the patch, so both claims reached the merge and
-        // there is nothing left to establish. Re-asking would get the same answers
-        // for the same reason and would cost a read per pairing on every scan.
+        // Both products enumerated the patch and both answer it superseded and no
+        // longer uninstallable, so asking them again finds nothing to keep the file
+        // for. Each is still asked: the pass puts the question to every installation
+        // on its list, the ones whose patch rows the product loop read included.
         //
         // BOTH HOLD IT SUPERSEDED AND NO LONGER UNINSTALLABLE, WHICH IS WHAT GIVES
         // THE PASS ANYTHING TO WALK. The work list is built from the rows that are
@@ -452,21 +456,76 @@ public class InstallerQueryServicePatchTruncationTests
 
         var row = TheSharedPatch(Confirm(msi));
 
-        // THE WORK LIST IS PINNED RATHER THAN ASSUMED, and that is the half that
-        // keeps this test about what its name says. A later change that merges these
-        // two claims to a non-removable row empties the list, the loop never runs,
-        // and the assertions below are then true of a pass that was never reached.
-        Assert.True(row.IsRemovable);
-
         // ASSERTED AGAINST EVERY KEYED READ RATHER THAN AGAINST THE CONFIRMATION
-        // RECORD, which a pairing the enumeration named cannot enter: an assertion
-        // that one of those never happened holds whether or not it happened.
-        Assert.DoesNotContain(
+        // RECORD, which a pairing the enumeration named cannot enter. These two reads
+        // are also what shows the pairing loop ran, so the verdict below is the loop's
+        // answer and not a list that came up empty.
+        Assert.Contains(
             (Patch, Superseding, (string?)null, MsiInstallContext.Machine),
             msi.KeyedPatchReads);
-        Assert.DoesNotContain(
+        Assert.Contains(
             (Patch, AlsoSuperseding, (string?)null, MsiInstallContext.Machine),
             msi.KeyedPatchReads);
+
+        Assert.True(row.IsRemovable);
+    }
+
+    /// <summary>
+    /// ONE PATCH, TWO PRODUCTS, AND A DIFFERENT RECORDED PATH FOR EACH. Both products
+    /// enumerated the patch whole, and their records name two paths, so the two claims
+    /// land on two rows and the superseded row carries no sign of the product still
+    /// holding the patch applied. The pass asks that product about the patch, and its
+    /// answer takes the verdict.
+    ///
+    /// NOTHING HERE SAYS WHETHER THE TWO PATHS ARE ONE FILE, and nothing needs to. The
+    /// pass asks about the patch and never compares the paths, so the superseded copy is
+    /// kept either way.
+    ///
+    /// THE PER-PRODUCT CONDITION MUST NOT SETTLE THE PATH FIRST or the pairing loop never
+    /// runs. The second product declares nothing uninstallable, and the verdict is
+    /// asserted below rather than assumed.
+    /// </summary>
+    [Fact]
+    public void A_product_whose_record_of_the_patch_names_another_path_is_asked_about_it()
+    {
+        var msi = new FakeApi();
+        msi.AddProduct(Superseding);
+        msi.AddProduct(StillApplied);
+        msi.HoldPatch(Superseding, Patch, Shared, state: "2", uninstallable: "0");
+        msi.HoldPatch(StillApplied, Patch, OtherRecordedPath, state: "1", uninstallable: "0");
+
+        var claimed = Confirm(msi);
+        var row = TheSharedPatch(claimed);
+
+        Assert.Equal(ProductPatchSet.AllNonRemovable, row.ProductPatchSetVerdict);
+        Assert.Contains(
+            (Patch, StillApplied, (string?)null, MsiInstallContext.Machine),
+            msi.KeyedPatchReads);
+
+        Assert.False(row.IsRemovable);
+        // Not a withholding. The product answered that it holds the patch applied,
+        // which is a live claim on the file.
+        Assert.False(row.RemovableWithheld);
+    }
+
+    [Fact]
+    public void A_product_recording_the_patch_under_another_path_and_holding_it_superseded_leaves_it_offered()
+    {
+        // THE MUST-MISS FOR THE TEST ABOVE, differing in the second product's one
+        // registration: it holds the patch superseded and no longer uninstallable, so
+        // asking it finds nothing to keep the file for.
+        var msi = new FakeApi();
+        msi.AddProduct(Superseding);
+        msi.AddProduct(AlsoSuperseding);
+        msi.HoldPatch(Superseding, Patch, Shared, state: "2", uninstallable: "0");
+        msi.HoldPatch(AlsoSuperseding, Patch, OtherRecordedPath, state: "2", uninstallable: "0");
+
+        var row = TheSharedPatch(Confirm(msi));
+
+        Assert.Contains(
+            (Patch, AlsoSuperseding, (string?)null, MsiInstallContext.Machine),
+            msi.KeyedPatchReads);
+        Assert.True(row.IsRemovable);
     }
 
     /// <summary>
@@ -500,25 +559,26 @@ public class InstallerQueryServicePatchTruncationTests
             (Patch, Superseding, (string?)PerUserSid, MsiInstallContext.UserUnmanaged),
             msi.KeyedPatchReads);
 
-        // AND THE INSTANCE THE ENUMERATION ALREADY READ IS STILL NOT ASKED AGAIN,
-        // which is the half that keeps the skip doing its job: that reading would come
-        // back from the same rows for the same reason. It is asserted against every
-        // keyed read rather than against the confirmation record, which a pairing the
-        // enumeration named cannot enter.
-        Assert.DoesNotContain(
+        // AND THE INSTANCE THE ENUMERATION ALREADY READ IS ASKED AS ITSELF TOO, in
+        // its own account and context. It is asserted against every keyed read rather
+        // than against the confirmation record, which a pairing the enumeration named
+        // cannot enter.
+        Assert.Contains(
             (Patch, Superseding, (string?)null, MsiInstallContext.Machine),
             msi.KeyedPatchReads);
     }
 
     [Fact]
-    public void Only_the_products_that_never_named_the_patch_are_asked()
+    public void The_one_pairing_no_enumeration_named_is_the_one_the_pass_finds()
     {
         var msi = TwoProductsTheRegistryCannotSettle();
 
         Confirm(msi);
 
-        // One pairing, once: the product whose enumeration came back short. The
-        // other product's claim was read by the enumeration itself.
+        // The confirmation record holds the pairings no enumeration named, and here
+        // that is the product whose enumeration came back short. The other product is
+        // asked as well, and is not in the record because its enumeration named the
+        // patch.
         Assert.Equal(new[] { (Patch, StillApplied) }, msi.ConfirmationAsks.Distinct().ToArray());
     }
 
@@ -1168,7 +1228,7 @@ public class InstallerQueryServicePatchTruncationTests
         // why this file is being kept and could say so.
         Assert.False(row.RemovableWithheld);
         // AND THE RECOVERED PRODUCT IS WHAT SAID SO, WHICH IS THE WHOLE GAIN OVER A
-        // HEADCOUNT AND IS WHAT THIS ASSERTION NOW PINS. The other product on this
+        // HEADCOUNT AND IS WHAT THIS ASSERTION PINS. The other product on this
         // machine holds the same patch and holds nothing uninstallable, so its own
         // verdict is AllNonRemovable; this value is reachable only by the recovered
         // product having entered the judged set and been asked what it holds.
@@ -1190,9 +1250,9 @@ public class InstallerQueryServicePatchTruncationTests
     ///
     /// WHY IT IS HERE. The per-product condition cannot settle this path, every product
     /// sharing the patch being clean, so the claim can only stand because the recovered
-    /// product was ASKED about the pairing and answered that it still holds it. That is
-    /// the property the test above was written for and can no longer show, and losing it
-    /// silently is how a suite ends up pinning nothing it is named for.
+    /// product was ASKED about the pairing and answered that it still holds it. The test
+    /// above cannot show that: its recovered product holds something uninstallable, so
+    /// the per-product condition settles the path before any pairing is asked.
     /// </summary>
     [Fact]
     public void A_recovered_product_holding_nothing_uninstallable_is_still_asked()
@@ -1404,8 +1464,8 @@ public class InstallerQueryServicePatchTruncationTests
 
         /// <summary>
         /// Pairings asked about that the product's OWN enumeration never
-        /// produced, which is exactly what the confirmation pass costs and
-        /// nothing else. Keyed on that rather than on when the call arrived,
+        /// produced, which are the pairings the confirmation pass goes and finds.
+        /// Keyed on that rather than on when the call arrived,
         /// because the scan reads a product's own patch rows after that product's
         /// enumeration has already ended, so anything timed would count those too.
         /// </summary>
