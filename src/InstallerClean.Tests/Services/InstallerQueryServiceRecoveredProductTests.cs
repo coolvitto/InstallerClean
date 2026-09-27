@@ -27,7 +27,9 @@ namespace InstallerClean.Tests.Services;
 /// already taking, and keeps back the files that copy could actually reach: the patches
 /// it holds, and where each of those patches records its own cached package. Anything
 /// it cannot establish keeps everything, and the tests below that end in "keeps the
-/// file" are the ones that hold that line.
+/// file" are the ones that hold that line. The copy is also asked by each patch's code,
+/// and any answer but that it holds no record of the patch judges it against that file
+/// whatever the two listings named.
 ///
 /// THEY RUN THE WHOLE ENUMERATION rather than the condition on its own, because what is
 /// being asserted is whether a file reaches the offer, and every pass between the
@@ -57,7 +59,7 @@ public class InstallerQueryServiceRecoveredProductTests
         // copy only about this patch, and its truthful answer does not keep the file;
         // the per-product condition asks about the patch the copy can uninstall, and
         // that answer does.
-        var row = await Scan(new EstablishedPatchReach());
+        var row = await Scan(new EstablishedPatchReach(), secondCopyHoldsThisPatch: true);
 
         Assert.False(row.IsRemovable);
         // The verdict names the reason: something on a product sharing this patch can be
@@ -71,7 +73,8 @@ public class InstallerQueryServiceRecoveredProductTests
     {
         // The same machine, with both registry listings read cleanly: the second copy
         // holds one patch and it is not this one, and that patch records a cached file
-        // of its own which is not this one either. It cannot reach this file, so keeping
+        // of its own which is not this one either. Asked by this patch's code, the copy
+        // answers that it holds no record of it. It cannot reach this file, so keeping
         // it back would keep it for a reason that is not true of this machine.
         //
         // IT IS THE ONLY TEST HERE THAT OFFERS, and that is what makes the rest of them
@@ -83,6 +86,24 @@ public class InstallerQueryServiceRecoveredProductTests
 
         Assert.True(row.IsRemovable);
         Assert.Equal(ProductPatchSet.AllNonRemovable, row.ProductPatchSetVerdict);
+    }
+
+    [Fact]
+    public async Task A_second_copy_that_answers_by_code_that_it_holds_this_patch_keeps_it_though_its_listing_leaves_it_out()
+    {
+        // The registry listings of the test above, and one answer that disagrees with
+        // them: asked by this patch's code, the second copy answers that it holds it
+        // superseded. That answer puts the copy into the patch's product set whatever
+        // its listing named, and the patch it can uninstall keeps the file.
+        var row = await Scan(Reach(
+                holds: new[] { ItsOwnPatch },
+                itsOwnPatchIsCachedAt: new[] { Path.GetFullPath(OtherFile) }),
+            secondCopyHoldsThisPatch: true);
+
+        Assert.False(row.IsRemovable);
+        Assert.Equal(ProductPatchSet.RemovablePatchPresent, row.ProductPatchSetVerdict);
+        // Found out rather than failed to establish: a claim, not a withholding.
+        Assert.False(row.RemovableWithheld);
     }
 
     [Fact]
@@ -287,7 +308,14 @@ public class InstallerQueryServiceRecoveredProductTests
     /// what an ordinary patch package looks like: the vendor listed its own base product
     /// codes and had no reason to list a second instance's.
     /// </summary>
-    private static async Task<RegisteredPackage> Scan(EstablishedPatchReach reach)
+    /// <param name="secondCopyHoldsThisPatch">
+    /// Whether the second copy, asked by the shared patch's code, answers that it holds
+    /// it superseded. False leaves that pairing unset, which the fake answers with
+    /// ERROR_UNKNOWN_PATCH: no record of it. Then only what the registry listings leave
+    /// open can put the copy into the patch's product set.
+    /// </param>
+    private static async Task<RegisteredPackage> Scan(
+        EstablishedPatchReach reach, bool secondCopyHoldsThisPatch = false)
     {
         var msi = new FakeMsiApi();
         msi.AddProduct(Enumerated);
@@ -295,9 +323,10 @@ public class InstallerQueryServiceRecoveredProductTests
         msi.SetProductProperty(Enumerated, "ProductName", "A Program");
         msi.AddPatch(Enumerated, SharedPatch, SharedFile, state: "2", uninstallable: "0");
 
-        // The second copy: never enumerated, holding the same superseded patch and a
-        // patch of its own that can be uninstalled.
-        msi.AddPatch(SecondCopy, SharedPatch, SharedFile, state: "2", uninstallable: "0");
+        // The second copy: never enumerated, holding a patch of its own that can be
+        // uninstalled and, where the test says so, the same superseded patch.
+        if (secondCopyHoldsThisPatch)
+            msi.AddPatch(SecondCopy, SharedPatch, SharedFile, state: "2", uninstallable: "0");
         msi.AddPatch(SecondCopy, ItsOwnPatch, OtherFile, state: "1", uninstallable: "1");
 
         var patchSets = new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase)
