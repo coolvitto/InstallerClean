@@ -1316,9 +1316,9 @@ public class InstallerQueryServicePatchTruncationTests
         msi.HoldPatch(Superseding, Patch, Shared, state: "2", uninstallable: "0");
         msi.ProductResolveResult[StillApplied] = BadConfiguration;
 
-        // A product the registry named and Windows would not answer about is one the
-        // enumeration cannot account for, which drives the refusal gate and the
-        // records-incomplete notice.
+        // A product the registry named and Windows would not answer about is a program
+        // entry the scan could not check, which withholds every superseded patch and
+        // raises the records-incomplete notice.
         //
         // The withholding takes only a row still removable when it runs, and it runs
         // after the per-product condition. A clean patch set for every product leaves

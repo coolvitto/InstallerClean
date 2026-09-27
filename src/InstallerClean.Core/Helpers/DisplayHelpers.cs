@@ -239,6 +239,8 @@ internal static class DisplayHelpers
         // A numeral governing a noun. The one-form spells {0} out, so it has to agree
         // with the number the reader can see, whatever that language's rule is.
         "Cli.DeletedFiles" or "Cli.DeletingFiles" or "Cli.EventLogMissingFromDisk"
+            or "Cli.EventLogScanWithheld" or "Cli.EventLogScanWithheldPatchFiles"
+            or "Cli.EventLogSupersededHeldBack"
             or "Cli.FoundOrphans"
             or "Cli.MissingFromDisk" or "Cli.MovedFiles" or "Cli.MovingFiles"
             or "Completion.FailedCount" or "Completion.FailedCountDelete"

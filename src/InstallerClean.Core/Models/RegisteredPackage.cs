@@ -99,11 +99,19 @@ namespace InstallerClean.Models;
 /// nowhere else, so a row an earlier pass had already withheld never carries it.
 ///
 /// IT DOES NOT SAY THAT WAS THE ONLY REASON. The same loop also withholds on a scan that
-/// could not account for every installed product, and a row withheld while both held
-/// carries this flag. What it records is that this condition held when the row lost its
-/// verdict, which is what lets the opt-in report count the files this condition holds back
-/// whatever else fired: see <see cref="ScanResult.SupersededRecordedPathUnestablishedCount"/>.
+/// could not check every program entry or match every cached patch file, and a row
+/// withheld while both held carries this flag. What it records is that this condition held
+/// when the row lost its verdict, which is what lets the opt-in report count the files this
+/// condition holds back whatever else fired: see <see cref="ScanResult.SupersededRecordedPathUnestablishedCount"/>.
 /// It decides nothing.
+/// </param>
+/// <param name="WithheldScanWide">
+/// The scan-wide withholding took this row's removable verdict away, on whichever of its
+/// conditions held. Set by that one loop and nowhere else, so a row an earlier pass had
+/// already withheld, or had downgraded on a claim, never carries it. It separates the
+/// superseded files one condition on the whole machine holds back from those a check of
+/// the file's own patch held back, which is what
+/// <see cref="ScanResult.SupersededScanWideWithheldCount"/> counts. It decides nothing.
 /// </param>
 public record RegisteredPackage(
     string LocalPackagePath,
@@ -117,7 +125,8 @@ public record RegisteredPackage(
     long FileSizeBytes = 0,
     bool FileExists = true,
     bool WithheldOnUnreadableFile = false,
-    bool WithheldOnRecordedPathUnestablished = false)
+    bool WithheldOnRecordedPathUnestablished = false,
+    bool WithheldScanWide = false)
 {
     /// <summary>
     /// Windows holds a record naming this file and the file is not there. The one

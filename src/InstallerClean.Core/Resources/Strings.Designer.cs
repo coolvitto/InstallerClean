@@ -194,7 +194,12 @@ public static class Strings
     public static string Cli_EventLogReason_RegistryCheckUnreadable => Get("Cli.EventLogReason.RegistryCheckUnreadable");
     public static string Cli_EventLogScanFound => Get("Cli.EventLogScanFound");
     public static string Cli_EventLogScanNoOrphans => Get("Cli.EventLogScanNoOrphans");
-    public static string Cli_EventLogScanWithheld => Get("Cli.EventLogScanWithheld");
+    public static string Cli_EventLogScanWithheldPatchFiles_Plural => Get("Cli.EventLogScanWithheldPatchFiles.Plural");
+    public static string Cli_EventLogScanWithheldPatchFiles_Singular => Get("Cli.EventLogScanWithheldPatchFiles.Singular");
+    public static string Cli_EventLogScanWithheld_Plural => Get("Cli.EventLogScanWithheld.Plural");
+    public static string Cli_EventLogScanWithheld_Singular => Get("Cli.EventLogScanWithheld.Singular");
+    public static string Cli_EventLogSupersededHeldBack_Plural => Get("Cli.EventLogSupersededHeldBack.Plural");
+    public static string Cli_EventLogSupersededHeldBack_Singular => Get("Cli.EventLogSupersededHeldBack.Singular");
     public static string Cli_EventLogUnavailable => Get("Cli.EventLogUnavailable");
     public static string Cli_EventLogValidationFailed => Get("Cli.EventLogValidationFailed");
     public static string Cli_FoundNoOrphans => Get("Cli.FoundNoOrphans");

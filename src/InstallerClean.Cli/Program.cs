@@ -1114,38 +1114,65 @@ internal static class Program
         // cause, several separate findings reaching this count and no sentence naming one
         // of them being true of the files the others contribute; the string's own remarks
         // carry that and why "superseded" is earned.
+        //
+        // AND THE SAME FILES GO TO THE APPLICATION LOG, on the same condition, as Event ID
+        // 3003. A scheduled run throws the console away, so without it the log would say
+        // what was offered and never that superseded files were held back beside it.
         var supersededHeldBack = scanResult.SupersededHeldBackCount;
         if (supersededHeldBack > 0)
+        {
             Console.WriteLine(string.Format(
                 DisplayHelpers.Pluralise(supersededHeldBack,
                     Strings.Cli_SupersededHeldBack_Singular,
                     Strings.Cli_SupersededHeldBack_Plural,
                     "Cli.SupersededHeldBack"),
                 DisplayHelpers.FormatCount(supersededHeldBack)));
+            MachineContract.WriteEventLog(CliEventClass.ScanSupersededHeldBackNotice,
+                () => string.Format(
+                    DisplayHelpers.Pluralise(supersededHeldBack,
+                        Strings.Cli_EventLogSupersededHeldBack_Singular,
+                        Strings.Cli_EventLogSupersededHeldBack_Plural,
+                        "Cli.EventLogSupersededHeldBack"),
+                    arg, supersededHeldBack));
+        }
 
         // THE NOTICE HAS ITS OWN CONDITION, SEPARATE FROM THE LINE ABOVE. The line is
-        // printed on the count of superseded files held back; this is written on the
-        // count of installed products the enumeration could not account for, the
-        // payload of Event ID 3000, a machine surface with an RMM filter downstream.
-        // Re-gating it changes which machines log it with every test still green, and a
-        // measurement that goes quiet reads exactly like nothing being wrong.
+        // printed on the count of superseded files held back; this is written where the
+        // enumeration withheld every superseded patch because it could not check a
+        // program entry in Windows Installer's records or match a cached patch file to a
+        // program it asks about. It is the payload of Event ID 3000, a machine surface
+        // with an RMM filter downstream. Re-gating it changes which machines log it with
+        // every test still green, and a measurement that goes quiet reads exactly like
+        // nothing being wrong.
         //
-        // THEY ARE NOT TWO VIEWS OF ONE QUANTITY. This counts installed products the
-        // enumeration could not account for, which is the trigger for ONE of the several
-        // routes into the count above. A machine can meet either condition without the
-        // other, and the commonest is meeting this one with no superseded file to hold
-        // back.
+        // THEY ARE NOT TWO VIEWS OF ONE QUANTITY. This counts entries or files, the
+        // trigger for ONE of the several routes into the count above. A machine can meet
+        // either condition without the other, and the commonest is meeting this one with
+        // no superseded file to hold back.
         //
-        // The count does not appear in the human line and does appear here. Three
-        // different things contribute to it and only one is a failure to read (see
-        // InstallerQueryResult.UnaccountedProductCount). It is an estimate that can
-        // come out high as well as low: a precision a sentence must not claim, and a
-        // number an RMM needs to hang a filter on. See MachineContract for what that
-        // figure is worth.
-        if (scanResult.UnaccountedProductCount > 0)
+        // The count does not appear in the human line and does appear here, for an RMM
+        // to hang a filter on. The program entries are the figure where there are any,
+        // and the patch files only where they are the whole reason; see
+        // InstallerQueryResult.UnaccountedProductCount for the three kinds of entry and
+        // EnumerationCensus.UnattributedPatchFileCount for the files.
+        var uncheckedEntries = scanResult.UnaccountedProductCount;
+        var unmatchedPatchFiles = scanResult.Census.UnattributedPatchFileCount;
+        if (uncheckedEntries > 0)
             MachineContract.WriteEventLog(CliEventClass.ScanRecordsIncompleteNotice,
-                () => string.Format(Strings.Cli_EventLogScanWithheld,
-                    arg, scanResult.UnaccountedProductCount));
+                () => string.Format(
+                    DisplayHelpers.Pluralise(uncheckedEntries,
+                        Strings.Cli_EventLogScanWithheld_Singular,
+                        Strings.Cli_EventLogScanWithheld_Plural,
+                        "Cli.EventLogScanWithheld"),
+                    arg, uncheckedEntries));
+        else if (unmatchedPatchFiles > 0)
+            MachineContract.WriteEventLog(CliEventClass.ScanRecordsIncompleteNotice,
+                () => string.Format(
+                    DisplayHelpers.Pluralise(unmatchedPatchFiles,
+                        Strings.Cli_EventLogScanWithheldPatchFiles_Singular,
+                        Strings.Cli_EventLogScanWithheldPatchFiles_Plural,
+                        "Cli.EventLogScanWithheldPatchFiles"),
+                    arg, unmatchedPatchFiles));
 
         // THE AFFECTED HALF, and the two hosts must not diverge on which population
         // this is. A registration whose absence the app positively established to be

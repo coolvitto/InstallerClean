@@ -170,24 +170,23 @@ public class InstallerQueryServiceUnitTests
     /// <summary>
     /// Runs with a healthy fallback that names <paramref name="registryProducts"/>
     /// product keys, which is the count the enumeration cross-check weighs the
-    /// API's own against, and reports
-    /// <paramref name="unclaimedProductFiles"/> / <paramref name="unclaimedPatchFiles"/>
-    /// registry entries naming a cached file that is on disk and that the API's
-    /// own loop never claimed.
+    /// API's own against, and reports one entry in
+    /// <paramref name="unclaimedProductFileCodes"/> per registry product entry naming a
+    /// cached file that is on disk and that the API's own loop never claimed, each the
+    /// code its key name unpacked to.
     ///
-    /// The two unclaimed counts arrive here finished, because the real reader
-    /// answers both halves itself: it holds the paths, and it asks the live
-    /// filesystem about them. Nothing downstream can recompute either (the merge
-    /// keeps one row per path and does not record which source reached it first),
-    /// so what a test can drive is the observation, not the disk behind it.
+    /// The entries arrive here finished, because the real reader answers both halves
+    /// itself: it holds the paths, and it asks the live filesystem about them. Nothing
+    /// downstream can recompute either (the merge keeps one row per path and does not
+    /// record which source reached it first), so what a test can drive is the
+    /// observation, not the disk behind it.
     /// </summary>
     private static async Task<InstallerQueryResult> RunAgainstRegistry(
         FakeMsiApi msi,
         int registryProducts,
-        int unclaimedProductFiles = 0,
-        int unclaimedPatchFiles = 0) =>
+        string?[]? unclaimedProductFileCodes = null) =>
         await new InstallerQueryService(msi, (_, _) => new InstallerQueryService.FallbackRead(
-                0, registryProducts, unclaimedProductFiles, unclaimedPatchFiles))
+                0, registryProducts, unclaimedProductFileCodes))
             .GetRegisteredPackagesAsync();
 
     // ---- Shared-patch verdict merge ----
@@ -972,118 +971,16 @@ public class InstallerQueryServiceUnitTests
             Assert.Single(result.Packages, r => r.LocalPackagePath == patch), expectedState: 2);
     }
 
-    // ---- ...and seen directly, in a path only the registry ever claimed ----
-    //
-    // The headcount above infers a loss from two totals that differ for innocent
-    // reasons, so it has to tolerate a band. The fallback reads the same UserData
-    // keys the API read and runs after the whole API loop, so a path it is the
-    // first to claim is one no product the loop reached ever named: that is the
-    // loss itself rather than a difference of totals, and the band does not
-    // apply to it.
-
-    [Fact]
-    public async Task A_path_only_the_registry_claimed_counts_unaccounted()
-    {
-        const string patch = @"C:\Windows\Installer\superseded.msp";
-
-        // The registry names exactly as many products as the API enumerated, so
-        // the headcount is silent and this fires on the observation alone.
-        var result = await RunAgainstRegistry(OneProductWithASupersededPatch(patch),
-            registryProducts: 1, unclaimedProductFiles: 1);
-
-        var row = Assert.Single(result.Packages, r => r.LocalPackagePath == patch);
-        AssertWithheldByADegradedEnumeration(row, expectedState: 2);
-        Assert.Equal(1, result.UnaccountedProductCount);
-    }
-
-    [Fact]
-    public async Task An_unclaimed_path_inside_the_headcounts_silent_band_still_counts()
-    {
-        // The case the observation exists for. Ninety products enumerated
-        // against a hundred registry keys is a tenth short, which the
-        // proportional clause absorbs outright, so the headcount cannot fire
-        // however many products were really lost.
-        const string patch = @"C:\Windows\Installer\superseded.msp";
-        var msi = OneProductWithASupersededPatch(patch);
-        for (var i = 0; i < 89; i++) msi.AddProduct($"{{P{i}}}");
-
-        var result = await RunAgainstRegistry(msi, registryProducts: 100, unclaimedProductFiles: 10);
-
-        AssertWithheldByADegradedEnumeration(Assert.Single(result.Packages, r => r.LocalPackagePath == patch), expectedState: 2);
-        Assert.Equal(10, result.UnaccountedProductCount);
-    }
-
-    [Fact]
-    public async Task An_unclaimed_patch_path_counts_only_one_product()
-    {
-        // A patch entry carries no product code, and one lost product can hold
-        // any number of patches, so three of them are evidence of at least one
-        // product and of no particular number.
-        const string patch = @"C:\Windows\Installer\superseded.msp";
-
-        var result = await RunAgainstRegistry(OneProductWithASupersededPatch(patch),
-            registryProducts: 1, unclaimedPatchFiles: 3);
-
-        AssertWithheldByADegradedEnumeration(Assert.Single(result.Packages, r => r.LocalPackagePath == patch), expectedState: 2);
-        Assert.Equal(1, result.UnaccountedProductCount);
-    }
-
-    [Fact]
-    public async Task The_headcount_and_the_observation_are_not_added_together()
-    {
-        // The registry's forty product keys against the enumeration's one are not
-        // a term, so the figure is the thirty-nine files the registry claims and
-        // the API never mentioned, not seventy-eight. No screen shows the figure and
-        // the command line's own output prints none. The command line's
-        // Application-log entry is the one surface that carries it, as an estimate.
-        const string patch = @"C:\Windows\Installer\superseded.msp";
-
-        var result = await RunAgainstRegistry(OneProductWithASupersededPatch(patch),
-            registryProducts: 40, unclaimedProductFiles: 39);
-
-        Assert.Equal(39, result.UnaccountedProductCount);
-    }
-
-    [Fact]
-    public async Task A_product_already_counted_unreadable_is_not_counted_again_as_unclaimed()
-    {
-        // The double count the subtraction is for: a product whose cached-package
-        // read failed has its registry value claimed by the fallback alone, so it
-        // shows up in both counts for one loss.
-        const string patch = @"C:\Windows\Installer\superseded.msp";
-        var msi = OneProductWithASupersededPatch(patch);
-        msi.AddProduct("{B}");
-        msi.ProductPropertyResult[("{B}", "LocalPackage")] = BadConfiguration;
-
-        var result = await RunAgainstRegistry(msi, registryProducts: 2, unclaimedProductFiles: 1);
-
-        AssertWithheldByADegradedEnumeration(Assert.Single(result.Packages, r => r.LocalPackagePath == patch), expectedState: 2);
-        Assert.Equal(1, result.UnaccountedProductCount);
-    }
-
     /// <summary>
-    /// AND THE OVERLAP THE SUBTRACTION DOES NOT REACH, WHICH IS WHY THE FIGURE IS
-    /// AN ESTIMATE RATHER THAN A LOWER BOUND. The test above is the pair it does
-    /// reconcile: a product whose cached-package read failed, whose registry value
-    /// the fallback then claimed alone, nets back to one.
-    ///
-    /// A subkey whose name is not a packed GUID is in neither of those two terms.
-    /// It is counted where nothing could be asked about it, and the
-    /// InstallProperties read that follows does not turn on the name, so the same
-    /// key's recorded file is read as well and counted a second time wherever the
-    /// enumeration never claimed it and it is really on the disk. One product,
-    /// two terms. They are not netted against each other. Netting them would
-    /// move the figure down, and a lower figure takes the removable class back
-    /// on fewer machines.
-    ///
-    /// THE DIRECTION IS THE SAFE ONE AND THAT IS THE POINT rather than a
-    /// consolation: a count that reads high withholds the removable class on more
-    /// machines and never on fewer. What it rules out is a sentence promising the
-    /// figure is a floor, which is why the surface that prints it calls it an
-    /// estimate.
+    /// A KEY WHOSE NAME IS NO PRODUCT CODE IS ONE ENTRY, HOWEVER MANY WAYS IT SHOWS. It is
+    /// counted where nothing could be asked about it, and the InstallProperties read that
+    /// follows does not turn on the name, so the file it records is read as well and,
+    /// being on the disk and claimed by nothing the enumeration listed, is an unclaimed
+    /// file too. The unclaimed file decides nothing on its own, so the key is one entry
+    /// the scan could not check, and the figure is exact.
     /// </summary>
     [Fact]
-    public async Task A_key_that_names_no_product_and_claims_a_file_of_its_own_reaches_two_terms()
+    public async Task A_key_that_names_no_product_and_claims_a_file_of_its_own_counts_once()
     {
         const string patch = @"C:\Windows\Installer\superseded.msp";
         var msi = OneProductWithASupersededPatch(patch);
@@ -1097,7 +994,7 @@ public class InstallerQueryServiceUnitTests
         var result = await new InstallerQueryService(msi, (_, _) =>
                 new InstallerQueryService.FallbackRead(
                     Failures: 0, ProductKeys: 1,
-                    UnclaimedProductFiles: 1, UnparseableProductKeyNames: 1,
+                    UnclaimedProductFileCodes: [null], UnparseableProductKeyNames: 1,
                     ProductPatchSets: HealthyPatchSets(msi)))
             .GetRegisteredPackagesAsync();
 
@@ -1111,9 +1008,9 @@ public class InstallerQueryServiceUnitTests
         Assert.Equal(0, result.Census.UnreadableProducts);
         Assert.Equal(0, result.Census.UnansweredProductCount);
 
-        Assert.Equal(2, result.UnaccountedProductCount);
+        Assert.Equal(1, result.UnaccountedProductCount);
         // The fixture's one row, and the count is not decoration: a scan that
-        // cannot account for a product takes the whole removable class back, so
+        // cannot check a program entry takes the whole removable class back, so
         // the superseded patch is kept and marked as having been kept.
         AssertWithheldByADegradedEnumeration(Assert.Single(result.Packages), expectedState: 2);
     }
@@ -2977,13 +2874,11 @@ public class InstallerQueryServiceUnitTests
     // a silently wrong population figure is a test that reads it.
 
     [Fact]
-    public async Task The_census_carries_the_three_withheld_terms_apart_from_each_other()
+    public async Task The_census_carries_its_terms_apart_and_the_count_takes_only_what_decides()
     {
-        // The composite the app withholds on is the first term plus the LARGER of
-        // the other two, so a machine can be short by both routes and the terms
-        // must survive that combination separately. Here: one product's records
-        // are short, the registry names ten products against the API's two, and
-        // one cached file on disk is claimed by the registry alone.
+        // One product's records are short, the registry names ten products against
+        // the API's two, and four cached files on disk are claimed by the registry
+        // alone, one of them the short product's own. Each term survives separately.
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
         msi.AddProduct("{B}");
@@ -2991,7 +2886,8 @@ public class InstallerQueryServiceUnitTests
         msi.SetProductProperty("{B}", "LocalPackage", @"C:\Windows\Installer\b.msi");
         msi.ProductPropertyResult[("{B}", "LocalPackage")] = BadConfiguration;
 
-        var result = await RunAgainstRegistry(msi, registryProducts: 10, unclaimedProductFiles: 4);
+        var result = await RunAgainstRegistry(msi, registryProducts: 10,
+            unclaimedProductFileCodes: ["{B}", "{X}", "{Y}", "{Z}"]);
 
         Assert.Equal(1, result.Census.UnreadableProducts);
         // ZERO skipped rows, and it is not the same number as the one above: a
@@ -3004,13 +2900,13 @@ public class InstallerQueryServiceUnitTests
         Assert.Equal(4, result.Census.UnclaimedProductFiles);
         Assert.Equal(0, result.Census.UnclaimedPatchFiles);
 
-        // The composite the app acts on, and it reproduces from the tallies: one
-        // product whose records came back short, plus the never-claimed estimate
-        // of 4 - 1. The registry's ten keys against the API's two contribute
-        // NOTHING to it, which is the point: eight keys nobody could turn into a
-        // named product are eight keys this fake never named, and a difference
-        // between two totals is not evidence about any product.
-        Assert.Equal(1 + (4 - 1), result.UnaccountedProductCount);
+        // The figure the app acts on: the one short product, once, though its own
+        // registry entry also names an unclaimed file. The other three unclaimed files
+        // decide nothing on their own, and the registry's ten keys against the API's two
+        // contribute NOTHING either: a difference between two totals is not evidence
+        // about any product.
+        Assert.Equal(1, result.Census.UnsettledEnumeratedProductCount);
+        Assert.Equal(1, result.UnaccountedProductCount);
     }
 
     [Fact]

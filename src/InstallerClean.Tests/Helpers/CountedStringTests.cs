@@ -56,6 +56,8 @@ public class CountedStringTests
     private static readonly string[] CountedPrefixes =
     {
         "Cli.DeletedFiles", "Cli.DeletingFiles", "Cli.EventLogMissingFromDisk",
+        "Cli.EventLogScanWithheld", "Cli.EventLogScanWithheldPatchFiles",
+        "Cli.EventLogSupersededHeldBack",
         "Cli.FoundOrphans", "Cli.MissingFromDisk",
         "Cli.MovedFiles", "Cli.MovingFiles",
         "Cli.NothingListed", "Cli.NothingListedPerFile",
@@ -76,12 +78,14 @@ public class CountedStringTests
     };
 
     /// <summary>
-    /// The counted strings 3.0.0 adds: the ones whose singular form no shipped
-    /// build has ever rendered.
+    /// The counted strings added from 3.0.0 on: the ones whose singular form no
+    /// build before 3.0.0 ever rendered.
     /// </summary>
     private static readonly string[] NewInThisRelease =
     {
         "Cli.DeletedFiles", "Cli.DeletingFiles", "Cli.EventLogMissingFromDisk",
+        "Cli.EventLogScanWithheld", "Cli.EventLogScanWithheldPatchFiles",
+        "Cli.EventLogSupersededHeldBack",
         "Cli.FoundOrphans", "Cli.MissingFromDisk",
         "Cli.MovedFiles", "Cli.MovingFiles",
         "Cli.NothingListed", "Cli.NothingListedPerFile",

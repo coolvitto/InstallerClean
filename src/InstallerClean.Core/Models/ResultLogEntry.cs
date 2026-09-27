@@ -748,11 +748,13 @@ public sealed record MachineInfo(
 /// <param name="WithheldPatchCount">
 /// Superseded files a scan would have offered and did not, on one condition rather
 /// than several: the scan could not establish something the offer needs. That covers a
-/// read that established nothing, a scan unable to account for every installed
-/// product, a product whose patch set could not be established at all, and a recorded
-/// path the scan could not settle, which the report also counts on its own in
-/// <c>supersededRecordedPathUnestablishedCount</c>. Reports from builds that offered no
-/// registered file carry it as zero.
+/// read that established nothing, a scan unable to check every program entry in Windows
+/// Installer's records or to match every cached patch file to a program it asks, a
+/// product whose patch set could not be established at all, and a recorded path the
+/// scan could not settle. The report counts the files the scan-wide withholding took in
+/// <c>supersededScanWideWithheldCount</c>, and of those the ones taken while a recorded
+/// path was unsettled in <c>supersededRecordedPathUnestablishedCount</c>. Reports from
+/// builds that offered no registered file carry it as zero.
 /// Obsoleted files are not in it: they are not withheld, they are simply not
 /// offered, and they have their own count.
 ///
@@ -775,9 +777,10 @@ public sealed record MachineInfo(
 /// the enumeration never claimed.
 /// </param>
 /// <param name="RecoveredProductCount">
-/// Products the registry named, this enumeration never returned, and a keyed ask
-/// then found installed: each one named and confirmed, not inferred from two
-/// totals.
+/// Installations of products the registry named, this enumeration never returned, and
+/// a keyed ask then found installed: each one named and confirmed, not inferred from two
+/// totals. Installations the same ask found of a product the enumeration did return are
+/// <paramref name="RecoveredEnumeratedInstallationCount"/>.
 ///
 /// A non-zero reading is a machine whose enumeration came back short of a product
 /// that is installed. It withholds nothing: the products behind it were asked
@@ -801,18 +804,14 @@ public sealed record MachineInfo(
 /// The same for patch registrations. A patch entry names no product, so it
 /// establishes only that at least one product went unreached.
 ///
-/// THESE ARE THE TALLIES, AND THE FIGURE THE APP DERIVES FROM THEM IS SENT
-/// NOWHERE. That figure is a product estimate floored at one by patch evidence and
-/// biased low by a deliberately generous subtraction, and it can run high as well,
-/// so a field called a count would assert an exactness it has not got.
+/// A tally. The part of it that withholds is
+/// <paramref name="UnattributedPatchFileCount"/>.
 ///
-/// It is reproducible from these plus <paramref name="UnreadableProductCount"/>,
-/// so nothing is lost by sending the tallies instead. The machine object's two
-/// product headcounts are inputs to nothing the app derives: their difference
-/// cannot tell a truncated enumeration from ordinary registry residue, and the
-/// products behind it are asked about by name instead.
-/// They travel because how far a real machine's registry runs ahead of its
-/// enumeration is a fact only these reports can establish.
+/// The machine object's two product headcounts are inputs to nothing the app derives:
+/// their difference cannot tell a truncated enumeration from ordinary registry residue,
+/// and the products behind it are asked about by name instead. They travel because how
+/// far a real machine's registry runs ahead of its enumeration is a fact only these
+/// reports can establish.
 /// </param>
 /// <param name="WithheldCandidateCount">
 /// Files the folder walk found, that no registration's recorded path claimed, and
@@ -1000,6 +999,40 @@ public sealed record MachineInfo(
 /// back, and <paramref name="WithheldPatchCount"/> less this is not a count of any other
 /// condition. A row an earlier check had already withheld is not in it.
 /// </param>
+/// <param name="UnsettledEnumeratedProductCount">
+/// Program codes the enumeration returned that the scan could not check: an installation
+/// whose records came back short, or a code whose own keyed answer did not settle and
+/// whose registry entry names a cached file the enumeration never claimed that is on the
+/// disk. One per code.
+///
+/// WITH <paramref name="UnansweredProductCount"/> AND THE MACHINE OBJECT'S UNPARSEABLE KEY
+/// COUNT IT IS THE WHOLE OF THE FIGURE THE APPLICATION-LOG NOTICE CARRIES, and the three
+/// never overlap, so their sum is that figure exactly. The sum is not sent.
+///
+/// THESE FOUR ARE APPENDED LAST, for the reason the members before them were.
+/// </param>
+/// <param name="RecoveredEnumeratedInstallationCount">
+/// Installations of a product the enumeration returned, found by the keyed ask for that
+/// product under an account or context the enumeration did not list them in. Each is
+/// asked every question an enumerated installation is, and withholds nothing by being
+/// found.
+/// </param>
+/// <param name="UnattributedPatchFileCount">
+/// Patch registrations naming a cached file the enumeration never claimed that is on the
+/// disk, whose key name yields no code or whose code no registry listing of a product the
+/// scan asks by name records it as holding. One per registration. Any above zero
+/// withholds every superseded patch. A count of registrations, never added to a count of
+/// products.
+/// </param>
+/// <param name="SupersededScanWideWithheldCount">
+/// Superseded files the scan-wide withholding took, on whichever of its conditions held,
+/// whose file is on disk (<c>ScanResult.SupersededScanWideWithheldCount</c>).
+///
+/// A SUB-COUNT OF <paramref name="WithheldPatchCount"/>, never added to it. The rest of
+/// that count is files a check of the file's own patch withheld, so the two tell a hold
+/// on the whole machine from a hold on one file.
+/// <paramref name="SupersededRecordedPathUnestablishedCount"/> is a sub-count of this.
+/// </param>
 public sealed record ScanInfo(
     long DurationMs,
     int RegisteredCount,
@@ -1033,7 +1066,11 @@ public sealed record ScanInfo(
     int WithheldContainmentUnestablishedCount,
     int SupersededContainmentRefusedCount,
     int SupersededContainmentUnestablishedCount,
-    int SupersededRecordedPathUnestablishedCount)
+    int SupersededRecordedPathUnestablishedCount,
+    int UnsettledEnumeratedProductCount,
+    int RecoveredEnumeratedInstallationCount,
+    int UnattributedPatchFileCount,
+    int SupersededScanWideWithheldCount)
 {
     public static ScanInfo From(ScanResult scan, long durationMs)
     {
@@ -1104,7 +1141,13 @@ public sealed record ScanInfo(
             scan.SupersededContainmentRefusedCount,
             scan.SupersededContainmentUnestablishedCount,
             // A sub-count of the withheld superseded figure above, never added to it.
-            scan.SupersededRecordedPathUnestablishedCount);
+            scan.SupersededRecordedPathUnestablishedCount,
+            scan.Census.UnsettledEnumeratedProductCount,
+            scan.Census.RecoveredEnumeratedInstallationCount,
+            scan.Census.UnattributedPatchFileCount,
+            // Also a sub-count of the withheld superseded figure, and the one above is
+            // a sub-count of this.
+            scan.SupersededScanWideWithheldCount);
     }
 }
 

@@ -254,9 +254,19 @@ internal sealed class FakeMsiApi : IMsiApi
         uint options, string property, char[]? value, ref uint valueLength) =>
         throw new InvalidOperationException("the query service reads no source lists");
 
+    /// <summary>
+    /// Every patch property read put to this fake, with the account and context it was
+    /// put in. The answers below do not depend on the account, so this is how a test
+    /// shows WHICH installation of a product was asked.
+    /// </summary>
+    public List<(string PatchCode, string ProductCode, string? Sid, MsiInstallContext Context, string Property)>
+        PatchInfoReads { get; } = new();
+
     public uint GetPatchInfo(string patchCode, string productCode, string? userSid, MsiInstallContext context,
         string property, char[]? value, ref uint valueLength)
     {
+        PatchInfoReads.Add((patchCode, productCode, userSid, context, property));
+
         if (PatchPropertyResult.TryGetValue((patchCode, productCode, property), out var forced))
         {
             valueLength = 0;

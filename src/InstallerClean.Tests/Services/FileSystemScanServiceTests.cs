@@ -943,7 +943,7 @@ public class FileSystemScanServiceTests
             ["{A}"] = ProductPatchSet.AllNonRemovable,
         };
         return await new InstallerQueryService(msi, (_, _) => new InstallerQueryService.FallbackRead(
-                0, 0, UnclaimedProductFiles: aClaimWasLost ? 1 : 0, ProductPatchSets: sets),
+                0, 0, UnclaimedPatchFileCodes: aClaimWasLost ? [null] : null, ProductPatchSets: sets),
                 crashLogSink: null, identityReader: reader)
             .GetRegisteredPackagesAsync();
     }
@@ -986,12 +986,12 @@ public class FileSystemScanServiceTests
         // uninstall could fail on the file, which is the exact claim the offer's own
         // condition ruled out before the file was ever offered.
         //
-        // WHAT FIRED IT WAS NOTHING TO DO WITH THIS FILE. The count has three terms: a
-        // failed read on a product the enumeration DID return, a product the registry saw
-        // and the enumeration did not, and a registry key Windows would not answer about.
-        // None of them is "a holder of this patch went unseen". The residual behind them
-        // is real and is answered where it can still change an outcome: this run removes
-        // no superseded patch at all, which the sibling test below pins.
+        // WHAT FIRED IT WAS NOTHING TO DO WITH THIS FILE. Here it is a cached patch file
+        // the enumeration never claimed and the scan could not match to any program it
+        // asks about; the other conditions are a product the scan could not check and a
+        // recorded path it could not settle. None of them is "a holder of this patch went
+        // unseen". Where any of them holds, this run removes no superseded patch at all,
+        // which the sibling test below pins.
         var (fs, reader) = MachineWithThePatchFileGone();
         var enumerated = await EnumerateWithSupersededPatch(aClaimWasLost: true, reader);
 

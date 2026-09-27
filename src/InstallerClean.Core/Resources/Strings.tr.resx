@@ -1852,31 +1852,33 @@ InstallerClean'i yönetici olarak yeniden çalıştırın.</value></data>
 
        THIS SENTENCE AND THE NOTICE IN THE 3000 BAND ARE NOT ONE REPORT. This sentence
        is for a person. The notice keeps its own condition and its own figure, on
-       products the enumeration could not account for rather than on files held back,
-       and the two counts are not the same quantity: see Cli.EventLogScanWithheld and
-       ReportScanSignals. -->
+       program entries the scan could not check or cached patch files it could not match
+       to a program rather than on files held back, and the two counts are not the same
+       quantity: see Cli.EventLogScanWithheld and ReportScanSignals. -->
   <data name="Cli.SupersededHeldBack.Singular" xml:space="preserve"><value>InstallerClean, yerine geçilmiş tek dosyanın artık gerekli olmadığından emin olamadı, bu yüzden onu geri tuttu.</value></data>
   <data name="Cli.SupersededHeldBack.Plural" xml:space="preserve"><value>InstallerClean, yerine geçilmiş {0} dosyanın artık gerekli olmadığından emin olamadı, bu yüzden onları geri tuttu.</value></data>
-  <!-- 0 = mode arg, 1 = installed products the enumeration could not account
-       for. A notice beside the run's summary, not a summary itself
-       (Event ID 3000; see MachineContract). Deliberately unpluralised, matching
-       the always-plural "errors:" header the same audience scrapes: a machine
-       surface holds one shape, and the grammar is the price of it.
+  <!-- 0 = mode arg, 1 = superseded files held back. Event ID 3003, written on the
+       condition Cli.SupersededHeldBack is printed on and carrying the same count, so a
+       run whose console nobody reads still records that superseded files were held
+       back. It names no cause, for the reason that line names none. -->
+  <!-- 0 = mode arg, 1 = program entries in Windows Installer's records the scan could
+       not check. A notice beside the run's summary, not a summary itself (Event ID 3000;
+       see MachineContract). The numeral stays in the singular too: a machine surface
+       holds one shape, and an RMM filter reads the number.
 
-       ONE FIGURE, AND THE KEY NAME IS NOT A PROMISE OF A SECOND. What this
-       sentence is about is the products it could not account for and what they
-       cost the count of files missing from the cache; a withheld count answers a
-       different question, so printing it beside that clause would hand an operator a
-       number with no stated relation to the words next to it. The withheld count
-       travels in the opt-in result log instead, as scan.withheldPatchCount.
+       ENTRIES AND NOT PROGRAMS. The figure adds three kinds that never overlap: codes the
+       product enumeration returned that could not be checked, codes it never returned
+       that Windows would not answer about, and registry product keys whose name is no
+       code, which need not be programs. InstallerQueryResult.UnaccountedProductCount
+       sets them out.
 
-       The count this line prints is an estimate that can come out high as well
-       as low, which MachineContract's remarks set out: it is sound to alert on and to
-       trend, and it is not a headcount of programs. The window does not show it, and
-       this line keeps it, an RMM having a filter to hang on a number.
-       Cli.SupersededHeldBack IS NOT THIS FIGURE IN OTHER WORDS: it counts files
-       held back, which is a different quantity reached by several routes, of which
-       the condition here is one. -->
+       Cli.SupersededHeldBack IS NOT THIS FIGURE IN OTHER WORDS: it counts files held
+       back, which is a different quantity reached by several routes, of which the
+       condition here is one. The window does not show this figure. -->
+  <!-- 0 = mode arg, 1 = cached patch files the scan could not match to any program it
+       asks about (EnumerationCensus.UnattributedPatchFileCount). The same Event ID 3000,
+       written in place of Cli.EventLogScanWithheld where every program entry was checked
+       and these files are what held every superseded patch back. -->
   <!-- 0 = mode arg, 1 = registrations naming a file that is not in the cache. The
        second notice (Event ID 3001), and the actionable one. A pair, because the
        numeral governs a noun and a verb: one entry NAMES a file and affects one

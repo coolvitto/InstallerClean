@@ -248,23 +248,59 @@ public class CliHeldBackTests
         Assert.Contains("could no longer confirm the destination", line, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void The_withheld_notice_states_a_cause_every_contributor_meets()
+    [Theory]
+    [InlineData(1, "/s mode: 1 program entry in Windows Installer's records could not be checked, so no superseded patch was offered.")]
+    [InlineData(3, "/s mode: 3 program entries in Windows Installer's records could not be checked, so no superseded patch was offered.")]
+    public void The_withheld_notice_counts_entries_that_could_not_be_checked(int entries, string expected)
     {
-        // Three things reach this figure and only one of them is a read that
-        // failed: a product whose records would not read, a cached file the
-        // registry claims and the API never mentioned, and a product the registry
-        // named that this scan could not settle either way, Windows declining to
-        // answer or the key name yielding no code to ask with.
-        // Composed here exactly as the write site composes it.
-        var line = MachineContract.English(
-            () => string.Format(Strings.Cli_EventLogScanWithheld, "/s", 3));
+        // Three kinds reach this figure and never overlap: a code the enumeration
+        // returned that could not be checked, a code it never returned that Windows would
+        // not answer about, and a registry key whose name is no code. What is true of all
+        // three is that the entry could not be checked, and the third need not be a
+        // program. Composed here exactly as the write site composes it.
+        var line = MachineContract.English(() => string.Format(
+            DisplayHelpers.Pluralise(entries,
+                Strings.Cli_EventLogScanWithheld_Singular,
+                Strings.Cli_EventLogScanWithheld_Plural,
+                "Cli.EventLogScanWithheld"),
+            "/s", entries));
 
-        Assert.DoesNotContain("matched up", line, StringComparison.OrdinalIgnoreCase);
-        // The figure is an estimate rather than a headcount, so the sentence has to
-        // carry that as well as the cause. Beside the absence, so the absence is
-        // attributable.
-        Assert.Contains("could not account for an estimated", line, StringComparison.Ordinal);
+        Assert.Equal(expected, line);
+    }
+
+    [Theory]
+    [InlineData(1, "/s mode: 1 cached patch file could not be matched to any program this scan could ask about, so no superseded patch was offered.")]
+    [InlineData(4, "/s mode: 4 cached patch files could not be matched to any program this scan could ask about, so no superseded patch was offered.")]
+    public void The_withheld_notice_counts_patch_files_where_they_are_the_only_reason(int files, string expected)
+    {
+        var line = MachineContract.English(() => string.Format(
+            DisplayHelpers.Pluralise(files,
+                Strings.Cli_EventLogScanWithheldPatchFiles_Singular,
+                Strings.Cli_EventLogScanWithheldPatchFiles_Plural,
+                "Cli.EventLogScanWithheldPatchFiles"),
+            "/s", files));
+
+        Assert.Equal(expected, line);
+    }
+
+    [Theory]
+    [InlineData(1, "/d mode: InstallerClean could not be certain that 1 superseded file is no longer needed, so it has held it back.")]
+    [InlineData(5, "/d mode: InstallerClean could not be certain that 5 superseded files are no longer needed, so it has held them back.")]
+    public void The_superseded_notice_carries_the_count_the_console_line_prints(int held, string expected)
+    {
+        // Event ID 3003, written on the condition the console's superseded line is
+        // printed on, with the same count, so a run nobody watches still records it.
+        var line = MachineContract.English(() => string.Format(
+            DisplayHelpers.Pluralise(held,
+                Strings.Cli_EventLogSupersededHeldBack_Singular,
+                Strings.Cli_EventLogSupersededHeldBack_Plural,
+                "Cli.EventLogSupersededHeldBack"),
+            "/d", held));
+
+        Assert.Equal(expected, line);
+        Assert.Equal(3003, CliContract.EventIdFor(CliEventClass.ScanSupersededHeldBackNotice));
+        Assert.Equal(System.Diagnostics.EventLogEntryType.Warning,
+            CliContract.EntryTypeFor(CliEventClass.ScanSupersededHeldBackNotice));
     }
 
     /// <summary>

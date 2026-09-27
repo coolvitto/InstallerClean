@@ -161,15 +161,16 @@ internal enum CliEventClass
     HardError,
 
     /// <summary>
-    /// Notice: the scan could not account for every installed product, so the
-    /// registrations it saw may be short of one and anything it reports about
-    /// files missing from the cache may be short with them.
+    /// Notice: the scan could not check a program entry in Windows Installer's records,
+    /// or could not match a cached patch file to a program it asks about, so no
+    /// superseded patch was offered.
     ///
-    /// Raised where <c>ScanResult.UnaccountedProductCount</c> is above nought, the
-    /// condition on which InstallerQueryService also takes the removable verdict off
-    /// every superseded row. A recorded path the scan could not settle withholds the
-    /// same rows and does not raise it: this notice is about installed products the
-    /// scan did not account for, not about the withholding. The Event ID is 3000 and is
+    /// Raised where <c>ScanResult.UnaccountedProductCount</c> or
+    /// <c>EnumerationCensus.UnattributedPatchFileCount</c> is above nought, each a
+    /// condition on which InstallerQueryService takes the removable verdict off every
+    /// superseded row. A recorded path the scan could not settle withholds the same rows
+    /// and does not raise it: this notice is about the records the scan could not check,
+    /// not about the withholding. The Event ID is 3000 and is
     /// the wire contract; the member's name is this codebase's, and renaming it changes
     /// nothing a filter on the event log sees.
     /// </summary>
@@ -207,6 +208,21 @@ internal enum CliEventClass
     /// a walk-derived offer this way; the message says what is true of all of them.
     /// </summary>
     ScanNothingOfferedNotice,
+
+    /// <summary>
+    /// Notice: the scan held back superseded files it could not be certain are no
+    /// longer needed. Raised where <c>ScanResult.SupersededHeldBackCount</c> is above
+    /// nought, the condition the console's own superseded line is printed on, and
+    /// carrying the same count.
+    ///
+    /// WARNING, on the rule at <see cref="CliContract.EntryTypeFor"/>: this run's offer
+    /// was short of files it would otherwise have offered, which is the reason
+    /// <see cref="ScanRecordsIncompleteNotice"/> is a warning too.
+    ///
+    /// IT NAMES NO CAUSE, on the same terms as the console line: several separate
+    /// findings reach the count and no sentence naming one is true of the others.
+    /// </summary>
+    ScanSupersededHeldBackNotice,
 }
 
 /// <summary>The exit code and Event-log class chosen for a finished file operation.</summary>
@@ -317,6 +333,7 @@ internal static class CliContract
         CliEventClass.ScanRecordsIncompleteNotice => 3000,
         CliEventClass.ScanMissingFilesNotice => 3001,
         CliEventClass.ScanNothingOfferedNotice => 3002,
+        CliEventClass.ScanSupersededHeldBackNotice => 3003,
         _ => 0,
     };
 
@@ -334,6 +351,8 @@ internal static class CliContract
     /// not on the missing-files one: that run's list was not merely short, it was
     /// empty, and it will be empty again on the next run only for as long as the
     /// condition holds rather than for as long as some files are absent. The
+    /// superseded-files notice is Warning on the same reading: that run's offer was
+    /// short of files it held back. The
     /// missing-files notice is the one that is not about the run:
     /// it is true whether or not the run worked and repeats for as long as the
     /// files are gone, so at Warning a machine with nothing wrong with it posts

@@ -225,6 +225,7 @@ public class CliContractTests
         Assert.Equal(3000, CliContract.EventIdFor(CliEventClass.ScanRecordsIncompleteNotice));
         Assert.Equal(3001, CliContract.EventIdFor(CliEventClass.ScanMissingFilesNotice));
         Assert.Equal(3002, CliContract.EventIdFor(CliEventClass.ScanNothingOfferedNotice));
+        Assert.Equal(3003, CliContract.EventIdFor(CliEventClass.ScanSupersededHeldBackNotice));
     }
 
     [Fact]
@@ -242,6 +243,7 @@ public class CliContractTests
         Assert.DoesNotContain(CliContract.EventIdFor(CliEventClass.ScanRecordsIncompleteNotice), outcomes);
         Assert.DoesNotContain(CliContract.EventIdFor(CliEventClass.ScanMissingFilesNotice), outcomes);
         Assert.DoesNotContain(CliContract.EventIdFor(CliEventClass.ScanNothingOfferedNotice), outcomes);
+        Assert.DoesNotContain(CliContract.EventIdFor(CliEventClass.ScanSupersededHeldBackNotice), outcomes);
     }
 
     [Fact]

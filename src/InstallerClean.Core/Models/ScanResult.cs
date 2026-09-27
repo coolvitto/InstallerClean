@@ -99,18 +99,11 @@ namespace InstallerClean.Models;
 /// the property both hosts read.
 /// </param>
 /// <param name="UnaccountedProductCount">
-/// Installed products this scan did not account for, carried through from
-/// <see cref="InstallerQueryResult.UnaccountedProductCount"/>, whose remarks are
-/// the ones to read before quoting this: it is not confined to records that
-/// failed to read, and it is an estimate rather than a headcount.
-///
-/// IT BEARS ON BOTH HALVES OF THE SCAN. A non-zero value withholds every
-/// superseded-patch verdict, so the offer is shorter than the machine would otherwise
-/// give. It also bears on the missing-files report: a product whose records did not
-/// fully read is a product whose registrations this scan may not have seen, so the
-/// count of records naming files that are not there can be short. "No missing files"
-/// and "no missing files that could be seen" are different claims and only the second
-/// is earned on such a run.
+/// Program entries in Windows Installer's records this scan could not settle, carried
+/// through from <see cref="InstallerQueryResult.UnaccountedProductCount"/>, whose remarks
+/// are the ones to read before quoting this: it is not confined to records that failed
+/// to read. A non-zero value withholds every superseded-patch verdict, so the offer is
+/// shorter than the machine would otherwise give.
 /// </param>
 /// <param name="WithheldCount">
 /// What withholding the removable class cost a run: superseded patches whose file
@@ -131,12 +124,13 @@ namespace InstallerClean.Models;
 /// rather than failing to establish anything. Worse() lets it beat Unestablished
 /// where a row meets both, so the mixed case is excluded with it. What is left is the
 /// scan failing to establish something: a read about the patch that established
-/// nothing, in Downgrade's own words, or one of the three conditions on the whole
-/// machine that withhold every such row at once, a product the scan could not account
-/// for, a recorded path it could not settle and a machine-wide list of patch
-/// registrations that did not run to its end.
-/// <see cref="SupersededRecordedPathUnestablishedCount"/> counts the rows withheld while
-/// the second held.
+/// nothing, in Downgrade's own words, or one of the four conditions on the whole
+/// machine that withhold every such row at once, a program entry the scan could not
+/// check, a cached patch file it could not match to a program it asks about, a recorded
+/// path it could not settle and a machine-wide list of patch registrations that did not
+/// run to its end. <see cref="SupersededScanWideWithheldCount"/> counts the rows the
+/// first three withheld, and <see cref="SupersededRecordedPathUnestablishedCount"/> those
+/// withheld while the third held.
 ///
 /// THE ON-DISK QUALIFIER IS THE WHOLE DIFFERENCE FROM
 /// <see cref="RegisteredWithheldCount"/> AND IT IS LOAD-BEARING. A row whose file
@@ -669,6 +663,20 @@ public record ScanResult(
     /// </summary>
     public int SupersededRecordedPathUnestablishedCount =>
         RegisteredPackages.Count(p => p.WithheldOnRecordedPathUnestablished && p.FileExists);
+
+    /// <summary>
+    /// How many superseded files the enumeration's scan-wide withholding took, on
+    /// whichever of its conditions held: rows carrying
+    /// <see cref="RegisteredPackage.WithheldScanWide"/> whose file is on disk. The opt-in
+    /// report carries it as a count of its own.
+    ///
+    /// A SUB-COUNT OF <see cref="WithheldCount"/>, over the same on-disk test. The rest of
+    /// that count is superseded files a check of the file's own patch withheld, so the
+    /// two together tell a hold on the whole machine from a hold on one file.
+    /// <see cref="SupersededRecordedPathUnestablishedCount"/> is a sub-count of this one.
+    /// </summary>
+    public int SupersededScanWideWithheldCount =>
+        RegisteredPackages.Count(p => p.WithheldScanWide && p.FileExists);
 
     /// <summary>
     /// Whether the window's finished screen, on a run that offered nothing, speaks of

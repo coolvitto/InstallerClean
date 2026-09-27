@@ -16,46 +16,29 @@ namespace InstallerClean.Models;
 /// Uninstallable read failed.
 /// </param>
 /// <param name="UnaccountedProductCount">
-/// Installed products this enumeration did not account for. One of the two triggers
-/// for withholding the removable class, the other being
+/// Program entries in Windows Installer's records this enumeration could not check. One
+/// of the three triggers for withholding the removable class, the others being
+/// <see cref="EnumerationCensus.UnattributedPatchFileCount"/> and
 /// <see cref="EnumerationCensus.AnyRecordedPathUnestablished"/>, and the figure the
 /// command line's Application-log notice carries.
 ///
-/// THREE contributors, and only the first is a failure to read: a product whose
-/// row came back but whose LocalPackage value, or one of whose patch rows, would
-/// not read. A product row that would not read refuses the scan instead, so no
-/// result carries one. Then an absence rather than a failure: a cached file the
-/// registry claims and the API never mentioned, computed NET of the read failures
-/// (see the subtraction at the assembly site), so by construction it counts only
-/// products where nothing failed to read at all. A product meeting more than one
-/// contributor counts once.
+/// THREE KINDS, AND NO ENTRY IS IN TWO OF THEM. A code the enumeration returned, counted
+/// once per code: an installation whose row came back but whose <c>LocalPackage</c>
+/// value, or one of whose patch rows, would not read, or a code whose own keyed answer
+/// did not settle and whose registry entry names a cached file the enumeration never
+/// claimed that is on the disk (<see cref="EnumerationCensus.UnsettledEnumeratedProductCount"/>).
+/// A code the enumeration never returned that Windows would not say was installed
+/// (<see cref="EnumerationCensus.UnansweredProductCount"/>). And a registry product key
+/// whose name is no code (<see cref="EnumerationCensus.UnparseableProductKeyNames"/>). The
+/// first are codes the enumeration returned, the second codes it did not, and the third
+/// have no code, so the sum is exact.
 ///
-/// The third is neither a failure to read nor an absence: a product the registry
-/// named and this scan could not settle either way, Windows declining to say
-/// whether the code is installed or the key name yielding no code to ask with. Its
-/// opposite number, a registry product confirmed installed and recovered into the
-/// questions the scan asks, contributes NOTHING here, and that asymmetry is the
-/// point: a product that can be asked about is asked, and only a product nobody
-/// can get an answer about withholds.
+/// It counts ENTRIES rather than programs because the third kind is a registry key, which
+/// need not be a program. Any sentence built on this number is a sentence about all three
+/// kinds; <see cref="Census"/> carries them apart for anything that needs to say which.
 ///
-/// ITS NAME SAYS ONLY THAT THE ENUMERATION COULD NOT ACCOUNT FOR THEM, because two
-/// of its three contributors are not read failures at all, one being an absence and
-/// one an inability to establish anything either way. Any sentence built on this
-/// number is a sentence about all three. The terms themselves are in
-/// <see cref="Census"/>, separately, for anything that needs to say which.
-///
-/// It is not an exact headcount either, and cannot be made one. It can run under the
-/// truth, the unclaimed-file term being an estimate the assembly site deliberately
-/// biases low. It can run over it as well: a product subkey whose name is not a
-/// packed GUID counts once where nothing could be asked about it, and the file that
-/// key records counts again where the enumeration never claimed it and it is on the
-/// disk, two terms that are added rather than netted against each other. A difference
-/// between two product totals, which a stale registry key inflates, is not a term:
-/// the products behind such a difference are asked about by name instead.
-///
-/// READING HIGH IS THE SAFE DIRECTION, a higher count withholding the removable class
-/// on more machines and never on fewer. So no surface may present this as a count of
-/// programs, nor say the true figure is at least this one.
+/// A registry product recovered by name, installed or not, contributes nothing, and that
+/// is the point: a product that can be asked about is asked.
 /// </param>
 /// <param name="PatchClaims">
 /// Every product-to-patch claim this enumeration read, one entry per claim
@@ -119,8 +102,8 @@ public record InstallerQueryResult(
 /// Products whose records came back short: an unreadable <c>LocalPackage</c> value,
 /// an unreadable <c>LocalPackage</c> under one of its patches, or a patch
 /// enumeration that did not run to a clean end. One per product however many it
-/// met. An exact per-product tally with no floor under it, which is what separates
-/// it from the estimate the withholding is otherwise computed from.
+/// met. An exact per-installation tally: the figure the withholding reads counts these
+/// products once per code (<see cref="UnsettledEnumeratedProductCount"/>).
 /// </param>
 /// <param name="SkippedProductRows">
 /// Rows the product walk passed without reading, one per row. It is zero on every
@@ -138,30 +121,23 @@ public record InstallerQueryResult(
 /// Product registry entries whose cached path the API's own loop never claimed
 /// AND whose file is really on the disk. Both halves are load-bearing and both
 /// are observed rather than inferred.
+///
+/// A TALLY THAT DECIDES NOTHING BY ITSELF. Every entry behind it is under a code the
+/// enumeration returned, one the recovery by name found installed or not installed, one
+/// Windows would not answer about, or no code at all, and only the kinds already counted
+/// in <see cref="UnsettledEnumeratedProductCount"/>, <see cref="UnansweredProductCount"/>
+/// and <see cref="UnparseableProductKeyNames"/> withhold.
 /// </param>
 /// <param name="UnclaimedPatchFiles">
-/// The same for patch entries. A patch entry names no product, so it can
-/// establish only that at least one product went unreached.
+/// The same for patch entries. <see cref="UnattributedPatchFileCount"/> is the part of it
+/// that withholds.
 ///
-/// THESE ARE TALLIES AND NOT THE ARITHMETIC, WHICH IS DELIBERATELY NOT CARRIED.
-/// Its one derived term is a product estimate floored at one by patch evidence and
-/// biased low by a generous subtraction, so it is not the count its name would
-/// claim, and it is reproducible from these plus
-/// <see cref="UnreadableProducts"/>.
-///
-/// <see cref="UnansweredProductCount"/> and <see cref="UnparseableProductKeyNames"/>
-/// are the arithmetic's other inputs and are not among these, being neither a
-/// headcount nor an observation of the disk: they tally the products that could not
-/// be settled, and they are added to the derived term rather than weighed against
+/// <see cref="RegistryProductKeys"/> is NOT an input to anything and still travels.
+/// Nothing is derived from its difference against <see cref="ProductCount"/>, which
+/// cannot tell a truncated enumeration from ordinary registry residue; the products
+/// behind it are asked about by name instead. How large it runs across real machines is
+/// a fact about machines rather than about this app, and only these reports can answer
 /// it.
-///
-/// <see cref="RegistryProductKeys"/> is NOT an input to any of it and still
-/// travels. Nothing is derived from its difference against
-/// <see cref="ProductCount"/>, which cannot tell a truncated enumeration from
-/// ordinary registry residue; the products behind it are asked about by name
-/// instead. How large it runs across real machines is a
-/// fact about machines rather than about this app, and only these reports can
-/// answer it.
 /// </param>
 /// <param name="NonStringLocalPackageValues">
 /// Cached-package values, <c>LocalPackage</c> or <c>ManagedLocalPackage</c>, that
@@ -211,9 +187,11 @@ public record InstallerQueryResult(
 /// an 8dot3 short name.
 /// </param>
 /// <param name="RecoveredProductCount">
-/// Products the registry named, the enumeration never returned, and a keyed ask
-/// then found installed: a count of products identified individually and confirmed
-/// one at a time, not inferred from the difference between two totals.
+/// Installations of products the registry named, the enumeration never returned, and a
+/// keyed ask then found installed: identified individually and confirmed one at a time,
+/// not inferred from the difference between two totals. Installations the same ask found
+/// of a code the enumeration did return are
+/// <see cref="RecoveredEnumeratedInstallationCount"/>, and are not in this one.
 ///
 /// Zero is the answer on a machine whose enumeration was whole, and it is also
 /// the answer on a machine whose registry holds nothing but residue, so a
@@ -227,8 +205,8 @@ public record InstallerQueryResult(
 /// answer. Unlike the count above it does withhold, because nothing about the
 /// enumeration's completeness follows from an unanswered question.
 ///
-/// IT WITHHOLDS TWICE. The superseded class is withheld, on the same count as every
-/// other product this scan could not account for. And the walk-derived offer is
+/// IT WITHHOLDS TWICE. The superseded class is withheld, each such code being one of the
+/// program entries this scan could not check. And the walk-derived offer is
 /// withheld, through <see cref="SecondInstanceNotRuledOut"/>: a product Windows would
 /// not answer about was never asked its <c>InstanceType</c>, so nothing shows it is
 /// not a second instance of itself.
@@ -475,7 +453,30 @@ public readonly record struct EnumerationCensus(
     // records that the reads failed, as registryKeyReadFailureCount. The crash log
     // writes the first twenty in full, then each cause not yet seen, and counts
     // the rest in a closing entry.
-    int RegistryKeyReadFailures = 0)
+    int RegistryKeyReadFailures = 0,
+    // The three below are appended for the same reason.
+    //
+    // UnsettledEnumeratedProductCount: codes the enumeration returned that this scan
+    // could not check, one per code, the first of the three kinds
+    // InstallerQueryResult.UnaccountedProductCount adds. A code with an installation
+    // whose records came back short, a code whose own keyed answer would not come or
+    // left out an installation the enumeration listed and whose registry entry names a
+    // cached file the enumeration never claimed that is on the disk, and any product row
+    // the walk passed without reading. With UnansweredProductCount and
+    // UnparseableProductKeyNames it is the whole of that figure, so the report carries
+    // the three and never the sum.
+    int UnsettledEnumeratedProductCount = 0,
+    // RecoveredEnumeratedInstallationCount: installations of a code the enumeration
+    // returned, listed by the keyed ask for that code under an account or context the
+    // enumeration did not list them in. Each is asked every question an enumerated
+    // installation is. RecoveredProductCount keeps the installations of codes the
+    // enumeration never returned.
+    int RecoveredEnumeratedInstallationCount = 0,
+    // UnattributedPatchFileCount: patch entries among UnclaimedPatchFiles whose key name
+    // yields no code, or whose code no registry listing of a product this scan asks by
+    // name records it as holding. One per entry. It withholds every superseded patch, and
+    // it is not a count of products, so it is never added to the one above.
+    int UnattributedPatchFileCount = 0)
 {
     /// <summary>
     /// Every recorded value this scan could not turn into a path, whatever refused

@@ -75,7 +75,11 @@ public class ResultLogEntryTests
         WithheldContainmentUnestablishedCount: 0,
         SupersededContainmentRefusedCount: 0,
         SupersededContainmentUnestablishedCount: 0,
-        SupersededRecordedPathUnestablishedCount: 0);
+        SupersededRecordedPathUnestablishedCount: 0,
+        UnsettledEnumeratedProductCount: 0,
+        RecoveredEnumeratedInstallationCount: 0,
+        UnattributedPatchFileCount: 0,
+        SupersededScanWideWithheldCount: 0);
 
     private static MachineInfo SampleMachine() => new(
         ShortNameCreation: ShortNameCreationLabels.NoVolumes,
@@ -281,6 +285,16 @@ public class ResultLogEntryTests
                 // Superseded rows withheld on a recorded path the scan could not settle:
                 // a sub-count of withheldPatchCount, never added to it.
                 "supersededRecordedPathUnestablishedCount",
+                // Listed programs the scan could not check, installations of listed
+                // programs the recovery found, and cached patch files it could not match
+                // to a program it asks about.
+                "unsettledEnumeratedProductCount",
+                "recoveredEnumeratedInstallationCount",
+                "unattributedPatchFileCount",
+                // Superseded rows the scan-wide withholding took: also a sub-count of
+                // withheldPatchCount, and the recorded-path count above is a sub-count of
+                // this.
+                "supersededScanWideWithheldCount",
             ],
             root.GetProperty("scan").EnumerateObject().Select(p => p.Name));
 
@@ -342,22 +356,21 @@ public class ResultLogEntryTests
     }
 
     [Fact]
-    public void The_withholding_arithmetic_travels_as_its_tallies_and_never_as_its_terms()
+    public void The_withholding_arithmetic_travels_as_its_tallies_and_never_as_its_sum()
     {
-        // The app derives a product estimate from these, floored at one and
-        // biased low, which is not the count its name would claim and IS
-        // reproducible from what is sent. So the tallies go and the derived term
-        // goes nowhere. The registry and API headcounts travel for their own
-        // sake rather than as its inputs: nothing is derived from the difference
-        // between them any more, and a fleet's spread of that difference is a
-        // fact about machines that no verdict of the app's carries.
+        // The figure the Application-log notice carries is the sum of three counts that
+        // never overlap, and the report sends the three rather than the sum. The registry
+        // and API headcounts travel for their own sake rather than as its inputs: nothing
+        // is derived from the difference between them, and a fleet's spread of that
+        // difference is a fact about machines that no verdict of the app's carries.
         var scan = new ScanResult(
             Array.Empty<OrphanedFile>(), Array.Empty<RegisteredPackage>(), 0,
             UnaccountedProductCount: 9,
             Census: new EnumerationCensus(
                 UnreadableProducts: 4, SkippedProductRows: 1,
                 RegistryProductKeys: 40, UnclaimedProductFiles: 6, UnclaimedPatchFiles: 2,
-                ProductCount: 30));
+                ProductCount: 30, UnansweredProductCount: 2, UnparseableProductKeyNames: 3,
+                UnsettledEnumeratedProductCount: 4, UnattributedPatchFileCount: 1));
 
         var info = ScanInfo.From(scan, 10);
         var machine = MachineInfo.From(scan);
@@ -366,14 +379,13 @@ public class ResultLogEntryTests
         Assert.Equal(1, info.SkippedProductRowCount);
         Assert.Equal(6, info.UnclaimedProductFileCount);
         Assert.Equal(2, info.UnclaimedPatchFileCount);
+        Assert.Equal(1, info.UnattributedPatchFileCount);
         Assert.Equal(30, machine.ProductCount);
         Assert.Equal(40, machine.RegistryProductKeyCount);
 
-        // The derived figure reproduces from those six, which is the whole
-        // argument for sending tallies: the never-claimed estimate net of the
-        // unreadable products and floored at one because a patch file was seen
-        // unclaimed.
-        Assert.Equal(2, Math.Max(1, info.UnclaimedProductFileCount - info.UnreadableProductCount));
+        // The figure reproduces from three of them.
+        Assert.Equal(9, info.UnsettledEnumeratedProductCount + info.UnansweredProductCount
+            + machine.UnparseableProductKeyCount);
 
         var json = JsonSerializer.Serialize(info, JsonOptions);
         Assert.DoesNotContain("unaccounted", json, StringComparison.OrdinalIgnoreCase);
@@ -815,15 +827,16 @@ public class ResultLogEntryTests
         var withheld = Enumerable.Range(1, 6)
             .Select(i => new OrphanedFile($@"C:\w{i}.msi", 11, false, false, false, "Withheld"))
             .ToList();
-        // Two of the four are superseded rows withheld on an unsettled recorded path, the
-        // first with its file on disk and the second with its file gone, so the count read
-        // off these rows is 1: a figure no other member here carries, and one the on-disk
-        // test has to hold at 1 rather than 2.
-        var registered = Enumerable.Range(1, 4)
-            .Select(i => i <= 2
+        // Eight of the nine are superseded rows the scan-wide withholding took. The first
+        // two were taken on an unsettled recorded path, the first with its file on disk and
+        // the second with its file gone, so that count is 1. The other six have their files
+        // on disk, so the scan-wide count is 7. Neither figure is carried by any other member
+        // here, and the on-disk test has to hold them at 1 and 7 rather than 2 and 8.
+        var registered = Enumerable.Range(1, 9)
+            .Select(i => i <= 8
                 ? new RegisteredPackage($@"C:\r{i}.msp", $"Product {i}", $"{{code-{i}}}",
-                    PatchState: 2, RemovableWithheld: true, FileExists: i == 1,
-                    WithheldOnRecordedPathUnestablished: true)
+                    PatchState: 2, RemovableWithheld: true, FileExists: i != 2,
+                    WithheldOnRecordedPathUnestablished: i <= 2, WithheldScanWide: true)
                 : new RegisteredPackage($@"C:\r{i}.msi", $"Product {i}", $"{{code-{i}}}"))
             .ToList();
 
@@ -840,7 +853,10 @@ public class ResultLogEntryTests
                 UnclaimedProductFiles: 15,
                 UnclaimedPatchFiles: 16,
                 RecoveredProductCount: 17,
-                UnansweredProductCount: 18),
+                UnansweredProductCount: 18,
+                UnsettledEnumeratedProductCount: 34,
+                RecoveredEnumeratedInstallationCount: 35,
+                UnattributedPatchFileCount: 36),
             RegisteredWithheldCount: 19,
             WithheldFiles: withheld,
             WithheldBy: new WithholdingSplit(20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
@@ -850,7 +866,7 @@ public class ResultLogEntryTests
         var info = ScanInfo.From(scan, 7001);
 
         Assert.Equal(7001, info.DurationMs);
-        Assert.Equal(4, info.RegisteredCount);
+        Assert.Equal(9, info.RegisteredCount);
         Assert.Equal(7002, info.RegisteredBytes);
         Assert.Equal(5, info.OrphanedCount);
         Assert.Equal(3, info.SupersededCount);
@@ -882,6 +898,10 @@ public class ResultLogEntryTests
         Assert.Equal(32, info.SupersededContainmentRefusedCount);
         Assert.Equal(33, info.SupersededContainmentUnestablishedCount);
         Assert.Equal(1, info.SupersededRecordedPathUnestablishedCount);
+        Assert.Equal(34, info.UnsettledEnumeratedProductCount);
+        Assert.Equal(35, info.RecoveredEnumeratedInstallationCount);
+        Assert.Equal(36, info.UnattributedPatchFileCount);
+        Assert.Equal(7, info.SupersededScanWideWithheldCount);
     }
 
     [Fact]

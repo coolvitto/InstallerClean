@@ -79,16 +79,17 @@ internal static class MachineContract
     /// 2000 or 4000 band (<see cref="CliContract.EventIdFor"/>). Beside it a run
     /// may write NOTICES, in the 3000 band, which are conditions the scan found and
     /// never the run's outcome. THE LIST BELOW IS THE WHOLE BAND, which is the part
-    /// a consumer building a filter needs of it. 3000: the enumeration could not
-    /// account for an estimated share of the installed products, so no superseded
-    /// patch was offered and the count of files missing from the cache may be
-    /// short. 3001: packages Windows still references
-    /// have no file on disk. 3002: files were held back rather than offered, and
-    /// the entry's own text says which condition produced it, so a filter built
-    /// for one phrase sees only some of the machines: either the scan could not
-    /// establish which cached files belong to the programs installed here and
-    /// offered nothing it walked, or it could not establish that particular files
-    /// it found are unneeded. A notice never replaces the summary and never stands
+    /// a consumer building a filter needs of it. 3000: the scan could not check some
+    /// program entries in Windows Installer's records, or could not match some cached
+    /// patch files to a program it asks about, so no superseded patch was offered.
+    /// 3001: packages Windows still references have no file on disk. 3002: files were
+    /// held back rather than offered, and the entry's own text says which condition
+    /// produced it, so a filter built for one phrase sees only some of the machines:
+    /// either the scan could not establish which cached files belong to the programs
+    /// installed here and offered nothing it walked, or it could not establish that
+    /// particular files it found are unneeded. 3003: superseded files were held back,
+    /// with their count, whatever the reason and whether or not anything was offered
+    /// beside them. A notice never replaces the summary and never stands
     /// in for one, so counting runs means counting the summary bands, and each
     /// repeats for as long as its own condition holds, so a machine can emit one on
     /// every run for weeks.
@@ -96,8 +97,8 @@ internal static class MachineContract
     /// "NEVER THE RUN'S OUTCOME" IS ABOUT COUNTING RUNS AND IS NOT THE OTHER SENSE
     /// OF THE SAME WORDS. <see cref="CliContract.EntryTypeFor"/> separates a
     /// standing property of the machine from a run that fell short of its job, and
-    /// on that question 3001 is the standing property while 3000 and 3002 are about
-    /// the run, which is why 3001 is Information and the other two are Warning.
+    /// on that question 3001 is the standing property while 3000, 3002 and 3003 are
+    /// about the run, which is why 3001 is Information and the other three are Warning.
     /// Nothing here contradicts that: this paragraph says only that a notice is not
     /// the run's SUMMARY entry, which is what a consumer counting runs is asking.
     /// Two questions, near-identical wording, and the sense that travels between
@@ -106,18 +107,17 @@ internal static class MachineContract
     ///
     /// NOTHING WITHHOLDS AN OBSOLETED REGISTRATION, because none is ever offered on
     /// any run and so there is no verdict to hold back. The wire text names the
-    /// superseded class alone (<c>Cli.EventLogScanWithheld</c>) and
-    /// <c>ScanResult.WithheldCount</c> says the same in its own words.
+    /// superseded class alone (<c>Cli.EventLogScanWithheld</c> and
+    /// <c>Cli.EventLogScanWithheldPatchFiles</c>) and <c>ScanResult.WithheldCount</c>
+    /// says the same in its own words.
     ///
-    /// THE 3000 NOTICE'S COUNT OF INSTALLED PRODUCTS IS AN ESTIMATE. It is assembled
-    /// from three contributors, one of which is worked out from unclaimed registry
-    /// values rather than counted product by product, and the figure can run high
-    /// as well as low (see
-    /// <see cref="Models.InstallerQueryResult.UnaccountedProductCount"/> for what
-    /// each contributes). It is sound to alert on and to trend; it is not a figure
-    /// to reconcile against an inventory, and a fleet report presenting it as a
-    /// headcount of affected programs would be presenting an estimate as a count.
-    /// The files figure beside it is exact.
+    /// THE 3000 NOTICE COUNTS ENTRIES OR FILES, NEVER PROGRAMS. Its first form counts
+    /// program entries in Windows Installer's records the scan could not check, which
+    /// include registry keys whose name is no product code and so need not be programs
+    /// (see <see cref="Models.InstallerQueryResult.UnaccountedProductCount"/>); its
+    /// second counts cached patch files the scan could not match to a program it asks
+    /// about. Both figures are exact. A fleet report presenting either as a headcount of
+    /// affected programs would be presenting a count of something else.
     /// </remarks>
     internal static void WriteEventLog(CliEventClass outcome, Func<string> build) =>
         EventLogWriter.Write(outcome, () => English(build));
