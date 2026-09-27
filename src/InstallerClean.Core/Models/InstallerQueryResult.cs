@@ -24,9 +24,11 @@ namespace InstallerClean.Models;
 ///
 /// THREE KINDS, AND NO ENTRY IS IN TWO OF THEM. A code the enumeration returned, counted
 /// once per code: an installation whose row came back but whose <c>LocalPackage</c>
-/// value, or one of whose patch rows, would not read, or a code whose own keyed answer
-/// did not settle and whose registry entry names a cached file the enumeration never
-/// claimed that is on the disk (<see cref="EnumerationCensus.UnsettledEnumeratedProductCount"/>).
+/// value, patch list or patch <c>LocalPackage</c> value would not read, where the
+/// registry does not hold what that read would have returned under the installation's own
+/// account, or a code whose own keyed answer did not settle and whose registry entry
+/// names a cached file the enumeration never claimed that is on the disk
+/// (<see cref="EnumerationCensus.UnsettledEnumeratedProductCount"/>).
 /// A code the enumeration never returned that Windows would not say was installed
 /// (<see cref="EnumerationCensus.UnansweredProductCount"/>). And a registry product key
 /// whose name is no code (<see cref="EnumerationCensus.UnparseableProductKeyNames"/>). The
@@ -68,12 +70,26 @@ namespace InstallerClean.Models;
 /// contradicts this enumeration (see <see cref="Services.IDeclaredProductCheck"/>). Empty
 /// on a result built by anything that does not enumerate.
 /// </param>
+/// <param name="PairingsHeldByName">
+/// Each installation that, asked by name about a patch on a path still removable, answered
+/// that it holds the patch superseded and declaring zero, where that pairing is not one of
+/// <see cref="PatchClaims"/>. The check made under the lease just before a Move or Delete
+/// re-reads these with the claims. Empty on a machine whose enumeration reached every
+/// holder of every patch it offers.
+/// </param>
+/// <param name="PairingsOfHoldersWithNoClaims">
+/// Every patch Windows lists for each installation in <see cref="PairingsHeldByName"/> that
+/// holds no claim, for that check to read as the installation's other patches. They carry
+/// no path.
+/// </param>
 public record InstallerQueryResult(
     IReadOnlyList<RegisteredPackage> Packages,
     int UnaccountedProductCount = 0,
     IReadOnlyList<PatchClaim>? PatchClaims = null,
     EnumerationCensus Census = default,
-    IReadOnlyList<ListedInstallation>? Installations = null)
+    IReadOnlyList<ListedInstallation>? Installations = null,
+    IReadOnlyList<PatchClaim>? PairingsHeldByName = null,
+    IReadOnlyList<PatchClaim>? PairingsOfHoldersWithNoClaims = null)
 {
     /// <summary>Never null: an absent list reads as no claims rather than as a fault.</summary>
     public IReadOnlyList<PatchClaim> PatchClaims { get; init; } = PatchClaims ?? Array.Empty<PatchClaim>();
@@ -81,6 +97,14 @@ public record InstallerQueryResult(
     /// <summary>Never null: an absent list reads as an enumeration that listed nothing.</summary>
     public IReadOnlyList<ListedInstallation> Installations { get; init; } =
         Installations ?? Array.Empty<ListedInstallation>();
+
+    /// <summary>Never null: an absent list reads as no pairing found by name.</summary>
+    public IReadOnlyList<PatchClaim> PairingsHeldByName { get; init; } =
+        PairingsHeldByName ?? Array.Empty<PatchClaim>();
+
+    /// <summary>Never null: an absent list reads as no other patches to re-read.</summary>
+    public IReadOnlyList<PatchClaim> PairingsOfHoldersWithNoClaims { get; init; } =
+        PairingsOfHoldersWithNoClaims ?? Array.Empty<PatchClaim>();
 }
 
 /// <summary>
@@ -102,8 +126,11 @@ public record InstallerQueryResult(
 /// Products whose records came back short: an unreadable <c>LocalPackage</c> value,
 /// an unreadable <c>LocalPackage</c> under one of its patches, or a patch
 /// enumeration that did not run to a clean end. One per product however many it
-/// met. An exact per-installation tally: the figure the withholding reads counts these
-/// products once per code (<see cref="UnsettledEnumeratedProductCount"/>).
+/// met. An exact per-installation tally, and wider than what withholds: the figure the
+/// withholding reads counts one of these only where the registry does not hold, under
+/// that installation's own account, what its failed reads would have returned, and then
+/// once per code (<see cref="UnsettledEnumeratedProductCount"/>). The refusal of a scan
+/// whose registry reads failed as well weighs every one of them.
 /// </param>
 /// <param name="SkippedProductRows">
 /// Rows the product walk passed without reading, one per row. It is zero on every
@@ -459,7 +486,9 @@ public readonly record struct EnumerationCensus(
     // UnsettledEnumeratedProductCount: codes the enumeration returned that this scan
     // could not check, one per code, the first of the three kinds
     // InstallerQueryResult.UnaccountedProductCount adds. A code with an installation
-    // whose records came back short, a code whose own keyed answer would not come or
+    // whose records came back short where the registry does not hold what the failed
+    // read would have returned under that installation's own account, a code whose own
+    // keyed answer would not come or
     // left out an installation the enumeration listed and whose registry entry names a
     // cached file the enumeration never claimed that is on the disk, and any product row
     // the walk passed without reading. With UnansweredProductCount and

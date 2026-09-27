@@ -52,6 +52,33 @@ public class RegistryFallbackCachedPackageTests
         });
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_products_own_patch_listing_is_kept_under_its_account_only_where_its_Patches_key_is_there(
+        bool patchesKey)
+    {
+        WithSubtree(f =>
+        {
+            using (var props = ProductValues(f))
+                props.SetValue("LocalPackage", f.Files.Create("msi"), RegistryValueKind.String);
+            if (patchesKey)
+                f.Account.CreateSubKey($@"Products\{PackedProduct}\Patches\{PackedPatch}", writable: true)!.Dispose();
+
+            var (read, _) = Read(f);
+
+            var product = InstallerQueryService.UnpackRegistryProductCode(PackedProduct)!;
+            Assert.NotNull(read.PatchListings);
+            if (patchesKey)
+                Assert.Equal(new[] { PatchCode },
+                    read.PatchListings[new InstallerQueryService.AccountCode(Sid, product)]);
+            else
+                Assert.Empty(read.PatchListings);
+            // The product's package record carries the account it was read under.
+            Assert.Equal(Sid, Assert.Single(read.PackageRecords!, r => !r.IsPatch).Account);
+        });
+    }
+
     [Fact]
     public void A_product_recording_both_values_claims_both_and_counts_once()
     {

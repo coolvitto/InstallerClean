@@ -671,7 +671,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         if (context == MsiInstallContext.Machine && sid is null)
             return $@"SOFTWARE\Classes\Installer\{kind}\{packed}\SourceList";
 
-        if (context == MsiInstallContext.UserManaged && IsAccount(sid))
+        if (context == MsiInstallContext.UserManaged && InstallerQueryService.IsAccount(sid))
             return $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Managed\{sid}\Installer\{kind}\{packed}\SourceList";
 
         return null;
@@ -692,23 +692,11 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         var packed = InstallerQueryService.PackRegistryCode(code);
         if (packed is null) return null;
 
-        var account = context == MsiInstallContext.Machine && sid is null ? "S-1-5-18"
-            : context == MsiInstallContext.UserManaged && IsAccount(sid) ? sid
-            : null;
+        var account = InstallerQueryService.UserDataAccount(sid, context);
 
         return account is null
             ? null
             : $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\{account}\Products\{packed}\InstallProperties";
-    }
-
-    /// <summary>Whether <paramref name="sid"/> is 'S-' followed by digits and hyphens.</summary>
-    private static bool IsAccount(string? sid)
-    {
-        if (sid is null || sid.Length < 3 || !sid.StartsWith("S-", StringComparison.Ordinal)) return false;
-        for (var i = 2; i < sid.Length; i++)
-            if (!char.IsAsciiDigit(sid[i]) && sid[i] != '-') return false;
-
-        return true;
     }
 
     /// <summary>

@@ -1,0 +1,406 @@
+using InstallerClean.Interop;
+using InstallerClean.Models;
+using InstallerClean.Services;
+
+using AccountCode = InstallerClean.Services.InstallerQueryService.AccountCode;
+using EstablishedPatchReach = InstallerClean.Services.InstallerQueryService.EstablishedPatchReach;
+using RegistryPackageRecord = InstallerClean.Services.InstallerQueryService.RegistryPackageRecord;
+
+namespace InstallerClean.Tests.Services;
+
+/// <summary>
+/// What a program the product walk listed, and whose records came back short, does to the
+/// superseded offer.
+///
+/// THE MACHINE, IN PLAIN WORDS. One program holds one superseded patch, which nothing else
+/// on the machine can reach, so on its own the patch is offered. A second program is listed
+/// beside it, and one of its reads fails: its package record, one of its patches' package
+/// records, or its patch list, which returns what it can and is then abandoned. The
+/// registry fallback is handed in finished, holding whatever records and listings a test
+/// gives it.
+///
+/// WHERE ITS OWN ACCOUNT'S REGISTRY HOLDS WHAT THE FAILED READ WOULD HAVE RETURNED, the
+/// program is asked about each superseded patch by name and its records are read against
+/// each file, and nothing is held back on the whole machine for it. Anywhere else, every
+/// superseded patch is.
+/// </summary>
+public class InstallerQueryServiceShortProgramTests
+{
+    private const uint BadConfiguration = 1610;
+    private const uint AccessDenied = 5;
+
+    private const string Listed = "{AAAAAAAA-0000-0000-0000-00000000000A}";
+    private const string Short = "{BBBBBBBB-0000-0000-0000-00000000000B}";
+    private const string Recovered = "{EEEEEEEE-0000-0000-0000-00000000000E}";
+    private const string Superseded = "{CCCCCCCC-0000-0000-0000-00000000000C}";
+    private const string OtherPatch = "{DDDDDDDD-0000-0000-0000-00000000000D}";
+    private const string ThirdPatch = "{FFFFFFFF-0000-0000-0000-00000000000F}";
+
+    private const string SupersededFile = @"C:\Windows\Installer\short-program-superseded.msp";
+    private const string OtherPatchFile = @"C:\Windows\Installer\short-program-other.msp";
+    private const string ListedFile = @"C:\Windows\Installer\short-program-listed.msi";
+    private const string ShortFile = @"C:\Windows\Installer\short-program-short.msi";
+
+    /// <summary>The account a per-machine installation's records sit under.</summary>
+    private const string MachineAccount = "S-1-5-18";
+
+    /// <summary>A user's account, which is not a per-machine installation's own.</summary>
+    private const string OtherAccount = "S-1-5-21-1111111111-2222222222-3333333333-1001";
+
+    // ---- Whether the registry holds what the failed read would have returned ----
+
+    [Theory]
+    [InlineData(MachineAccount, 0)]
+    [InlineData(null, 1)]
+    [InlineData(OtherAccount, 1)]
+    public async Task A_programs_failed_package_read_holds_every_superseded_patch_unless_its_own_account_records_the_package(
+        string? recordedUnder, int unsettled)
+    {
+        var msi = Machine();
+        msi.ProductPropertyResult[(Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(records: recordedUnder is null
+            ? []
+            : [new(Path.GetFullPath(ShortFile), IsPatch: false, Short, recordedUnder)]));
+
+        AssertCounted(result, unsettled);
+    }
+
+    [Theory]
+    [InlineData(MachineAccount, 0)]
+    [InlineData(null, 1)]
+    [InlineData(OtherAccount, 1)]
+    public async Task A_patchs_failed_package_read_holds_every_superseded_patch_unless_its_own_account_records_the_package(
+        string? recordedUnder, int unsettled)
+    {
+        var msi = Machine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchPropertyResult[(OtherPatch, Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(records: recordedUnder is null
+            ? []
+            : [new(Path.GetFullPath(OtherPatchFile), IsPatch: true, OtherPatch, recordedUnder)]));
+
+        AssertCounted(result, unsettled);
+    }
+
+    /// <summary>
+    /// The patch list returns <see cref="OtherPatch"/> and is then abandoned. The listing is
+    /// the one the fallback read under <paramref name="listedUnder"/>, or none: a product key
+    /// with no <c>Patches</c> key yields no listing, and that is how the second case is
+    /// built.
+    /// </summary>
+    [Theory]
+    [InlineData(MachineAccount, new[] { OtherPatch, ThirdPatch }, 0)]
+    [InlineData(null, null, 1)]
+    [InlineData(MachineAccount, new[] { ThirdPatch }, 1)]
+    [InlineData(OtherAccount, new[] { OtherPatch, ThirdPatch }, 1)]
+    public async Task A_patch_list_that_came_back_short_holds_every_superseded_patch_unless_its_own_accounts_listing_names_every_patch_it_returned(
+        string? listedUnder, string[]? listing, int unsettled)
+    {
+        var msi = Machine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchRowsFailFrom[Short] = 1;
+
+        var result = await Scan(msi, Fallback(listings: listedUnder is null
+            ? new()
+            : new() { [new AccountCode(listedUnder, Short)] = listing! }));
+
+        AssertCounted(result, unsettled);
+    }
+
+    [Theory]
+    [InlineData(null, MsiInstallContext.Machine, MachineAccount)]
+    [InlineData(OtherAccount, MsiInstallContext.Machine, null)]
+    [InlineData(OtherAccount, MsiInstallContext.UserManaged, OtherAccount)]
+    [InlineData(null, MsiInstallContext.UserManaged, null)]
+    [InlineData(@"S-1-5-21-1\..\S-1-5-18", MsiInstallContext.UserManaged, null)]
+    [InlineData(OtherAccount, MsiInstallContext.UserUnmanaged, null)]
+    public void An_installations_records_are_read_only_under_the_account_it_is_installed_in(
+        string? sid, MsiInstallContext context, string? account)
+    {
+        // Per machine is the local system's subtree, and per user and managed is the
+        // user's own. Any other shape has no subtree whose records answer for it.
+        Assert.Equal(account, InstallerQueryService.UserDataAccount(sid, context));
+    }
+
+    // ---- A short program whose own account's registry holds what it lost ----
+
+    [Fact]
+    public async Task A_short_program_holding_no_record_of_the_patch_leaves_it_offered()
+    {
+        var result = await Scan(ShortPatchList(), ShortProgramsListing());
+
+        AssertOffered(Row(result));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task A_short_program_holding_the_patch_applied_keeps_it_as_a_claim()
+    {
+        // Its patch list never reached the patch. Asked by the patch's code, it answers
+        // that the patch is applied.
+        var msi = ShortPatchList();
+        msi.SetPatchProperty(Superseded, Short, "State", "1");
+        msi.SetPatchProperty(Superseded, Short, "Uninstallable", "0");
+
+        var result = await Scan(msi, ShortProgramsListing(Superseded));
+
+        AssertKeptOnAClaim(Row(result));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task A_short_program_that_will_not_answer_about_the_patch_holds_that_file_alone()
+    {
+        var msi = ShortPatchList();
+        msi.SetPatchProperty(Superseded, Short, "Uninstallable", "0");
+        msi.PatchPropertyResult[(Superseded, Short, "State")] = BadConfiguration;
+
+        var result = await Scan(msi, ShortProgramsListing(Superseded));
+
+        var row = Row(result);
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+        Assert.False(row.WithheldScanWide);
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task A_short_program_holding_the_patch_superseded_beside_one_it_can_uninstall_keeps_it()
+    {
+        // Asked by name, it answers that the patch is superseded and declares zero, which
+        // on its own would let the file go. What keeps it is that the program holds a patch
+        // that can be uninstalled, and a rollback on it can reach for the shared file. Its
+        // answer is the only thing that puts it among the programs the file is judged
+        // against: no claim names it on this file.
+        var msi = Machine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "1");
+        msi.PatchRowsFailFrom[Short] = 1;
+        msi.SetPatchProperty(Superseded, Short, "State", "2");
+        msi.SetPatchProperty(Superseded, Short, "Uninstallable", "0");
+
+        var result = await Scan(msi, Fallback(
+            listings: new() { [new AccountCode(MachineAccount, Short)] = [OtherPatch, Superseded] },
+            removablePatchOn: Short));
+
+        var row = Row(result);
+        Assert.Equal(ProductPatchSet.RemovablePatchPresent, row.ProductPatchSetVerdict);
+        AssertKeptOnAClaim(row);
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task A_short_programs_package_record_naming_the_patchs_file_keeps_it_as_a_claim()
+    {
+        var msi = Machine();
+        msi.ProductPropertyResult[(Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(
+            records: [new(Path.GetFullPath(SupersededFile), IsPatch: false, Short, MachineAccount)]));
+
+        AssertKeptOnAClaim(Row(result));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task Another_patchs_package_record_naming_the_patchs_file_keeps_it_as_a_claim()
+    {
+        // The short program's own read of its other patch's package record failed. The
+        // registry's copy of that record names the superseded patch's file.
+        var msi = Machine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchPropertyResult[(OtherPatch, Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(
+            records: [new(Path.GetFullPath(SupersededFile), IsPatch: true, OtherPatch, MachineAccount)]));
+
+        AssertKeptOnAClaim(Row(result));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Fact]
+    public async Task The_patchs_own_package_records_under_two_accounts_leave_it_offered()
+    {
+        // The short program holds the patch superseded, and its read of the patch's
+        // package record failed. The registry records the patch's own file under two
+        // accounts, the program's own among them.
+        var msi = Machine();
+        msi.AddPatch(Short, Superseded, SupersededFile, state: "2", uninstallable: "0");
+        msi.PatchPropertyResult[(Superseded, Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(
+            records:
+            [
+                new(Path.GetFullPath(SupersededFile), IsPatch: true, Superseded, MachineAccount),
+                new(Path.GetFullPath(SupersededFile), IsPatch: true, Superseded, OtherAccount),
+            ]));
+
+        AssertOffered(Row(result));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    // ---- An installation found holding the patch by name, for the check made under the lease ----
+
+    [Fact]
+    public async Task A_recovered_program_found_holding_the_patch_carries_its_pairing_and_its_other_patches()
+    {
+        var msi = RecoveredHolder();
+
+        var result = await Scan(msi, Fallback(registryCodes: [Listed, Short, Recovered]));
+
+        AssertOffered(Row(result));
+        var held = Assert.Single(result.PairingsHeldByName);
+        Assert.Equal((Superseded, Recovered), (held.PatchCode, held.ProductCode));
+        Assert.Equal(
+            new[] { Superseded, OtherPatch },
+            result.PairingsOfHoldersWithNoClaims
+                .Where(p => p.ProductCode == Recovered)
+                .Select(p => p.PatchCode)
+                .Order(StringComparer.Ordinal));
+        Assert.All(result.PairingsOfHoldersWithNoClaims, p => Assert.Equal(Recovered, p.ProductCode));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_patch_list_that_refuses_for_that_program_leaves_the_scan_standing(bool neverEnds)
+    {
+        // Access refused, or a list that never ends, which in the product walk would refuse
+        // the scan. Here it carries none of the program's other patches.
+        var msi = RecoveredHolder();
+        if (neverEnds) msi.NeverEndPatchesFor = Recovered;
+        else msi.PatchEnumResult[Recovered] = AccessDenied;
+
+        var result = await Scan(msi, Fallback(registryCodes: [Listed, Short, Recovered]));
+
+        Assert.Contains(Recovered, msi.PatchEnumerationsStarted);
+        Assert.Single(result.PairingsHeldByName, p => p.ProductCode == Recovered);
+        Assert.Empty(result.PairingsOfHoldersWithNoClaims);
+    }
+
+    // ---- The machine and the fallback ----
+
+    /// <summary>
+    /// <see cref="Listed"/> holding <see cref="Superseded"/> superseded and declaring zero,
+    /// which nothing on the machine can roll back onto, and <see cref="Short"/> listed beside
+    /// it holding nothing a test has not given it.
+    /// </summary>
+    private static FakeMsiApi Machine()
+    {
+        var msi = new FakeMsiApi();
+        msi.AddProduct(Listed);
+        msi.SetProductProperty(Listed, "LocalPackage", ListedFile);
+        msi.SetProductProperty(Listed, "ProductName", "A Program");
+        msi.AddPatch(Listed, Superseded, SupersededFile, state: "2", uninstallable: "0");
+        msi.AddProduct(Short);
+        msi.SetProductProperty(Short, "LocalPackage", ShortFile);
+        msi.SetProductProperty(Short, "ProductName", "A Short Program");
+        return msi;
+    }
+
+    /// <summary>
+    /// The same machine, with <see cref="Short"/>'s patch list returning
+    /// <see cref="OtherPatch"/> and then abandoned.
+    /// </summary>
+    private static FakeMsiApi ShortPatchList()
+    {
+        var msi = Machine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchRowsFailFrom[Short] = 1;
+        return msi;
+    }
+
+    /// <summary>
+    /// A fallback whose listing of <see cref="Short"/>'s patches, under its own account,
+    /// names what its list returned and <paramref name="alsoHeld"/>.
+    /// </summary>
+    private static InstallerQueryService.FallbackRead ShortProgramsListing(params string[] alsoHeld) =>
+        Fallback(listings: new() { [new AccountCode(MachineAccount, Short)] = [OtherPatch, .. alsoHeld] });
+
+    /// <summary>
+    /// <see cref="Recovered"/>, a program the walk never listed, holding
+    /// <see cref="Superseded"/> superseded and declaring zero, and <see cref="OtherPatch"/>.
+    /// It holds no claim, and asked by name it answers that it holds the patch.
+    /// </summary>
+    private static FakeMsiApi RecoveredHolder()
+    {
+        var msi = Machine();
+        msi.AddPatch(Recovered, Superseded, SupersededFile, state: "2", uninstallable: "0");
+        msi.AddPatch(Recovered, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        return msi;
+    }
+
+    /// <summary>
+    /// The registry fallback's reading. Every code in <paramref name="registryCodes"/> has
+    /// an established patch set holding nothing removable, except
+    /// <paramref name="removablePatchOn"/>, so only what a test adds can hold the patch back.
+    /// <paramref name="listings"/> are the own-account patch listings the reader established.
+    /// </summary>
+    private static InstallerQueryService.FallbackRead Fallback(
+        string[]? registryCodes = null,
+        Dictionary<AccountCode, IReadOnlyCollection<string>>? listings = null,
+        RegistryPackageRecord[]? records = null,
+        string? removablePatchOn = null)
+    {
+        registryCodes ??= [Listed, Short];
+        var patchSets = new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase);
+        var held = new Dictionary<string, IReadOnlyCollection<string>?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var code in registryCodes)
+        {
+            patchSets[code] = code == removablePatchOn
+                ? ProductPatchSet.RemovablePatchPresent
+                : ProductPatchSet.AllNonRemovable;
+            held[code] = code == Listed ? [Superseded] : null;
+        }
+
+        return new InstallerQueryService.FallbackRead(
+            0, registryCodes.Length,
+            RegistryProductCodes: registryCodes,
+            ProductPatchSets: patchSets,
+            Reach: new EstablishedPatchReach(held,
+                new Dictionary<string, IReadOnlyCollection<string>?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [Superseded] = [Path.GetFullPath(SupersededFile)],
+                }),
+            PackageRecords: records,
+            PatchListings: listings);
+    }
+
+    private static async Task<InstallerQueryResult> Scan(FakeMsiApi msi, InstallerQueryService.FallbackRead fallback) =>
+        await new InstallerQueryService(msi, (_, _) => fallback).GetRegisteredPackagesAsync();
+
+    /// <summary>
+    /// The superseded patch's row, found by its file name. A package record is handed in
+    /// as the reader hands it over, normalised, and the row carries the spelling the
+    /// normalisation settled on.
+    /// </summary>
+    private static RegisteredPackage Row(InstallerQueryResult result) =>
+        Assert.Single(result.Packages, r => r.LocalPackagePath.EndsWith(
+            Path.GetFileName(SupersededFile), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The short program is counted as a program whose records came back short whatever
+    /// the registry holds, and as one the scan could not check only where it holds too
+    /// little.
+    /// </summary>
+    private static void AssertCounted(InstallerQueryResult result, int unsettled)
+    {
+        Assert.Equal(1, result.Census.UnreadableProducts);
+        Assert.Equal(unsettled, result.Census.UnsettledEnumeratedProductCount);
+        Assert.Equal(unsettled, result.UnaccountedProductCount);
+    }
+
+    private static void AssertOffered(RegisteredPackage row)
+    {
+        Assert.True(row.IsRemovable);
+        Assert.False(row.RemovableWithheld);
+    }
+
+    private static void AssertKeptOnAClaim(RegisteredPackage row)
+    {
+        Assert.False(row.IsRemovable);
+        Assert.False(row.RemovableWithheld);
+        Assert.False(row.WithheldScanWide);
+    }
+}

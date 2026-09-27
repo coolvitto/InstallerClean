@@ -54,13 +54,13 @@ public interface IRemovableReverifier
     /// lease must be released by the thread that took it, so the whole hold is one
     /// unbroken synchronous body with no await in it to hop threads.
     ///
-    /// WHAT IT RE-ASKS. It re-asks about claims that existed when the claims were
-    /// collected, so it catches a verdict changing on one of them, which is the
-    /// reverting superseded patch the full re-verify is for. A product that held no
-    /// claim then gives it nothing to re-ask about, and the full re-verify's own
-    /// enumeration, moments earlier, is what reads such a product. Do not move that
-    /// enumeration inside the hold: it would hold the machine-wide installer lock
-    /// for the length of an enumeration on every run.
+    /// WHAT IT RE-ASKS. It re-asks about the pairings the full re-verify's enumeration
+    /// found holding each surviving patch, so it catches a verdict changing on one of
+    /// them, which is the reverting superseded patch the full re-verify is for. A
+    /// product that enumeration found holding nothing in the batch gives it nothing to
+    /// re-ask about, and that enumeration, moments earlier, is what reads such a
+    /// product. Do not move that enumeration inside the hold: it would hold the
+    /// machine-wide installer lock for the length of an enumeration on every run.
     /// </summary>
     /// <param name="claims">
     /// The batch's own pairings and the sibling pairings on the products they name, as
@@ -89,13 +89,17 @@ public interface IRemovableReverifier
 /// weaker check with nothing to show for it.
 /// </summary>
 /// <param name="Batch">
-/// Every claim naming a path still in the batch. Empty short-circuits the re-read
-/// without touching the API, which is the ordinary case: most batches are true orphans,
-/// which carry no claim to re-read.
+/// Every claim naming a path still in the batch, and every pairing the enumeration found by
+/// asking an installation by name that holds one of those paths' patches
+/// (<see cref="InstallerQueryResult.PairingsHeldByName"/>). Empty short-circuits the
+/// re-read without touching the API, which is the ordinary case: most batches are true
+/// orphans, which carry no claim to re-read.
 /// </param>
 /// <param name="Siblings">
-/// Every claim on any product one of those paths is registered to, including the batch's
-/// own claims, a patch's own removability being part of the condition.
+/// Every claim and pairing on any product one of those paths is registered to, including
+/// the batch's own, a patch's own removability being part of the condition, with the
+/// patches Windows listed for an installation found by asking that holds no claim
+/// (<see cref="InstallerQueryResult.PairingsOfHoldersWithNoClaims"/>).
 /// </param>
 public readonly record struct UnderLeaseClaims(
     IReadOnlyList<PatchClaim> Batch,

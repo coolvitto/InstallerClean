@@ -197,8 +197,15 @@ public sealed class RemovableReverifier : IRemovableReverifier
         // rather than passed whole: a dropped path is already out of the batch,
         // and re-reading it under the installer lock would be work done to
         // confirm a decision nothing can act on.
+        //
+        // WITH THE PAIRINGS THE ENUMERATION FOUND BY ASKING RATHER THAN BY LISTING:
+        // each installation that, asked by name, answered that it holds a surviving
+        // patch, where its own enumeration produced no claim for it. Such an
+        // installation's hold on the patch is as much a part of the offer as a
+        // claim's, so it is re-read on the same terms.
         var survivingPaths = new HashSet<string>(surviving, StringComparer.OrdinalIgnoreCase);
         var survivingClaims = query.PatchClaims
+            .Concat(query.PairingsHeldByName)
             .Where(c => survivingPaths.Contains(c.LocalPackagePath))
             .ToList();
 
@@ -219,7 +226,11 @@ public sealed class RemovableReverifier : IRemovableReverifier
         var survivingProducts = new HashSet<string>(
             survivingClaims.Select(c => c.ProductCode), StringComparer.OrdinalIgnoreCase);
         var siblingClaims = query.PatchClaims
+            .Concat(query.PairingsHeldByName)
+            .Concat(query.PairingsOfHoldersWithNoClaims)
             .Where(c => survivingProducts.Contains(c.ProductCode))
+            .DistinctBy(c => (c.PatchCode.ToUpperInvariant(), c.ProductCode.ToUpperInvariant(),
+                c.UserSid?.ToUpperInvariant(), c.Context))
             .ToList();
 
         return new ReverifyResult(surviving.AsReadOnly(), dropped.AsReadOnly(), reasons,
@@ -448,16 +459,14 @@ public sealed class RemovableReverifier : IRemovableReverifier
     /// sibling, so what the other shapes decide between is the cause counted for the
     /// path and not whether it is held back.
     ///
-    /// THE SET IT RE-READS IS BUILT FROM THE CLAIMS. The batch's pairings are the ones
-    /// the pre-lease enumeration recorded as claims, and the siblings are the other
-    /// claims on the products those name. A registration that enumeration produced no
-    /// claim for is not re-read here: a patch it got no cached path for, a product it
-    /// never returned even where the machine-wide patch enumeration names it, a
-    /// product holding none of the batch's own patches that only a patch file's
-    /// declared targets name, and anything registered after the claims were
-    /// collected. The sibling set is built out of the products the surviving claims
-    /// name, so a product whose only pairing on a surviving path gave no cached path
-    /// is not in it, and nor is any other patch registered to that product.
+    /// THE SET IT RE-READS IS WHAT THE PRE-LEASE ENUMERATION FOUND HOLDING EACH PATCH.
+    /// The batch's pairings are its claims on a surviving path, and each installation
+    /// that, asked by name, answered that it holds a surviving patch where no claim
+    /// recorded it. The siblings are the other claims on the products those name, and,
+    /// for an installation found by asking that holds no claim at all, every patch
+    /// Windows listed for it. A registration neither found is not re-read here: a patch
+    /// on a product holding none of the batch's own, a patch past the end of a list
+    /// that did not run to its end, and anything registered after the enumeration.
     ///
     /// SO THIS IS NOT THE SCAN'S OWN CONDITION RE-RUN UNDER THE LEASE, and nothing may
     /// describe it as one. That condition asks every product any of its sources names,

@@ -101,11 +101,16 @@ public class InstallerQueryServicePatchTruncationTests
     /// about a code installed more than once has to say which installation it means,
     /// and that is the only thing this adds.
     /// </summary>
+    /// <param name="withoutPatchSet">
+    /// Products the registry holds no entry for, so that neither patch-set reading names
+    /// them. Every other product that holds a patch has one.
+    /// </param>
     private static Dictionary<string, RegisteredPackage> ConfirmWith(
         FakeApi msi,
         List<(string ProductCode, string? Sid, MsiInstallContext Context)> recovered,
         IPackageIdentityReader? reader = null,
-        PerItemFailureLog? unreadPatchFileLog = null)
+        PerItemFailureLog? unreadPatchFileLog = null,
+        params string[] withoutPatchSet)
     {
         var claimed = new Dictionary<string, RegisteredPackage>(StringComparer.OrdinalIgnoreCase);
         var claims = new List<PatchClaim>();
@@ -148,6 +153,7 @@ public class InstallerQueryServicePatchTruncationTests
                 ? InstallerQueryService.Worse(seen, verdict)
                 : verdict;
         }
+        foreach (var product in withoutPatchSet) patchSets.Remove(product);
 
         new InstallerQueryService(msi, NoFallback, null, reader).ConfirmRemovableAgainstEveryProduct(
             claimed,
@@ -622,25 +628,23 @@ public class InstallerQueryServicePatchTruncationTests
         // mode of the whole pass is an empty offer. This is the test that says it
         // is not empty on the machine people actually have.
         //
-        // AND IT SAID NOTHING OF THE KIND UNTIL THE PATCH SETS WERE SUPPLIED HERE.
-        // The fallback was built with a key count alone, which leaves the per-product
-        // patch sets null, and a null map answers "unestablished" for every product
-        // before the API's own reading is weighed. So the superseded row was withheld
-        // by the condition that asks whether anything on any product sharing the patch
-        // could be uninstalled, and the assertion below failed for a reason that has
-        // nothing to do with the machine shape this test is named for. An ordinary
-        // machine's registry answers that question, which is what these three lines
-        // now say it does.
+        // THE PATCH SETS ARE SUPPLIED BECAUSE AN ORDINARY MACHINE'S REGISTRY HAS THEM.
+        // A fallback carrying a key count alone leaves the per-product patch sets null,
+        // and a null map answers "unestablished" for every product before the API's own
+        // reading is weighed. The condition that asks whether anything on any product
+        // sharing the patch could be uninstalled would then withhold the row for a
+        // reason that has nothing to do with the machine shape this test is named for.
         //
         // THE SECOND PRODUCT'S VERDICT IS SUPPLIED AND IS DELIBERATELY THE WORSE ONE.
-        // It holds no patches, so a real read of its Patches key establishes nothing,
-        // and it claims none of this path, so nothing may consult it. Naming it here
-        // rather than leaving it out is what holds the pass to reading the verdicts of
-        // the products that SHARE the patch and not of every product on the machine.
+        // It holds no patches, so it claims none of this path, and asked by name it
+        // answers that it holds no record of the patch, so nothing may consult its
+        // verdict. Naming it here rather than leaving it out is what holds the pass to
+        // reading the verdicts of the products that SHARE the patch and not of every
+        // product on the machine.
         //
-        // The extra key decides nothing any more and is left because the machine
-        // really has one: a shortfall against the registry's total stopped being an
-        // input when the question moved from arithmetic to asking Windows by name.
+        // The extra key is there because the machine really has one. It decides
+        // nothing: the products behind a disagreement with the registry are asked
+        // about by name, and no total is an input.
         var msi = new FakeApi();
         msi.AddProduct(Superseding);
         msi.AddProduct(StillApplied);
@@ -755,13 +759,27 @@ public class InstallerQueryServicePatchTruncationTests
         Assert.Contains((Patch, StillApplied, (string?)null, MsiInstallContext.Machine), msi.KeyedPatchReads);
     }
 
+    /// <summary>
+    /// One product holding the patch superseded and declaring zero, and nothing else on the
+    /// machine, so the only thing that can take the verdict away is the machine-wide
+    /// enumeration's answer. A second product holding the patch would be asked by name and
+    /// answer for itself, which is a different test.
+    /// </summary>
+    private static FakeApi OneSupersededPatch()
+    {
+        var msi = new FakeApi();
+        msi.AddProduct(Superseding);
+        msi.HoldPatch(Superseding, Patch, Shared, state: "2", uninstallable: "0");
+        return msi;
+    }
+
     [Fact]
     public void A_machine_wide_enumeration_that_refuses_withholds_every_removable_verdict()
     {
         // An enumeration that came back empty because it refused, read as "no
         // other product holds it", is the exact fault this pass exists to close.
         // So a refusal is not an answer and everything still removable is kept.
-        var msi = TwoProductsOneSharedPatch();
+        var msi = OneSupersededPatch();
         msi.MachineWidePatchEnumResult = BadConfiguration;
 
         var row = TheSharedPatch(Confirm(msi));
@@ -777,7 +795,7 @@ public class InstallerQueryServicePatchTruncationTests
     {
         // The page lists these among its returns. None of them is an answer, and
         // each is decided here rather than falling through a default.
-        var msi = TwoProductsOneSharedPatch();
+        var msi = OneSupersededPatch();
         msi.MachineWidePatchEnumResult = code;
 
         Assert.True(TheSharedPatch(Confirm(msi)).RemovableWithheld);
@@ -788,10 +806,19 @@ public class InstallerQueryServicePatchTruncationTests
     {
         // A success that wrote no codes cannot be used and cannot be shown to be
         // harmless, so it is treated as the row that was missed.
-        var msi = TwoProductsOneSharedPatch();
+        var msi = OneSupersededPatch();
         msi.MachineWideEmitsEmptyRow = true;
 
         Assert.True(TheSharedPatch(Confirm(msi)).RemovableWithheld);
+    }
+
+    [Fact]
+    public void The_same_machine_offers_the_patch_where_the_enumeration_answered()
+    {
+        // The machine the three tests above run on, with the machine-wide enumeration
+        // answering: nothing else on it holds the patch back.
+        var row = TheSharedPatch(Confirm(OneSupersededPatch()));
+        Assert.True(row.IsRemovable);
     }
 
     [Fact]
@@ -1423,6 +1450,123 @@ public class InstallerQueryServicePatchTruncationTests
             msi.ConfirmationAskIdentities);
         Assert.False(row.IsRemovable);
         Assert.False(row.RemovableWithheld);
+    }
+
+    /// <summary>
+    /// A LISTED PRODUCT WHOSE CLAIM ON THE PATCH NEVER REACHED THE MERGE. The walk returns
+    /// <see cref="StillApplied"/>, and its patch enumeration ends early without saying so.
+    /// It still holds <see cref="Patch"/> superseded and declaring zero, a pairing neither
+    /// its own enumeration nor the machine-wide one names, so no claim and no route A row
+    /// puts it into the patch's product set, and the patch file names no product. It also
+    /// holds <see cref="OtherPatch"/>, which can be uninstalled, so a rollback on it can reach
+    /// for the shared file. <see cref="Superseding"/> claims the patch superseded, which is
+    /// what puts the file on the offer.
+    /// </summary>
+    private static FakeApi AListedHolderTheClaimsMiss(bool holdsThePatch)
+    {
+        var msi = new FakeApi();
+        msi.AddProduct(Superseding);
+        msi.AddProduct(StillApplied);
+        msi.HoldPatch(Superseding, Patch, Shared, state: "2", uninstallable: "0");
+        msi.HoldPatch(StillApplied, OtherPatch, OtherPatchFile, state: "1", uninstallable: "1");
+        if (holdsThePatch)
+            msi.HoldPatchInvisibleToEnumeration(StillApplied, Patch, state: "2", uninstallable: "0");
+        msi.EnumerationEndsEarlyFor.Add(StillApplied);
+        return msi;
+    }
+
+    private const string OtherPatch = "{99999999-0000-0000-0000-000000000009}";
+    private const string OtherPatchFile = @"C:\Windows\Installer\other-patch.msp";
+
+    [Fact]
+    public void A_listed_product_holding_the_patch_is_judged_on_it_although_no_claim_names_it()
+    {
+        // Asked by name, the product answers that it holds the patch superseded and
+        // declaring zero, which the per-pairing pass reads as nothing to keep the file for.
+        // What keeps it is the per-product condition: that product holds something that can
+        // be uninstalled, and a rollback on it can reach for the patch's one cached file.
+        // Only its answer puts it into the set, so without it the file would be offered.
+        var row = TheSharedPatch(Confirm(AListedHolderTheClaimsMiss(holdsThePatch: true)));
+
+        Assert.Equal(ProductPatchSet.RemovablePatchPresent, row.ProductPatchSetVerdict);
+        Assert.False(row.IsRemovable);
+        // Found out rather than failed to establish: a claim, not a withholding.
+        Assert.False(row.RemovableWithheld);
+    }
+
+    [Fact]
+    public void The_same_listed_product_holding_no_record_of_the_patch_leaves_it_offered()
+    {
+        // The same machine without that one pairing. The product answers that it holds no
+        // record of the patch, so what it can uninstall has no bearing on this file.
+        var msi = AListedHolderTheClaimsMiss(holdsThePatch: false);
+
+        var row = TheSharedPatch(Confirm(msi));
+
+        Assert.Contains((Patch, StillApplied, (string?)null, MsiInstallContext.Machine), msi.KeyedPatchReads);
+        Assert.Equal(ProductPatchSet.AllNonRemovable, row.ProductPatchSetVerdict);
+        Assert.True(row.IsRemovable);
+    }
+
+    /// <summary>
+    /// A listed product the registry holds no entry for, beside <see cref="Superseding"/>
+    /// holding the patch superseded. With no entry there is no reading of what its patches
+    /// reach, so asking it by name is the only thing that can put it into the patch's set.
+    /// </summary>
+    private static Dictionary<string, RegisteredPackage> ConfirmBesideAProductWithNoRegistryEntry(
+        bool holdsThePatch)
+    {
+        var msi = new FakeApi();
+        msi.AddProduct(Superseding);
+        msi.AddProduct(StillApplied);
+        msi.HoldPatch(Superseding, Patch, Shared, state: "2", uninstallable: "0");
+        if (holdsThePatch)
+            msi.HoldPatchInvisibleToEnumeration(StillApplied, Patch, state: "2", uninstallable: "0");
+        return ConfirmWith(msi, [], withoutPatchSet: StillApplied);
+    }
+
+    [Fact]
+    public void A_listed_product_with_no_registry_entry_that_holds_no_record_of_the_patch_leaves_it_offered()
+    {
+        // The reach handed in here establishes nothing, so a product put to it would be
+        // judged against every path. A listed product is not: it is asked by name, and it
+        // answers that it holds no record of this patch. Judging it against every path
+        // regardless would keep back every superseded file on a machine where nothing came
+        // back short, because its patch set is unestablished.
+        var row = TheSharedPatch(ConfirmBesideAProductWithNoRegistryEntry(holdsThePatch: false));
+
+        Assert.Equal(ProductPatchSet.AllNonRemovable, row.ProductPatchSetVerdict);
+        Assert.True(row.IsRemovable);
+    }
+
+    [Fact]
+    public void The_same_product_answering_that_it_holds_the_patch_keeps_that_file()
+    {
+        // It holds the patch, so its patch set decides, and with no registry entry its patch
+        // set is not established. The file is kept for want of a verdict.
+        var row = TheSharedPatch(ConfirmBesideAProductWithNoRegistryEntry(holdsThePatch: true));
+
+        Assert.Equal(ProductPatchSet.Unestablished, row.ProductPatchSetVerdict);
+        Assert.False(row.IsRemovable);
+        Assert.True(row.RemovableWithheld);
+        // One file, on one product's patch set, and nothing about the machine as a whole.
+        Assert.False(row.WithheldScanWide);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void A_superseded_file_that_has_gone_is_reported_where_a_listed_product_the_claims_miss_can_roll_back_onto_it(
+        bool holdsThePatch, bool affected)
+    {
+        // The file has gone, so the pass cannot read it. Where the product whose claim never
+        // reached the merge answers that it holds the patch, what it can uninstall reaches
+        // for the missing file, and the missing-files report names it. Where it holds no
+        // record of the patch, the failed read is the absence itself and is not reported.
+        var row = TheSharedPatch(Confirm(AListedHolderTheClaimsMiss(holdsThePatch), UnreadableReader(Shared)))
+            with { FileExists = false };
+
+        Assert.Equal(affected, InstallerClean.Helpers.MissingFilesReport.Affected(row));
     }
 
     /// <summary>

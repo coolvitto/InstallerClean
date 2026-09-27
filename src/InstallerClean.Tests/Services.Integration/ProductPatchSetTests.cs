@@ -173,15 +173,17 @@ public class ProductPatchSetTests
             // rather than none.
             Assert.NotNull(codes);
             Assert.Empty(codes);
-            // NOT COUNTED, AND THAT IS WHAT KEEPS THIS FIXTURE DISTINGUISHABLE FROM THE
-            // NEXT ONE. The two now agree on the verdict, deliberately, because they
-            // say the same thing about the machine. The counter is the only thing left
-            // that tells them apart, and it answers a different question: how usual it
-            // is for a product to carry the key at all. Moving the increment above the
-            // branch would make these two fixtures indistinguishable in every respect
-            // and neither test could then fail at its own subject.
+            // NOT COUNTED AND NOT PRESENT, WHICH IS WHAT KEEPS THIS FIXTURE
+            // DISTINGUISHABLE FROM THE NEXT ONE. The two agree on the verdict and the
+            // listing, deliberately, because they say the same thing about the machine.
+            // The counter answers how usual it is for a product to carry the key at all,
+            // and the out parameter tells the caller which of the two it read, which an
+            // installation whose patch enumeration came back short turns on. Moving the
+            // increment above the branch, or setting the parameter there, would make the
+            // two fixtures indistinguishable in that respect.
             Assert.Equal(0, keys);
             Assert.Equal(0, registrations);
+            Assert.False(PatchesKeyPresent(products));
         });
     }
 
@@ -192,13 +194,12 @@ public class ProductPatchSetTests
         // key opened and the listing was complete, which is a reading of an empty set
         // rather than a failure to read one.
         //
-        // IT IS THE PAIR TO THE ABSENT-KEY TEST ABOVE AND THE RELATIONSHIP HAS
-        // CHANGED. They used to answer differently and this one was that one's
-        // must-miss control. They now answer the SAME verdict, because an absent list
-        // and an empty list say the same thing about the machine, and the pair is held
-        // apart by the key counter instead: 0 here against 1 there. A reader that
-        // stopped distinguishing them at all would still pass both assertions on the
-        // verdict and would fail on the counts, which is why the counts are asserted.
+        // IT IS THE PAIR TO THE ABSENT-KEY TEST ABOVE. Both answer the same verdict
+        // and the same empty listing, because an absent list and an empty list say the
+        // same thing about the machine. The key counter holds them apart, 1 here
+        // against 0 there, and so does the out parameter saying the key is present. A
+        // reader that stopped distinguishing them would still pass both assertions on
+        // the verdict and would fail on these.
         WithProductsKey(products =>
         {
             using var _ = products.CreateSubKey($@"{Product}\Patches", writable: true)!;
@@ -213,6 +214,7 @@ public class ProductPatchSetTests
             // null, for the same reason it is empty there.
             Assert.NotNull(codes);
             Assert.Empty(codes);
+            Assert.True(PatchesKeyPresent(products));
         });
     }
 
@@ -361,8 +363,17 @@ public class ProductPatchSetTests
         var keys = 0;
         var registrations = 0;
         var set = InstallerQueryService.ReadProductPatchSet(
-            products, Product, ref keys, ref registrations, out var codes);
+            products, Product, ref keys, ref registrations, out var codes, out _);
         return (set, keys, registrations, codes);
+    }
+
+    private static bool PatchesKeyPresent(RegistryKey products)
+    {
+        var keys = 0;
+        var registrations = 0;
+        InstallerQueryService.ReadProductPatchSet(
+            products, Product, ref keys, ref registrations, out _, out var present);
+        return present;
     }
 
     /// <summary>

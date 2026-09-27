@@ -87,6 +87,21 @@ internal sealed class FakeMsiApi : IMsiApi
     public Dictionary<(string ProductCode, uint Index), uint> PatchRowResult { get; } = new();
 
     /// <summary>
+    /// Fails every row of a product's patch enumeration from the given index on, past the
+    /// end of its list as well. Rows before it come back as usual, so this builds a list
+    /// that returns some patches and is then abandoned, which <see cref="PatchRowResult"/>
+    /// cannot: it fails only rows the list holds.
+    /// </summary>
+    public Dictionary<string, uint> PatchRowsFailFrom { get; } = new();
+
+    /// <summary>
+    /// Every product whose own patch enumeration was started, once per start, so a test
+    /// can show a list was asked for when its answer was a refusal that left nothing else
+    /// behind.
+    /// </summary>
+    public List<string> PatchEnumerationsStarted { get; } = new();
+
+    /// <summary>
     /// Scripts the SID-buffer retry for one product row, keyed by index: the
     /// first EnumProducts call at that index reports MoreData, and the retry
     /// returns the value given here (Success meaning the row then comes back
@@ -218,6 +233,7 @@ internal sealed class FakeMsiApi : IMsiApi
             WriteCode(targetProductCode, heldTarget);
             return Success;
         }
+        if (productCode is not null && index == 0) PatchEnumerationsStarted.Add(productCode);
         if (productCode is not null && productCode == NeverEndPatchesFor)
         {
             WriteCode(patchCode, "{FFFFFFFF-0000-0000-0000-000000000001}");
@@ -225,6 +241,8 @@ internal sealed class FakeMsiApi : IMsiApi
         }
         if (productCode is not null && PatchEnumResult.TryGetValue(productCode, out var err))
             return err;
+        if (productCode is not null && PatchRowsFailFrom.TryGetValue(productCode, out var failFrom) && index >= failFrom)
+            return BadConfiguration;
         var list = (productCode is not null && PatchCodes.TryGetValue(productCode, out var l)) ? l : null;
         if (list is null || index >= list.Count) return NoMoreItems;
         if (productCode is not null && PatchRowResult.TryGetValue((productCode, index), out var rowErr))

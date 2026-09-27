@@ -1002,9 +1002,12 @@ public sealed record MachineInfo(
 /// </param>
 /// <param name="UnsettledEnumeratedProductCount">
 /// Program codes the enumeration returned that the scan could not check: an installation
-/// whose records came back short, or a code whose own keyed answer did not settle and
-/// whose registry entry names a cached file the enumeration never claimed that is on the
-/// disk. One per code.
+/// whose records came back short where the registry does not hold, under that
+/// installation's own account, what the failed read would have returned, or a code whose
+/// own keyed answer did not settle and whose registry entry names a cached file the
+/// enumeration never claimed that is on the disk. One per code. Every installation whose
+/// records came back short is in <c>UnreadableProductCount</c> whatever the registry
+/// holds.
 ///
 /// WITH <paramref name="UnansweredProductCount"/> AND THE MACHINE OBJECT'S UNPARSEABLE KEY
 /// COUNT IT IS THE WHOLE OF THE FIGURE THE APPLICATION-LOG NOTICE CARRIES, and the three
