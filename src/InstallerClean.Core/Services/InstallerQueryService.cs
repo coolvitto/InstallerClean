@@ -2255,9 +2255,9 @@ public sealed class InstallerQueryService : IInstallerQueryService
             //
             // A product the patch file names that Windows will not answer about, or
             // answers about without an installation this run listed, is a question left
-            // open rather than an answer of no, and withholds the path. A file that named
-            // products did read, so it is on the disk and this row never reaches the
-            // missing-files warning.
+            // open rather than an answer of no, and withholds the path with no cause
+            // recorded. So where the file has gone by the time the scan stamps whether it
+            // is there, the missing-files warning counts it.
             var fromFile = DeclaredTargetsFor(path);
             if (fromFile.Unaskable)
             {
