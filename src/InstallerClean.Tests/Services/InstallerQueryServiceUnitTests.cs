@@ -293,12 +293,11 @@ public class InstallerQueryServiceUnitTests
         Assert.False(Assert.Single(result.Packages, r => r.LocalPackagePath == productPackage).IsRemovable);
     }
 
-    // ONE CACHED PATCH REGISTERED TO TWO PRODUCTS, and which product's reading of it
-    // the merged row ends up carrying. The four below are the whole of that rule and
-    // they are written as four because they pull in different directions: a reading
-    // Windows gave has to displace an earlier one, a claim that established no reading
-    // has to leave the earlier one where it is, and the merge has two displacements
-    // rather than one, so the last of them drives the other.
+    // ONE CACHED PATCH REGISTERED TO TWO PRODUCTS, and which reading of it the merged
+    // row carries. The four below pin the state, and they are written as four because
+    // they pull in different directions: a stronger reading Windows gave reaches the row
+    // whichever claim's account it carries, and a claim that established no reading
+    // leaves the one on the row where it is.
     //
     // THE PATH IS ASSERTED THROUGH GetFullPath FOR THE REASON THE COMMAND LINE'S OWN
     // GATE TESTS DO IT. The scan normalises every recorded path, and a drive-letter
@@ -340,8 +339,8 @@ public class InstallerQueryServiceUnitTests
         var row = Assert.Single(result.Packages, r => r.LocalPackagePath == SharedPatchRow);
         Assert.Equal(2, row.PatchState);
         Assert.True(row.IsSupersededOrObsoleted);
-        // The claim still displaces the rest of the row and still takes the verdict
-        // down, which is what the branch is for.
+        // B's claim is not removable, so the row is not either, and the one claim that
+        // keeps the file is a read that failed, so the row reads unjudged.
         Assert.False(row.IsRemovable);
         Assert.True(row.VerdictUnreadable);
     }
@@ -385,18 +384,17 @@ public class InstallerQueryServiceUnitTests
     [Fact]
     public async Task A_products_claim_on_a_patchs_cached_file_leaves_the_state_windows_gave()
     {
-        // THE MERGE'S OTHER DISPLACEMENT, and the shape that reaches it is the one the
-        // merge's own summary is written about: a corrupt LocalPackage aiming a product
-        // row at a patch's cached file. The three above all run through the downgrade,
-        // because their first claim is removable; this one's is not, so it falls to the
-        // displacement below it and the same rule has to hold there.
+        // A PRODUCT'S CLAIM ON A PATCH'S CACHED FILE, the shape the merge's own summary is
+        // written about: a corrupt LocalPackage aiming a product row at a patch's cached
+        // file. The three above all start from a removable claim; this one's first claim
+        // is not removable, and the state has to hold all the same.
         //
         // Product A's patch reads Superseded and its Uninstallable does not read, so A's
         // row carries a real state, no removable verdict and the unreadable flag.
         // Product B then names the same cached file as its own package, and a product
         // row is built from its LocalPackage alone: no state, and nothing that failed to
-        // read. B's claim displaces A's on the cause, which is what the branch is for,
-        // and it must not take the state with it.
+        // read. B's claim is a live claim on the file, so the row no longer reads as
+        // unjudged, and B brought no state, so the row keeps A's.
         //
         // THE PATCH SETS ARE SUPPLIED because the row under test has to be non-removable
         // for the merge's reason rather than the fixture's. A run that leaves every
@@ -416,9 +414,8 @@ public class InstallerQueryServiceUnitTests
         Assert.Equal(2, row.PatchState);
         Assert.True(row.IsSupersededOrObsoleted);
 
-        // The displacement still happened, which is what stops this passing for the
-        // wrong reason: the row carries B and does not say a read failed.
-        Assert.Equal("{B}", row.ProductCode);
+        // B's claim was heard, which is what stops this passing for the wrong reason: the
+        // row does not say a read failed.
         Assert.False(row.VerdictUnreadable);
         Assert.False(row.IsRemovable);
     }
@@ -464,12 +461,13 @@ public class InstallerQueryServiceUnitTests
     }
 
     [Fact]
-    public void A_claim_that_establishes_something_displaces_a_row_that_does_not()
+    public void A_live_claim_beside_a_read_that_failed_leaves_the_row_judged()
     {
         // Two non-removable claims on one path are not always the same finding.
-        // The row that wins is the one carrying a live claim, because it is the
-        // only one that supports a sentence: the other is a read that failed and
-        // says nothing about the file at all.
+        // The row reads as a live claim wherever one claim that keeps the file read
+        // cleanly, because that is the only one that supports a sentence: the other
+        // is a read that failed and says nothing about the file at all. The row's
+        // account is the applied claim's.
         const string shared = @"C:\Windows\Installer\shared.msp";
         var claimed = new Dictionary<string, RegisteredPackage>(StringComparer.OrdinalIgnoreCase);
         InstallerQueryService.MergeClaim(claimed,
@@ -485,14 +483,15 @@ public class InstallerQueryServiceUnitTests
     }
 
     [Fact]
-    public void A_claim_displacing_on_the_cause_still_brings_its_own_state()
+    public void A_state_windows_gave_reaches_a_row_beside_a_read_that_failed()
     {
-        // The half that stops the rule above becoming "the first state wins". A cached
-        // patch can be superseded under one product and still applied under another, and
-        // it is the applied reading that has to reach the row: a row left saying
-        // superseded on a machine where a product still holds the patch would describe a
-        // state nothing reported. The row above it in this file has the same pair with
-        // the state left at its default, so it cannot tell these two apart.
+        // The row's state is the strongest reading either claim gave, whichever claim's
+        // account it carries, and not the first state reached. A cached patch can be
+        // superseded under one product and still applied under another, and it is the
+        // applied reading that has to reach the row: a row left saying superseded on a
+        // machine where a product still holds the patch would describe a state nothing
+        // reported. The row above it in this file has the same pair with the state left
+        // at its default, so it cannot tell these two apart.
         const string shared = @"C:\Windows\Installer\shared.msp";
         var claimed = new Dictionary<string, RegisteredPackage>(StringComparer.OrdinalIgnoreCase);
         InstallerQueryService.MergeClaim(claimed,
@@ -508,10 +507,10 @@ public class InstallerQueryServiceUnitTests
     }
 
     [Fact]
-    public void A_row_whose_verdict_never_read_does_not_displace_a_live_claim()
+    public void A_live_claim_and_a_read_that_failed_leave_the_same_row_in_either_order()
     {
         // The same pair the other way round, which is the half that makes the
-        // rule an answer rather than a preference: whichever order the
+        // merge an answer rather than a preference: whichever order the
         // enumeration reaches these two products in, the file is reported the
         // same way.
         const string shared = @"C:\Windows\Installer\shared.msp";
@@ -529,11 +528,12 @@ public class InstallerQueryServiceUnitTests
     }
 
     [Fact]
-    public void A_removable_claim_does_not_displace_a_row_whose_verdict_never_read()
+    public void A_removable_claim_beside_a_read_that_failed_leaves_the_row_unjudged_and_kept()
     {
-        // The guard on the rule above. Displacing on the cause must not become a
-        // route back to removable: a product reading the patch as superseded says
-        // nothing about the product whose read failed, and the file it would
+        // A removable claim establishes nothing about the file's being kept, so
+        // beside a read that failed the row stays unjudged, and it is removable
+        // only where both claims are: a product reading the patch as superseded
+        // says nothing about the product whose read failed, and the file it would
         // release is one nobody has been able to ask about.
         const string shared = @"C:\Windows\Installer\shared.msp";
         var claimed = new Dictionary<string, RegisteredPackage>(StringComparer.OrdinalIgnoreCase);
@@ -1781,15 +1781,16 @@ public class InstallerQueryServiceUnitTests
     }
 
     [Fact]
-    public async Task A_superseded_patch_file_that_would_not_read_keeps_its_marker_on_such_a_scan()
+    public async Task A_superseded_patch_file_that_would_not_read_is_kept_on_the_claim_of_a_program_holding_it_under_another_spelling()
     {
         // WHERE THE SUPERSEDED FILE HAS GONE. A cached file that is not there does not
-        // read, so the per-pairing pass withholds its row with the unread-file marker set,
-        // before the scan-wide withholding runs. The row keeps the marker, does not carry
-        // the flag, and the missing-files split leaves it out on the marker. B's
-        // registration of the same file, in the unsettled spelling, is a row of its own
-        // naming the same absent file, and an applied row whose file is missing is always
-        // counted, so the warning names B's program through that row.
+        // read, and the per-pairing pass asks every installation about the patch all the
+        // same. B holds it applied, so the row is kept on B's claim before the scan-wide
+        // withholding runs, carries neither the unread-file marker nor the flag, and keeps
+        // its superseded reading: B's registration of the same file, in the unsettled
+        // spelling, is a row of its own naming the same absent file, and an applied row
+        // whose file is missing is always counted, so the warning names B's program
+        // through that row and counts the file once.
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
         msi.AddProduct("{B}");
@@ -1802,8 +1803,9 @@ public class InstallerQueryServiceUnitTests
             .GetRegisteredPackagesAsync();
 
         var superseded = Assert.Single(result.Packages, r => r.PatchState == 2);
-        Assert.True(superseded.RemovableWithheld);
-        Assert.True(superseded.WithheldOnUnreadableFile);
+        Assert.False(superseded.IsRemovable);
+        Assert.False(superseded.RemovableWithheld);
+        Assert.False(superseded.WithheldOnUnreadableFile);
         Assert.False(superseded.WithheldOnRecordedPathUnestablished);
         Assert.False(MissingFilesReport.Affected(superseded with { FileExists = false }));
 
@@ -1987,7 +1989,8 @@ public class InstallerQueryServiceUnitTests
     {
         // The file declares product B, which the product enumeration did not return and
         // which holds the patch applied. B is asked because the file named it, and its
-        // answer keeps the row off the offer as a live claim.
+        // answer keeps the row off the offer as a live claim, with B's reading, applied,
+        // on the row.
         var msi = new FakeMsiApi();
         msi.AddProduct("{A}");
         msi.AddPatch("{A}", "{P}", localPackage: PatchUnderAnotherName, state: "2", uninstallable: "0");
@@ -2004,7 +2007,8 @@ public class InstallerQueryServiceUnitTests
                 identityReader: new OnePatchFileDeclaring("shared.bin", "{B}"))
             .GetRegisteredPackagesAsync();
 
-        var row = Assert.Single(result.Packages, r => r.PatchState == 2);
+        var row = Assert.Single(result.Packages);
+        Assert.Equal(1, row.PatchState);
         Assert.False(row.IsRemovable);
         Assert.False(row.RemovableWithheld);
     }

@@ -23,8 +23,8 @@ namespace InstallerClean.Helpers;
 /// not.
 ///
 /// WHAT THE PREDICATE BELOW GRADES IS ONE CASE, NARROWLY, and it is the only thing
-/// here that does: the state together with two further facts the scan has to
-/// establish positively. A summary sits above the predicate and is read first, so it
+/// here that does: the state together with further facts the scan has to establish
+/// positively. A summary sits above the predicate and is read first, so it
 /// states the part that holds either way and leaves the population to the expression
 /// that decides it.
 ///
@@ -79,6 +79,14 @@ internal static class MissingFilesReport
     /// the read fails for a file this app removed exactly as it fails for one anything
     /// else removed. Such a row is judged on the verdict it was positively given.
     ///
+    /// AND THE PASS RECORDS THAT CAUSE ONLY AFTER ASKING. It puts the patch, under every
+    /// code naming the file, to every installation it can name without the file, and
+    /// records the unread file as the cause only where every one of them answered and none
+    /// holds the patch. An installation that holds it makes the row a claim, carrying its
+    /// state where that state is the stronger reading and the installation's own claim
+    /// never reached the merge, and one that did not answer withholds the row without the
+    /// cause.
+    ///
     /// SO THE ROW KEEPS THAT VERDICT, on a run that came up short elsewhere as much as on
     /// one that did not. The scan-wide withholding takes the removable verdict off every
     /// row still carrying one and leaves this marker alone. It fires on two machine-level
@@ -114,12 +122,41 @@ internal static class MissingFilesReport
     /// give up an identity is a real inability; such a row is not missing, so the first
     /// conjunct leaves it out. See
     /// <see cref="RegisteredPackage.WithheldOnUnreadableFile"/>.
+    ///
+    /// AND THE STATE HAS TO BE THE WHOLE STORY OF WHAT HOLDS THE FILE. A row can read
+    /// superseded while a product's own package record names the file, or while a claim
+    /// whose State would not read names it, or while an installation asked about the patch
+    /// did not answer; none of those brought a state to put on the row. Such a row carries
+    /// <see cref="RegisteredPackage.OtherHoldNotRuledOut"/> and is reported. An installation
+    /// that holds the patch applied carries that state onto the row, which then leaves the
+    /// first conjunct of the exemption.
     /// </summary>
     internal static bool Affected(RegisteredPackage row) =>
-        row.IsMissingFromDisk
-        && !(row.IsSupersededOrObsoleted
-             && row.ProductPatchSetVerdict == ProductPatchSet.AllNonRemovable
-             && (!row.RemovableWithheld || row.WithheldOnUnreadableFile));
+        row.IsMissingFromDisk && !AbsenceShownHarmless(row);
+
+    /// <summary>
+    /// The exemption <see cref="Affected"/> grants a missing row, as a fact about the
+    /// records alone: the row is a superseded or obsoleted patch, nothing else is known to
+    /// hold its file, it was withheld for nothing but the unread patch file, and every
+    /// product sharing the patch was shown to hold no patch that could be uninstalled.
+    ///
+    /// NAMED SO THE ENUMERATION ASKS THE SAME QUESTION. The pass that asks installations
+    /// about a patch no other pass asks about picks its rows with this and
+    /// <see cref="AbsenceHarmlessIfJudgedClean"/>, and a second copy of the conjunction there
+    /// would drift from this one.
+    /// </summary>
+    internal static bool AbsenceShownHarmless(RegisteredPackage row) =>
+        AbsenceHarmlessIfJudgedClean(row)
+        && row.ProductPatchSetVerdict == ProductPatchSet.AllNonRemovable;
+
+    /// <summary>
+    /// <see cref="AbsenceShownHarmless"/> without its verdict, for the pass that decides which
+    /// products a row's verdict is taken across and so runs before there is one.
+    /// </summary>
+    internal static bool AbsenceHarmlessIfJudgedClean(RegisteredPackage row) =>
+        row.IsSupersededOrObsoleted
+        && !row.OtherHoldNotRuledOut
+        && (!row.RemovableWithheld || row.WithheldOnUnreadableFile);
 
     /// <summary>
     /// The programs behind a scan's missing registrations, most-affected first, then

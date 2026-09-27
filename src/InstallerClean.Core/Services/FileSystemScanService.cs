@@ -901,10 +901,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // carries, the command line prints and the window's finished screen counts.
         //
         // The flag itself is right in both cases and is not narrowed here. It records
-        // a true fact about the RECORDS, established in the enumeration, which cannot
-        // know whether a file exists: existence is settled here, against the injected
-        // filesystem. Clearing it later would move the row into the claimed count,
-        // which asserts a live claim the app has not established.
+        // a true fact about the RECORDS, established in the enumeration, and existence
+        // is settled here, against the injected filesystem. Clearing it later would move
+        // the row into the claimed count, which asserts a live claim the app has not
+        // established.
         var registeredWithheld = stillUsed.Count(p => p.RemovableWithheld);
         var withheldCost = stillUsed.Count(p => p.RemovableWithheld && p.FileExists);
         // The size of exactly the files the cost figure counts, over the same test, so

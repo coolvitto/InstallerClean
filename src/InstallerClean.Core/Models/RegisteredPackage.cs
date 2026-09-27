@@ -71,10 +71,11 @@ namespace InstallerClean.Models;
 /// THEM APART. A file that is THERE and will not give up an identity is the app unable to
 /// establish something it could have established, and the withholding is a finding worth
 /// acting on. A file that is NOT THERE cannot be read by anybody, so the withholding is a
-/// tautology and says nothing at all about the machine. The enumeration has no filesystem
-/// to ask which it met; the scan has, and stamps <paramref name="FileExists"/> against the
-/// same filesystem it walks. So the cause is recorded here and the two meanings are
-/// separated at the one place holding both facts, <c>MissingFilesReport.Affected</c>.
+/// tautology and says nothing at all about the machine. The enumeration does not decide which
+/// it met: the scan stamps <paramref name="FileExists"/> once, against the same filesystem it
+/// walks, and a second reading in the enumeration could disagree with that stamp. So the
+/// cause is recorded here and the two meanings are separated at the one place holding both
+/// facts, <c>MissingFilesReport.Affected</c>.
 ///
 /// IT MEANS THAT WAS THE ONLY REASON, AND THE ONLY REASON IS WHAT MAKES IT READABLE. A row
 /// carrying this flag carries no other withholding cause. That comes from the shape of the
@@ -118,6 +119,22 @@ namespace InstallerClean.Models;
 /// from those a check of the file's own patch held back, which is what
 /// <see cref="ScanResult.SupersededScanWideWithheldCount"/> counts. It decides nothing.
 /// </param>
+/// <param name="OtherHoldNotRuledOut">
+/// Something besides a superseded or obsoleted registration of a patch holds this file, or
+/// may. A claim that brought no patch state named it: a product's own package record, read
+/// through the API or out of the registry, a registry record of a patch the claims do not
+/// name for the path, or a patch registration whose State would not read. Or an
+/// installation asked about the row's patch did not answer.
+///
+/// SUCH A CLAIM LEAVES <paramref name="PatchState"/> AS IT WAS, having none of its own to
+/// bring, so the row can still read superseded. This is what tells
+/// <c>MissingFilesReport.Affected</c> that the file is not shown to be held by superseded or
+/// obsoleted registrations alone, and so that its absence is not shown harmless. A claim
+/// that brings an applied state carries it onto the row instead, and needs no flag.
+///
+/// Read only where the row's state is superseded or obsoleted. It decides nothing about the
+/// offer: every row it is set on is already kept.
+/// </param>
 public record RegisteredPackage(
     string LocalPackagePath,
     string ProductName,
@@ -131,7 +148,8 @@ public record RegisteredPackage(
     bool FileExists = true,
     bool WithheldOnUnreadableFile = false,
     bool WithheldOnRecordedPathUnestablished = false,
-    bool WithheldScanWide = false)
+    bool WithheldScanWide = false,
+    bool OtherHoldNotRuledOut = false)
 {
     /// <summary>
     /// Windows holds a record naming this file and the file is not there. The one

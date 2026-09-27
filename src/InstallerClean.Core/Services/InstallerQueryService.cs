@@ -1,3 +1,4 @@
+using InstallerClean.Helpers;
 using InstallerClean.Interop;
 using InstallerClean.Interop.Native;
 using InstallerClean.Models;
@@ -253,6 +254,14 @@ public sealed class InstallerQueryService : IInstallerQueryService
             StringComparer.OrdinalIgnoreCase.GetHashCode(Account),
             StringComparer.OrdinalIgnoreCase.GetHashCode(Code));
     }
+
+    /// <summary>
+    /// An installation that answered, asked by a patch's code, that it holds the patch and
+    /// has not shown it removable, with the state it holds the patch in (0 where that
+    /// state did not parse as a number).
+    /// </summary>
+    private readonly record struct HeldByAsking(
+        int State, string PatchCode, string ProductCode, string? Sid, MsiInstallContext Context);
 
     /// <summary>
     /// One patch on one installation: the patch, the product, and the account and context
@@ -1608,6 +1617,11 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// nothing, and on a machine whose registrations are sound neither shape occurs.
     /// Every patch claim on the path counts, not only the removable ones, so a second
     /// registration of the same patch whose claim read cleanly still names it.
+    ///
+    /// AND SUCH A RECORD MARKS A SUPERSEDED OR OBSOLETED ROW FOR THE MISSING-FILES WARNING,
+    /// removable or not (<see cref="Hold"/>). The record brings no patch state, so the row
+    /// still reads superseded, and without the mark a file a product's package record names
+    /// would read as a harmless absence once it had gone.
     /// </summary>
     private static void WithholdOnRegistryPackageRecords(
         Dictionary<string, RegisteredPackage> claimed,
@@ -1619,7 +1633,8 @@ public sealed class InstallerQueryService : IInstallerQueryService
         Dictionary<string, HashSet<string>>? codesByPath = null;
         foreach (var record in records)
         {
-            if (!claimed.TryGetValue(record.Path, out var row) || !row.IsRemovable) continue;
+            if (!claimed.TryGetValue(record.Path, out var row)
+                || !(row.IsRemovable || row.IsSupersededOrObsoleted)) continue;
 
             if (record.IsPatch && record.Code is not null)
             {
@@ -1640,6 +1655,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
             }
 
             Downgrade(claimed, record.Path, withheld: false);
+            claimed[record.Path] = Hold(claimed[record.Path], claimState: 0);
         }
     }
 
@@ -1949,6 +1965,132 @@ public sealed class InstallerQueryService : IInstallerQueryService
                 MsiInstallProperty.State);
         }
 
+        // ONE WAY OF ASKING, SHARED BY THE PER-PAIRING PASS AND BY THE PASS OVER ROWS NO
+        // OTHER PASS ASKS ABOUT. Every installation the enumeration returned, every one the
+        // recovery by name found, every holder route A names for the code, and any
+        // installation passed in, is asked whether it holds the patch. The answer is
+        // whether any of them did not answer, and the installations that hold the patch and
+        // have not shown it removable. The asking stops at the first that did not answer.
+        //
+        // AN INSTALLATION THAT DID NOT ANSWER SETTLES IT, WHATEVER ANY OTHER INSTALLATION
+        // SAYS: the per-pairing pass withholds the path, and the pass over rows no other
+        // asks about marks the row. A claim does not settle it: the reads go on past one,
+        // and a claim counts only where every installation asked has answered. Which
+        // installation is asked first then decides nothing.
+        //
+        // Do not let a claim end the reads. The missing-files split reads a row kept on a
+        // claim as one whose verdict this pass established, which holds only where every
+        // installation holding the patch answered.
+        (bool Unanswered, List<HeldByAsking>? Holds) AskEveryInstallation(
+            string path,
+            string patchCode,
+            IReadOnlyList<(string ProductCode, string? Sid, MsiInstallContext Context)> alsoAsk,
+            bool recordHeld)
+        {
+            var toAsk = new List<(string ProductCode, string? Sid, MsiInstallContext Context)>(products);
+            toAsk.AddRange(recovered);
+            holders!.TryGetValue(patchCode, out var named);
+            if (named is not null) toAsk.AddRange(named);
+            toAsk.AddRange(alsoAsk);
+
+            List<HeldByAsking>? holds = null;
+            foreach (var (productCode, userSid, context) in toAsk)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // State first and alone where it settles the pairing. A product
+                // that does not hold this patch answers ERROR_UNKNOWN_PATCH to
+                // the sizing call, so the overwhelming majority of pairings cost
+                // one property read and the second is never made.
+                var state = StateOf(patchCode, productCode, userSid, context);
+
+                // ONLY AN INSTALLATION ANSWERING THAT IT HOLDS NO RECORD OF THE PATCH IS
+                // SKIPPED, AND NOT ONE THE MACHINE-WIDE PATCH ENUMERATION HAS LISTED AS
+                // HOLDING IT. From any other installation that answer is a positive one
+                // that it does not hold the patch, so it says nothing about the verdict
+                // either way. From a listed holder it contradicts the listing, which
+                // named the same product, account and context this read is put in, so
+                // it counts with every other read that did not answer.
+                //
+                // AN ANSWER THAT THE PRODUCT IS NOT INSTALLED IS NEVER SKIPPED. Every
+                // installation on this list was listed earlier in this scan, by the
+                // product enumeration, the recovery by name, the machine-wide patch
+                // enumeration or the resolve of a declared target, so that answer
+                // contradicts what the scan established, and it counts with them too.
+                if (state.PatchNotHeld && !IsListedHolder(named, productCode, userSid, context)) continue;
+
+                if (state.Unreadable) return (true, holds);
+
+                // NOTHING HERE IS SKIPPED. The State read has just answered, and not
+                // that this installation holds no record of the patch, so it holds
+                // one, and an answer now that it does not, or that its product is not
+                // installed, contradicts the one before it. Both are unreadable as
+                // well.
+                var uninstallable = GetPatchProperty(_msi, patchCode, productCode, userSid, context,
+                    MsiInstallProperty.Uninstallable);
+
+                // An empty answer the verdict turns on did not answer either, and counts
+                // with the reads that failed rather than as a claim
+                // (LeavesVerdictUnestablished). An installation where the patch is
+                // applied or obsoleted claims it below, whatever its Uninstallable says.
+                if (uninstallable.Unreadable || LeavesVerdictUnestablished(state.Value, uninstallable.Value))
+                    return (true, holds);
+
+                // This product holds the patch and has not shown it removable, which is
+                // the claim the truncated enumeration would have contributed. Same
+                // verdict, reached by asking.
+                if (!IsRemovablePatch(state.Value, uninstallable.Value))
+                {
+                    int.TryParse(state.Value, out var heldState);
+                    (holds ??= []).Add(new HeldByAsking(heldState, patchCode, productCode, userSid, context));
+                }
+                else if (recordHeld)
+                    heldByName?.Add(new PatchClaim(path, patchCode, productCode, userSid, (int)context));
+            }
+
+            return (false, holds);
+        }
+
+        // The same question under every code naming one path, for a path whose own file
+        // cannot say which installations to ask about. Every code is asked before anything
+        // is decided, so which code the work list reaches first decides nothing. Codes are
+        // taken in one fixed order.
+        (bool Unanswered, List<HeldByAsking>? Holds) AskAboutEveryCode(string path, IEnumerable<string> codes)
+        {
+            List<HeldByAsking>? holds = null;
+            foreach (var code in codes.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
+            {
+                var (unanswered, found) = AskEveryInstallation(path, code, [], recordHeld: true);
+                if (found is not null) (holds ??= []).AddRange(found);
+                if (unanswered) return (true, holds);
+            }
+
+            return (false, holds);
+        }
+
+        // What the installations that hold the patch say to the missing-files warning
+        // (Hold), the product's name read for one whose reading is stronger than the row's.
+        //
+        // ONLY AN INSTALLATION WHOSE OWN CLAIM NEVER REACHED THE MERGE. One whose claim did is
+        // on a row already, this one or the row its recorded path lands on, and that row
+        // carries its reading: carried here as well, one file would be counted twice.
+        var enumeratedClaims = new HashSet<Pairing>(patchClaims.Select(PairingOf));
+        RegisteredPackage HoldEach(RegisteredPackage row, List<HeldByAsking> holds)
+        {
+            foreach (var held in holds)
+            {
+                if (enumeratedClaims.Contains(new Pairing(held.PatchCode, held.ProductCode, held.Sid, held.Context)))
+                    continue;
+
+                var name = ReadingRank(held.State) > ReadingRank(row.PatchState)
+                    ? GetProductProperty(held.ProductCode, held.Sid, held.Context, MsiInstallProperty.ProductName).Value
+                    : null;
+                row = Hold(row, held.State, held.ProductCode, name);
+            }
+
+            return row;
+        }
+
         // ROUTE B, READ ONCE PER PATH AND SHARED BY BOTH PASSES BELOW. The file names
         // the products it may be applied to, so it answers about a product no
         // enumeration returned, one route A cannot see among them.
@@ -2013,9 +2155,73 @@ public sealed class InstallerQueryService : IInstallerQueryService
                 !StateOf(patchCode, productCode, sid, context).PatchNotHeld,
             ct);
 
+        // THE ROWS THE PER-PAIRING PASS NEVER ASKS ABOUT, ASKED FOR THE MISSING-FILES
+        // WARNING'S SAKE. A superseded patch that is not removable, or an obsoleted one, is
+        // on no work list, so an installation holding it applied whose own claim never
+        // reached the merge is heard nowhere else, and the warning would read the file's
+        // absence as harmless. So every row the warning would exempt
+        // (MissingFilesReport.AbsenceShownHarmless) is put to the same installations under
+        // every code naming it. An installation that holds the patch carries its reading
+        // onto the row where that reading is the stronger (Hold), and one that did not
+        // answer marks the row, so the warning reports it. The judging pass above has
+        // already put every installation answering for such a row into its product set.
+        //
+        // IT ASKS WITHOUT KNOWING WHETHER THE FILE IS THERE. Existence is stamped later,
+        // against the filesystem the scan walks, and a second reading of it here could
+        // disagree with that stamp: one that read "present" for a file the stamp calls
+        // gone would leave that row unasked, and nothing would say so. Every row the
+        // warning could exempt is asked instead, which is a superset of the ones whose
+        // file has gone. What it costs is those rows, times their codes, times the
+        // installations asked, one State read each, shared with the passes around it.
+        //
+        // Only where route A answered: where it did not, every patch row's verdict is
+        // Unestablished and none of them is exempt.
+        if (holders is not null)
+        {
+            var codesByRow = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var claim in patchClaims)
+            {
+                if (!claimed.TryGetValue(claim.LocalPackagePath, out var row)
+                    || row.IsRemovable || !MissingFilesReport.AbsenceShownHarmless(row)) continue;
+                if (!codesByRow.TryGetValue(claim.LocalPackagePath, out var codes))
+                    codesByRow[claim.LocalPackagePath] = codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                codes.Add(claim.PatchCode);
+            }
+
+            foreach (var (path, codes) in codesByRow)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                List<HeldByAsking>? holds = null;
+                var unanswered = false;
+                foreach (var code in codes.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
+                {
+                    var (noAnswer, found) = AskEveryInstallation(path, code, [], recordHeld: false);
+                    if (found is not null) (holds ??= []).AddRange(found);
+                    if (noAnswer)
+                    {
+                        unanswered = true;
+                        break;
+                    }
+                }
+
+                if (unanswered) claimed[path] = claimed[path] with { OtherHoldNotRuledOut = true };
+                else if (holds is not null) claimed[path] = HoldEach(claimed[path], holds);
+            }
+        }
+
         // An empty work list settles it. Everything below is per-pairing and there are
         // no pairings to ask about.
         if (toConfirm.Count == 0) return;
+
+        // The codes naming each path on the work list, for a path whose own file cannot
+        // say which installations to ask about and so is asked about under all of them.
+        var codesByPath = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (path, code) in toConfirm)
+        {
+            if (!codesByPath.TryGetValue(path, out var codes)) codesByPath[path] = codes = [];
+            codes.Add(code);
+        }
 
         foreach (var (path, patchCode) in toConfirm)
         {
@@ -2031,13 +2237,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
                 continue;
             }
 
-            // The products to put the question to: the ones the enumeration
-            // returned, the ones the registry named and the enumeration did not,
-            // plus any route A named for this patch, plus any the patch file
-            // itself says it targets. They overlap heavily on a healthy machine
-            // and are unioned rather than chosen between, because each sees
-            // something the others cannot and every one of them can only add a
-            // product to ask.
+            // The products to put the question to: the ones the enumeration returned,
+            // the ones the registry named and the enumeration did not, plus any route A
+            // named for this patch, plus any the patch file itself says it targets
+            // (AskEveryInstallation). They overlap heavily on a healthy machine and are
+            // unioned rather than chosen between, because each sees something the others
+            // cannot and every one of them can only add a product to ask.
             //
             // EVERY INSTALLATION ON THE LIST IS ASKED, THE ONES WHOSE PATCH ROWS THE
             // PRODUCT LOOP HAS ALREADY READ INCLUDED. The loop's reading of a pairing
@@ -2047,115 +2252,62 @@ public sealed class InstallerQueryService : IInstallerQueryService
             // does not depend on which path any record names. Skipping the pairings the
             // loop has read would take each one's answer as already on this row, which
             // holds only where its recorded path normalises to this one.
-            var toAsk = new List<(string ProductCode, string? Sid, MsiInstallContext Context)>(products);
-            toAsk.AddRange(recovered);
-            if (holders.TryGetValue(patchCode, out var named)) toAsk.AddRange(named);
-
-            // Both withholdings are the same shape: a patch whose own declaration will
-            // not be read has been shown to be unneeded by nobody, and a product it
-            // names that Windows will not answer about, or answers about without an
-            // installation this run listed, is a question left open rather than an
-            // answer of no.
+            //
+            // A product the patch file names that Windows will not answer about, or
+            // answers about without an installation this run listed, is a question left
+            // open rather than an answer of no, and withholds the path. A file that named
+            // products did read, so it is on the disk and this row never reaches the
+            // missing-files warning.
             var fromFile = DeclaredTargetsFor(path);
-            if (fromFile.Unreadable || fromFile.Unaskable)
+            if (fromFile.Unaskable)
             {
-                // WHICH OF THE TWO IT WAS IS RECORDED, AND RECORDING IT CHANGES
-                // NOTHING HERE. Both still take the verdict away and both still keep
-                // the file. The flag is read much later, by the missing-files split,
-                // and only ever for a row whose file turned out not to be there.
-                //
-                // IT HAS TO BE RECORDED RATHER THAN WORKED OUT LATER, because an
-                // unread declaration carries two meanings and this is the only place
-                // that knows which was met. A file that is THERE and will not give up
-                // an identity is the app unable to establish something it could have
-                // established. A file that is NOT THERE cannot be read by anybody, so
-                // the same withholding is a tautology and says nothing about the
-                // machine. This class cannot tell them apart, having no filesystem to
-                // ask, and must not guess: FileSystemScanService stamps FileExists
-                // against the same filesystem it walks, and the two facts meet there.
-                //
-                // SO THIS READ ALONE DOES NOT PUT A SUPERSEDED FILE THAT HAS GONE ON THE
-                // MISSING-FILES REPORT. Where its products' patch sets are clean and this
-                // is the one reason the row was withheld, MissingFilesReport.Affected
-                // reads the failed read as the tautology it is: the file would not read
-                // because it has gone.
-                Downgrade(claimed, path, withheld: true, unreadableFile: fromFile.Unreadable);
+                Downgrade(claimed, path, withheld: true);
                 continue;
             }
-            toAsk.AddRange(fromFile.Installed);
 
-            // AN INSTALLATION THAT DID NOT ANSWER WITHHOLDS THE PATH, WHATEVER ANY OTHER
-            // INSTALLATION SAYS. It settles the path, and the reads stop there. A claim
-            // does not settle it: the reads go on past one, and the path is kept on the
-            // claim only where every installation asked has answered. Which installation
-            // is asked first then decides nothing.
-            //
-            // Do not let a claim end the reads. The missing-files split reads a row kept on
-            // a claim as one whose verdict this pass established, which holds only where
-            // every installation holding the patch answered.
-            var claimedByAnInstallation = false;
-            var unanswered = false;
+            // A PATCH FILE THAT WILL NOT READ IS ASKED ABOUT ALL THE SAME, under every code
+            // naming it, before anything is decided. A file that has gone never reads, and
+            // an installation holding the patch whose own claim never reached the merge
+            // answers by the patch's code whatever its enumeration did, which is what says
+            // the file is still needed. Every code is asked because the work list reaches
+            // the path under one of them first, and which one that is must decide nothing.
+            var (unanswered, holds) = fromFile.Unreadable
+                ? AskAboutEveryCode(path, codesByPath[path])
+                : AskEveryInstallation(path, patchCode, fromFile.Installed, recordHeld: true);
 
-            foreach (var (productCode, userSid, context) in toAsk)
+            if (unanswered)
             {
-                ct.ThrowIfCancellationRequested();
-
-                // State first and alone where it settles the pairing. A product
-                // that does not hold this patch answers ERROR_UNKNOWN_PATCH to
-                // the sizing call, so the overwhelming majority of pairings cost
-                // one property read and the second is never made.
-                var state = StateOf(patchCode, productCode, userSid, context);
-
-                // ONLY AN INSTALLATION ANSWERING THAT IT HOLDS NO RECORD OF THE PATCH IS
-                // SKIPPED, AND NOT ONE THE MACHINE-WIDE PATCH ENUMERATION HAS LISTED AS
-                // HOLDING IT. From any other installation that answer is a positive one
-                // that it does not hold the patch, so it says nothing about the verdict
-                // either way. From a listed holder it contradicts the listing, which
-                // named the same product, account and context this read is put in, so
-                // it counts with every other read that did not answer.
-                //
-                // AN ANSWER THAT THE PRODUCT IS NOT INSTALLED IS NEVER SKIPPED. Every
-                // installation on this list was listed earlier in this scan, by the
-                // product enumeration, the recovery by name, the machine-wide patch
-                // enumeration or the resolve of a declared target, so that answer
-                // contradicts what the scan established, and it counts with them too.
-                if (state.PatchNotHeld && !IsListedHolder(named, productCode, userSid, context)) continue;
-
-                if (state.Unreadable)
-                {
-                    unanswered = true;
-                    break;
-                }
-
-                // NOTHING HERE IS SKIPPED. The State read has just answered, and not
-                // that this installation holds no record of the patch, so it holds
-                // one, and an answer now that it does not, or that its product is not
-                // installed, contradicts the one before it. Both are unreadable as
-                // well.
-                var uninstallable = GetPatchProperty(_msi, patchCode, productCode, userSid, context,
-                    MsiInstallProperty.Uninstallable);
-
-                // An empty answer the verdict turns on did not answer either, and counts
-                // with the reads that failed rather than as a claim
-                // (LeavesVerdictUnestablished). An installation where the patch is
-                // applied or obsoleted claims it below, whatever its Uninstallable says.
-                if (uninstallable.Unreadable || LeavesVerdictUnestablished(state.Value, uninstallable.Value))
-                {
-                    unanswered = true;
-                    break;
-                }
-
-                // This product holds the patch and has not shown it removable, which is
-                // the claim the truncated enumeration would have contributed. Same
-                // verdict, reached by asking.
-                if (!IsRemovablePatch(state.Value, uninstallable.Value))
-                    claimedByAnInstallation = true;
-                else
-                    heldByName?.Add(new PatchClaim(path, patchCode, productCode, userSid, (int)context));
+                Downgrade(claimed, path, withheld: true);
             }
-
-            if (unanswered) Downgrade(claimed, path, withheld: true);
-            else if (claimedByAnInstallation) Downgrade(claimed, path, withheld: false);
+            else if (holds is not null)
+            {
+                Downgrade(claimed, path, withheld: false);
+                claimed[path] = HoldEach(claimed[path], holds);
+            }
+            else if (fromFile.Unreadable)
+            {
+                // EVERY INSTALLATION ANSWERED AND NONE HOLDS THE PATCH, so the unread file
+                // is the one reason left, and it is recorded as that. Recording it changes
+                // nothing here: the verdict still goes and the file is still kept. The
+                // flag is read much later, by the missing-files split, and only ever for a
+                // row whose file turned out not to be there.
+                //
+                // IT HAS TO BE RECORDED RATHER THAN WORKED OUT LATER, because an unread
+                // declaration carries two meanings and this is the only place that knows
+                // which was met. A file that is THERE and will not give up an identity is
+                // the app unable to establish something it could have established. A file
+                // that is NOT THERE cannot be read by anybody, so the same withholding is a
+                // tautology and says nothing about the machine. Which it met is not decided
+                // here: FileSystemScanService stamps FileExists once, against the same
+                // filesystem it walks, and the two facts meet there. A second reading of
+                // existence here could disagree with that stamp.
+                //
+                // SO A SUPERSEDED FILE THAT HAS GONE, WITHHELD FOR THIS ALONE, IS JUDGED ON
+                // ITS VERDICT. Where its products' patch sets are clean,
+                // MissingFilesReport.Affected reads the failed read as the tautology it
+                // is: the file would not read because it has gone.
+                Downgrade(claimed, path, withheld: true, unreadableFile: true);
+            }
         }
     }
 
@@ -2978,12 +3130,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// non-removable, and an existing removable row is downgraded by a later
     /// non-removable claim; the verdict is never upgraded the other way.
     ///
-    /// THE CAUSE IS KEPT OUT OF ENUMERATION ORDER AS WELL AS THE VERDICT, which is
-    /// why there is a second rule rather than one. Two non-removable claims on a
-    /// path are not necessarily the same finding: one product's Applied claim names
-    /// the file, and another product's failed State read names nothing at all. So a
-    /// claim that establishes something displaces a row that establishes nothing,
-    /// and never the reverse, and neither what the app DOES with the file nor what it
+    /// THE CAUSE IS KEPT OUT OF ENUMERATION ORDER AS WELL AS THE VERDICT. Two
+    /// non-removable claims on a path are not necessarily the same finding: one
+    /// product's Applied claim names the file, and another product's failed State read
+    /// names nothing at all. So the row reads unjudged only where no claim that keeps
+    /// the file read cleanly, whichever claim's account it carries
+    /// (<see cref="Merge"/>), and neither what the app DOES with the file nor what it
     /// SAYS about it turns on which claim the enumeration reached first.
     ///
     /// A fallback claim can only ADD a path, never displace the row on one. That
@@ -3019,67 +3171,159 @@ public sealed class InstallerQueryService : IInstallerQueryService
             return true;
         }
 
-        // Downgrade only: a removable row loses to a later non-removable claim, and the
-        // whole row goes with the verdict rather than the flag alone. A registration is
-        // one product's account of the file, so what a machine ends up with is the
-        // account of whichever product last displaced the row, its product name
-        // included.
-        if (existing.IsRemovable && !candidate.IsRemovable)
-        {
-            claimed[candidate.LocalPackagePath] = Displace(existing, candidate);
-            return false;
-        }
-
-        // Both are non-removable and only one of them is a finding. The
-        // IsRemovable test is what stops this reading as an upgrade: a removable
-        // candidate never displaces anything here, so the row can only move from
-        // "nothing was established" to "this product claims it", which is the
-        // direction that costs no file and gains a true sentence.
-        if (existing.VerdictUnreadable && !candidate.VerdictUnreadable && !candidate.IsRemovable)
-            claimed[candidate.LocalPackagePath] = Displace(existing, candidate);
-
+        claimed[candidate.LocalPackagePath] = Merge(existing, candidate);
         return false;
     }
 
     /// <summary>
-    /// The row a displacement leaves behind, and the one exception to displacing whole.
-    /// Both of <see cref="MergeClaim"/>'s displacements come through here, so the rule
-    /// is written once and a third displacement inherits it rather than having to
-    /// remember it.
+    /// The row two API claims on one path leave, and the same row whichever of them the
+    /// enumeration reached first, so the same row for any number of claims in any order.
+    /// A registration is one product's account of the file, so the row is one claim's
+    /// account, its product name included, with four facts taken across both.
     ///
-    /// THE PATCH STATE IS THE ONE FIELD A CLAIM CANNOT TAKE AWAY WITHOUT BRINGING ONE,
-    /// and the two halves of that are separate. A claim carrying a state replaces what
-    /// was there: one cached patch can be superseded under one product and still applied
-    /// under another, and it is the applied reading that has to reach the row, or the row
-    /// would say superseded on a machine where a product still holds the patch. A claim
-    /// carrying no state leaves the state alone. Zero is what a State the enumeration
-    /// could not read, or could not parse, arrives as, and it means not-a-patch to
-    /// everything downstream that asks, so writing it over a state Windows gave would put
-    /// a reading nobody made in front of one somebody did.
+    /// THE ACCOUNT IS THE CLAIM THAT COMES FIRST IN ONE FIXED ORDER (<see cref="Account"/>):
+    /// a claim that is not removable, then one whose state reads as applied
+    /// (<see cref="ReadingRank"/>), then the product code and the product name. So a
+    /// non-removable claim takes the verdict off a removable row with its whole account,
+    /// and the row names a product whose state reads as applied wherever one does.
     ///
-    /// ZERO IS THE TEST RATHER THAN THE ROW'S UNREADABLE FLAG, WHICH ANSWERS A WIDER
-    /// QUESTION. That flag is the OR of a pairing's State read and its Uninstallable
-    /// read, so it is set for a claim whose state Windows gave positively and whose
-    /// Uninstallable alone would not read; keying on it would discard a reading the
-    /// machine had made.
+    /// THE ROW READS UNJUDGED ONLY WHERE NO CLAIM ON IT ESTABLISHED ANYTHING: where some
+    /// claim's reads failed and no claim that is not removable read cleanly. A claim that
+    /// read cleanly and keeps the file is a live claim on it, whichever claim's account the
+    /// row carries, and a removable claim establishes nothing about the file's being kept.
     ///
-    /// A PRODUCT'S CLAIM IS THE OTHER SHAPE THAT ARRIVES CARRYING NO STATE, and it is
-    /// why this belongs to displacement rather than to the downgrade. A product row is
-    /// built from its LocalPackage alone, so its state is zero because nothing read one
-    /// rather than because something read nothing, and a corrupt value can aim it at a
-    /// patch's cached file. It establishes which product claims the path and nothing
-    /// whatever about the patch.
+    /// THE STATE IS THE STRONGEST READING EITHER CLAIM GAVE (<see cref="ReadingRank"/>),
+    /// whichever claim's account the row carries. One cached patch can be superseded under
+    /// one product and still applied under another, and it is the stronger reading that
+    /// says the file is still needed. A claim carrying no state, a product's own package
+    /// record or a patch registration whose State would not read, never replaces a reading:
+    /// zero is what a State that did not read, or did not parse, arrives as, and it means
+    /// not-a-patch to everything downstream that asks.
     ///
-    /// IT CANNOT PUT A FILE ON THE OFFER. Removability is granted where a row is built
-    /// and never afterwards, and both rows reaching either displacement are already
-    /// non-removable. Carrying the state forward widens what the later per-product pass
-    /// looks at, and that pass only ever withholds.
+    /// THE ROW IS REMOVABLE ONLY WHERE BOTH CLAIMS ARE, so no order of claims can put a file
+    /// on the offer that either claim alone keeps. Removability is granted where a claim is
+    /// built and never afterwards.
+    ///
+    /// AND A SUPERSEDED OR OBSOLETED ROW THAT ANY CLAIM CARRYING NO STATE HAS NAMED is marked
+    /// <see cref="RegisteredPackage.OtherHoldNotRuledOut"/>: the claim with no state brought
+    /// nothing to put on the row, and it still names the file.
     /// </summary>
-    private static RegisteredPackage Displace(
-        RegisteredPackage existing, RegisteredPackage candidate) =>
-        candidate.PatchState == 0
-            ? candidate with { PatchState = existing.PatchState }
-            : candidate;
+    private static RegisteredPackage Merge(RegisteredPackage existing, RegisteredPackage candidate)
+    {
+        static bool Establishes(RegisteredPackage claim) => !claim.IsRemovable && !claim.VerdictUnreadable;
+
+        var account = Account(candidate, existing) > 0 ? candidate : existing;
+        var state = ReadingOrder(candidate.PatchState, existing.PatchState) > 0
+            ? candidate.PatchState
+            : existing.PatchState;
+
+        var row = account with
+        {
+            PatchState = state,
+            IsRemovable = existing.IsRemovable && candidate.IsRemovable,
+            VerdictUnreadable = !(Establishes(existing) || Establishes(candidate))
+                && (existing.VerdictUnreadable || candidate.VerdictUnreadable),
+        };
+
+        return row with
+        {
+            OtherHoldNotRuledOut = row.IsSupersededOrObsoleted
+                && (existing.OtherHoldNotRuledOut || candidate.OtherHoldNotRuledOut
+                    || existing.PatchState == 0 || candidate.PatchState == 0),
+        };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="a"/>'s account of a file comes before <paramref name="b"/>'s:
+    /// positive where it does, negative where it does not, and zero only for two accounts
+    /// that are the same in every field it reads.
+    ///
+    /// EVERY KEY IS ONE <see cref="Merge"/> LEAVES ON THE ROW AS IT FOUND IT ON THE ACCOUNT,
+    /// which is what makes the row the same in any order: the row is removable only where no
+    /// claim is not, it reads applied only where some claim does and that claim then comes
+    /// first, and its code and name are its account's own. Do not add as a key the reading
+    /// rank below applied, or whether the reads established anything. Merge takes the row's
+    /// state and its unreadable flag across all the claims rather than from its account, so
+    /// a key on either would compare one claim's field with another's, and the order of the
+    /// claims would decide the account again.
+    /// </summary>
+    private static int Account(RegisteredPackage a, RegisteredPackage b)
+    {
+        var order = (!a.IsRemovable).CompareTo(!b.IsRemovable);
+        if (order != 0) return order;
+
+        order = (ReadingRank(a.PatchState) == AppliedRank).CompareTo(ReadingRank(b.PatchState) == AppliedRank);
+        if (order != 0) return order;
+
+        // A lower code or name comes first, and this is only to settle a tie the same way
+        // every time.
+        order = -StringComparer.OrdinalIgnoreCase.Compare(a.ProductCode, b.ProductCode);
+        if (order != 0) return order;
+
+        order = -StringComparer.Ordinal.Compare(a.ProductCode, b.ProductCode);
+        if (order != 0) return order;
+
+        order = -StringComparer.OrdinalIgnoreCase.Compare(a.ProductName, b.ProductName);
+        if (order != 0) return order;
+
+        return -StringComparer.Ordinal.Compare(a.ProductName, b.ProductName);
+    }
+
+    /// <summary>
+    /// Which of two patch states is the stronger reading: the higher
+    /// <see cref="ReadingRank"/>, and between two states of one rank, the higher number, so
+    /// the choice is the same whichever is met first.
+    /// </summary>
+    private static int ReadingOrder(int a, int b)
+    {
+        var order = ReadingRank(a).CompareTo(ReadingRank(b));
+        return order != 0 ? order : a.CompareTo(b);
+    }
+
+    /// <summary>
+    /// How strongly a patch state says a product may still need the cached file, for
+    /// choosing between two readings of one file: none (0), superseded (2), obsoleted (4),
+    /// and any other state, which is read as strongly as applied. That last is the direction
+    /// that keeps the missing-files warning: a state that is neither superseded nor
+    /// obsoleted takes a row out of the one exemption the warning grants.
+    /// </summary>
+    private static int ReadingRank(int patchState) => patchState switch
+    {
+        0 => 0,
+        2 => 1,
+        4 => 2,
+        _ => AppliedRank,
+    };
+
+    private const int AppliedRank = 3;
+
+    /// <summary>
+    /// What one more claim on a superseded or obsoleted row's file says to the missing-files
+    /// warning, where the claim is not a row of its own: a registry package record, or an
+    /// installation that answered, asked by the patch's code, that it holds the patch. A
+    /// stronger reading than the row's (<see cref="ReadingRank"/>) replaces the row's state,
+    /// and the row takes the claimant's product code and name where the name read. No state
+    /// at all marks the row <see cref="RegisteredPackage.OtherHoldNotRuledOut"/>. Anything
+    /// else, and any claim on a row that is not a superseded or obsoleted patch, changes
+    /// nothing.
+    ///
+    /// IT NEVER TOUCHES THE REMOVABLE VERDICT. Every caller has already decided that, and
+    /// every row this changes is one the caller has made non-removable or found so. What
+    /// it changes is read by the missing-files warning, by the counts of superseded and
+    /// obsoleted registrations and as the name the row is listed under, and by nothing that
+    /// offers a file.
+    /// </summary>
+    private static RegisteredPackage Hold(
+        RegisteredPackage row, int claimState, string? claimantCode = null, string? claimantName = null)
+    {
+        if (!row.IsSupersededOrObsoleted) return row;
+        if (claimState == 0) return row with { OtherHoldNotRuledOut = true };
+        if (ReadingRank(claimState) <= ReadingRank(row.PatchState)) return row;
+
+        return string.IsNullOrEmpty(claimantName) || claimantCode is null
+            ? row with { PatchState = claimState }
+            : row with { PatchState = claimState, ProductCode = claimantCode, ProductName = claimantName };
+    }
 
     /// <summary>
     /// The real registry fallback: every SID subtree under UserData, read into
@@ -3644,10 +3888,10 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // disjoint, a missing file never being offered, so judging removable rows alone
         // would leave the second consumer with nothing to read.
         //
-        // AND IT CANNOT BE NARROWED TO "REMOVABLE PLUS MISSING", which is the obvious
-        // saving: this runs in the enumeration, and the enumeration does not know
-        // whether a file exists. Existence is established later, against the injected
-        // filesystem, in FileSystemScanService. So the narrowest set available here is
+        // AND IT IS NOT NARROWED TO "REMOVABLE PLUS MISSING", which is the obvious
+        // saving: existence is stamped once, later, by FileSystemScanService against the
+        // filesystem it walks, and a second reading of it here could disagree with that
+        // stamp, leaving a row whose file has gone unjudged. So the set judged here is
         // the one both consumers can draw from, which is the patch rows.
         //
         // A state of 2 or 4 is the test rather than "has a patch claim", because that IS
@@ -3747,16 +3991,22 @@ public sealed class InstallerQueryService : IInstallerQueryService
             // An answer that did not come, or that the product is not installed, puts it
             // in too: only a positive "no record" leaves it out.
             //
-            // ONLY WHERE A ROW IS STILL REMOVABLE, for the reason route B is: those are the
-            // rows the per-pairing pass asks the same installations about, so every answer
-            // read here is one it reads anyway, and the reads are shared.
+            // WHERE A ROW IS STILL REMOVABLE, AND WHERE THE MISSING-FILES WARNING WOULD
+            // EXEMPT IT (MissingFilesReport.AbsenceHarmlessIfJudgedClean). Those are the rows
+            // the per-pairing pass, or the pass after this one over rows nothing else asks
+            // about, puts to the same installations, so every answer read here is one read
+            // anyway, and the reads are shared. For the second kind, an installation found
+            // this way holding the patch in any state can hold something else that could be
+            // uninstalled and roll back onto the file, so it joins the set the verdict is
+            // taken across.
             //
             // A PRODUCT WHOSE CACHED FILE FOR ANOTHER PATCH IS THIS ONE is not found by
             // asking about this path's patches. Its registry record for that patch names
             // this file, and WithholdOnRegistryPackageRecords has already taken the verdict
             // away on it; where the registry holds no such record for a product whose
             // records came back short, the scan-wide withholding holds every row.
-            if (row.IsRemovable)
+            if (row.IsRemovable
+                || (holders is not null && MissingFilesReport.AbsenceHarmlessIfJudgedClean(row)))
                 foreach (var installations in new[] { enumerated, recovered })
                     foreach (var (productCode, sid, context) in installations)
                     {
