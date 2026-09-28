@@ -18,11 +18,11 @@ namespace InstallerClean.Tests.Helpers;
 /// written where the app was refused permission to open the lock.
 /// </summary>
 /// <remarks>
-/// The wording tests read the lines back through the methods that build them, so
-/// they hold the wording without reading the Application channel.
+/// The wording tests read the lines back through the methods that build them.
 /// A_batch_refused_with_nothing_holding_the_lock_prints_its_line_and_exits_transient
 /// drives a whole run instead, for <c>/d</c> and for <c>/m</c>, and holds that a
-/// batch refused that way prints its stdout line and exits with the transient code.
+/// batch refused that way prints its stdout line, exits with the transient code and
+/// writes one entry, of the transient class, as the suite's recorder receives it.
 ///
 /// A refused lock goes out through the pending-reboot emitter under the gate's own
 /// reason for it, wherever it is met, and CliPendingRebootOutcomeTests holds its
@@ -138,17 +138,24 @@ public class CliLockRefusalTests
     /// The whole run, for the refusal with nothing shown to be holding the lock.
     /// The wording tests above read the two lines back from the methods that build
     /// them; this says that a batch refused that way prints the one the operator
-    /// reads and exits the code a scheduler acts on, which no assertion on a
-    /// builder can say.
+    /// reads, exits the code a scheduler acts on and writes its entry under the
+    /// class an RMM filters on, which no assertion on a builder can say.
     /// </summary>
     [Theory]
     [InlineData("/d")]
     [InlineData("/m")]
     public async Task A_batch_refused_with_nothing_holding_the_lock_prints_its_line_and_exits_transient(string arg)
     {
-        var (exitCode, stdout) = await RunRefusedByUnavailableLock(arg);
+        var (exitCode, stdout, entries) = await RunRefusedByUnavailableLock(arg);
 
         Assert.Equal(CliExitCode.Transient, exitCode);
+        // One entry, because a run writes one summary and this refusal writes no
+        // notice beside it, and its class is what puts it in the 2000 band.
+        var entry = Assert.Single(entries);
+        Assert.Equal(CliEventClass.TransientSkip, entry.Class);
+        Assert.Equal(
+            MachineContract.English(() => Program.InstallerLockUnavailableEventLogLine(arg)),
+            entry.Text);
         Assert.Contains(Program.InstallerLockUnavailableLine(arg), stdout);
         // Not the refusal the app was not allowed to look at, which is a different
         // condition with a different sentence and a different exit code.
@@ -169,9 +176,10 @@ public class CliLockRefusalTests
     /// <summary>
     /// Runs <paramref name="arg"/> against a clean gate and an action service that
     /// refuses at its acquire with nothing shown to be holding the lock. Returns
-    /// the exit code and stdout.
+    /// the exit code, stdout and the entries the run wrote.
     /// </summary>
-    private static async Task<(int ExitCode, string Stdout)> RunRefusedByUnavailableLock(string arg)
+    private static async Task<(int ExitCode, string Stdout, IReadOnlyList<(CliEventClass Class, string Text)> Entries)>
+        RunRefusedByUnavailableLock(string arg)
     {
         // The gate sits after the scan, so the offer has to be non-empty or the run
         // returns on "nothing to do" before ever reaching the service.
@@ -220,8 +228,9 @@ public class CliLockRefusalTests
         try
         {
             Console.SetOut(buffer);
+            EventLogRecorder.Clear();
             var exitCode = await Program.RunWorkAsync(arg, invocation, CancellationToken.None, services);
-            return (exitCode, buffer.ToString());
+            return (exitCode, buffer.ToString(), EventLogRecorder.Entries);
         }
         finally
         {

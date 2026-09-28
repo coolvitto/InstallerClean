@@ -307,11 +307,8 @@ public class CliHeldBackTests
     /// The two Event ID 3002 notices, composed with the three arguments the write
     /// site passes and inside the en-GB scope it builds them in.
     ///
-    /// WHAT THIS REACHES AND WHAT IT DOES NOT. It holds the wording and the argument
-    /// slots. It does not show that either line is written to the Application
-    /// channel: the call sits in a private method and reaching it means a test run
-    /// writing a real entry to the Application log, so the emitter stays out of the
-    /// suite here as it does for the lock-refusal line.
+    /// It holds the wording and the argument slots, read back from the templates
+    /// rather than from a run.
     ///
     /// THE en-GB SCOPE IS THE WRITE SITE'S OWN DOOR RATHER THAN A CHECK ON IT.
     /// The template is the neutral's alone, no satellite declaring either of these

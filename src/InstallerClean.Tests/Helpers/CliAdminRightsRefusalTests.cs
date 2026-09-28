@@ -6,8 +6,7 @@ namespace InstallerClean.Tests.Helpers;
 /// <summary>
 /// The Application-channel line a <c>/s</c>, <c>/d</c> or <c>/m</c> run writes when
 /// it is refused for want of administrator rights, which is the line an RMM matches
-/// on. It is read back through the method that builds it, so no test writes to the
-/// Application channel.
+/// on, read back through the method that builds it.
 /// </summary>
 public class CliAdminRightsRefusalTests
 {

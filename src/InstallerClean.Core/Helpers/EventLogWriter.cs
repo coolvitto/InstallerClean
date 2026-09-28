@@ -34,7 +34,22 @@ internal static class EventLogWriter
     /// RMM consumer expecting Application-channel entries can tell
     /// "the channel was unwritable" apart from "nothing happened".
     /// </summary>
-    internal static bool EventLogUnavailable { get; private set; }
+    internal static bool EventLogUnavailable { get; set; }
+
+    /// <summary>
+    /// Null in both hosts. When set, <see cref="Write"/> hands it the class and the
+    /// built entry in place of the source check and the write to the Application
+    /// channel, and does everything else as it always does: the entry is built inside
+    /// the same guard, and a sink that throws marks the log unavailable as a refused
+    /// write would. The test assembly sets it when it loads, so the entries its tests
+    /// write through here are recorded rather than written.
+    /// </summary>
+    /// <remarks>
+    /// The call stays above <see cref="EnsureSourceMappedToApplicationLog"/>. Below it,
+    /// a run with a sink set would still register the event source, which is a write
+    /// to the machine's registry, on any host that never had it.
+    /// </remarks>
+    internal static Action<CliEventClass, string>? Sink { get; set; }
 
     /// <summary>
     /// Writes one entry, summary or notice, classified by <paramref name="outcome"/>
@@ -56,6 +71,11 @@ internal static class EventLogWriter
         try
         {
             var entry = buildEntry();
+            if (Sink is { } sink)
+            {
+                sink(outcome, entry);
+                return;
+            }
             if (!EnsureSourceMappedToApplicationLog())
             {
                 EventLogUnavailable = true;

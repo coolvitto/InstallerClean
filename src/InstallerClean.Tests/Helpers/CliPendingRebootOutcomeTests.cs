@@ -23,9 +23,10 @@ namespace InstallerClean.Tests.Helpers;
 /// THE TABLE IS THE DECISION AND THE WALK IS THE GATE. One row per reason; a member
 /// with no row fails below, and writing its row is the choice being made.
 ///
-/// HOW EACH COLUMN IS HELD. The exit code is read back from a real run driven through
-/// the work method. The event class is held against the exit code declared beside it:
-/// its Event ID has to sit in the band that code's entries go out in.
+/// HOW EACH COLUMN IS HELD. Both are read back from a real run driven through the work
+/// method: the exit code it returns, and the class of the one entry it writes, as the
+/// suite's recorder receives it. The event class is also held against the exit code
+/// declared beside it: its Event ID has to sit in the band that code's entries go out in.
 /// </summary>
 public class CliPendingRebootOutcomeTests
 {
@@ -101,7 +102,7 @@ public class CliPendingRebootOutcomeTests
     }
 
     [Fact]
-    public async Task A_held_run_exits_with_the_code_declared_for_its_reason()
+    public async Task A_held_run_exits_with_the_code_and_writes_the_class_declared_for_its_reason()
     {
         var wrong = new List<string>();
 
@@ -109,8 +110,13 @@ public class CliPendingRebootOutcomeTests
         {
             if (!Declared.TryGetValue(reason, out var expected)) continue;
 
-            var exit = await RunHeldBy(reason);
-            if (exit != expected.Exit) wrong.Add($"{reason}: expected {expected.Exit}, got {exit}");
+            var (exit, _, entries) = await Run("/d", PendingRebootResult.Block(reason), metAtAcquire: null);
+            if (exit != expected.Exit) wrong.Add($"{reason}: expected exit {expected.Exit}, got {exit}");
+            // A held run writes its summary and nothing beside it.
+            if (entries.Count != 1)
+                wrong.Add($"{reason}: expected one entry, got {entries.Count}");
+            else if (entries[0].Class != expected.Class)
+                wrong.Add($"{reason}: expected {expected.Class}, got {entries[0].Class}");
         }
 
         // Every reason is walked before anything is asserted, so one wrong code does
@@ -127,7 +133,7 @@ public class CliPendingRebootOutcomeTests
         // holding one rather than to be any particular value.
         const PendingRebootReason unwritten = (PendingRebootReason)99;
 
-        var exit = await RunHeldBy(unwritten);
+        var (exit, _, _) = await Run("/d", PendingRebootResult.Block(unwritten), metAtAcquire: null);
 
         Assert.NotEqual(CliExitCode.Ok, exit);
         Assert.NotEqual(CliExitCode.Partial, exit);
@@ -154,11 +160,16 @@ public class CliPendingRebootOutcomeTests
     {
         var sentence = Program.PendingRebootBlockedMessage(arg, reason, detail: null);
 
-        var (gateExit, gateStdout) = await Run(arg, PendingRebootResult.Block(reason), metAtAcquire: null);
-        var (acquireExit, acquireStdout) = await Run(arg, PendingRebootResult.Clean, metAtAcquire: reason);
+        var (gateExit, gateStdout, gateEntries) =
+            await Run(arg, PendingRebootResult.Block(reason), metAtAcquire: null);
+        var (acquireExit, acquireStdout, acquireEntries) =
+            await Run(arg, PendingRebootResult.Clean, metAtAcquire: reason);
 
         Assert.Equal(Declared[reason].Exit, gateExit);
         Assert.Equal(gateExit, acquireExit);
+        // The whole entry, class and text, is the same at both points.
+        Assert.Equal(Declared[reason].Class, Assert.Single(gateEntries).Class);
+        Assert.Equal(gateEntries, acquireEntries);
         Assert.Contains(sentence, gateStdout);
         Assert.Contains(sentence, acquireStdout);
         // A refusal never tells the operator something is using Windows Installer,
@@ -169,9 +180,6 @@ public class CliPendingRebootOutcomeTests
             Assert.DoesNotContain(Strings.Cli_PendingRebootBlocked_MsiExecuteMutex, acquireStdout);
         }
     }
-
-    private static async Task<int> RunHeldBy(PendingRebootReason reason) =>
-        (await Run("/d", PendingRebootResult.Block(reason), metAtAcquire: null)).ExitCode;
 
     /// <summary>
     /// A move destination fully qualified on either host and outside both forbidden
@@ -185,9 +193,10 @@ public class CliPendingRebootOutcomeTests
     /// Runs <paramref name="arg"/> to its end against a gate answering
     /// <paramref name="gate"/>, and an action service that, when the run reaches it,
     /// refuses at its acquire for the lock condition <paramref name="metAtAcquire"/>
-    /// names: held, or refused permission to open. Returns the exit code and stdout.
+    /// names: held, or refused permission to open. Returns the exit code, stdout and
+    /// the entries the run wrote.
     /// </summary>
-    private static async Task<(int ExitCode, string Stdout)> Run(
+    private static async Task<(int ExitCode, string Stdout, IReadOnlyList<(CliEventClass Class, string Text)> Entries)> Run(
         string arg, PendingRebootResult gate, PendingRebootReason? metAtAcquire)
     {
         // The gate sits after the scan, so the offer has to be non-empty or the run
@@ -242,8 +251,9 @@ public class CliPendingRebootOutcomeTests
         try
         {
             Console.SetOut(buffer);
+            EventLogRecorder.Clear();
             var exitCode = await Program.RunWorkAsync(arg, invocation, CancellationToken.None, services);
-            return (exitCode, buffer.ToString());
+            return (exitCode, buffer.ToString(), EventLogRecorder.Entries);
         }
         finally
         {

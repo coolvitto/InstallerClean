@@ -16,9 +16,8 @@ namespace InstallerClean.Tests.Helpers;
 /// Enumerating the enum is what turns either into a failing build.
 ///
 /// ScanViewModelPendingRebootTests does this job for the window's banner, which is a
-/// bound property and testable as it stands. These two needed a method each to read
-/// them back, the emitter that used to hold them writing to the console and to the
-/// event log in the same breath.
+/// bound property and testable as it stands. These two are read back through a method
+/// each, apart from the emitter that writes them to the console and to the event log.
 /// </summary>
 public class CliPendingRebootStringsTests
 {

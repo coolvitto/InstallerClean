@@ -10,11 +10,12 @@ namespace InstallerClean.Tests.Helpers;
 /// <remarks>
 /// What a throw escaping would cost is stated where the constraint lives, at the
 /// CLI's mutex-blocked exit (Program.cs); this pins the property that comment
-/// depends on. Driven through Core's writer rather than through a host that
-/// calls it, so that no test anywhere has to reach a real write. A builder that
-/// throws is also the only one of the write's failures reachable without a real
-/// event log: it fails before the source check, so the assertions hold whatever
-/// the CI agent's Application-channel permissions are.
+/// depends on. A builder that throws fails before the sink is reached, so the
+/// assertions hold with or without one.
+///
+/// The recorder tests below hold the recorder that stands in for the Application
+/// channel for the whole suite (EventLogRecorder), because every other test that
+/// drives a write depends on it being there.
 /// </remarks>
 public class EventLogWriterTests
 {
@@ -23,18 +24,49 @@ public class EventLogWriterTests
     {
         var built = false;
 
-        var escaped = Record.Exception(() => EventLogWriter.Write(
-            CliEventClass.TransientSkip,
-            () =>
-            {
-                built = true;
-                throw new FormatException("a resx template the summary interpolates");
-            }));
+        // The flag is process-wide and sticky, so it is put back afterwards: a
+        // command-line test that prints the unavailable line must not do so because
+        // this test ran before it.
+        var before = EventLogWriter.EventLogUnavailable;
+        try
+        {
+            EventLogWriter.EventLogUnavailable = false;
 
-        Assert.Null(escaped);
-        // The writer has to have asked for the text, not merely declined to
-        // rethrow: a Write that never invoked the builder would also not throw.
-        Assert.True(built);
-        Assert.True(EventLogWriter.EventLogUnavailable);
+            var escaped = Record.Exception(() => EventLogWriter.Write(
+                CliEventClass.TransientSkip,
+                () =>
+                {
+                    built = true;
+                    throw new FormatException("a resx template the summary interpolates");
+                }));
+
+            Assert.Null(escaped);
+            // The writer has to have asked for the text, not merely declined to
+            // rethrow: a Write that never invoked the builder would also not throw.
+            Assert.True(built);
+            Assert.True(EventLogWriter.EventLogUnavailable);
+        }
+        finally
+        {
+            EventLogWriter.EventLogUnavailable = before;
+        }
+    }
+
+    [Fact]
+    public void The_recorder_is_the_writers_sink_for_the_whole_suite()
+    {
+        // Set when the assembly loads. If it were not, a test driving the command
+        // line would write a real entry on any host with administrator rights.
+        Assert.Same(EventLogRecorder.Sink, EventLogWriter.Sink);
+    }
+
+    [Fact]
+    public void A_write_hands_the_recorder_its_class_and_the_built_entry()
+    {
+        EventLogRecorder.Clear();
+
+        EventLogWriter.Write(CliEventClass.Partial, () => "/d mode: an entry");
+
+        Assert.Equal([(CliEventClass.Partial, "/d mode: an entry")], EventLogRecorder.Entries);
     }
 }

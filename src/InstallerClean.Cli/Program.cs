@@ -1476,12 +1476,8 @@ internal static class Program
     /// method gives its transient reasons: the condition can clear on its own, so a
     /// scheduler should come back rather than treat the machine as broken.
     ///
-    /// The two lines it emits are separately reachable and this method is not, so
-    /// that the wording can be held by tests without one of them writing to the
-    /// Application channel. An entry forged by a test run is indistinguishable
-    /// from one a real run wrote, on the channel whose whole contract is that a
-    /// run leaves exactly one summary; the suite must not be able to add to
-    /// somebody's audit trail.
+    /// The two lines it emits are built by methods of their own, so their wording
+    /// can be read back without driving a run.
     /// </remarks>
     private static int EmitInstallerLockUnavailable(string arg)
     {
@@ -1846,11 +1842,7 @@ internal static class Program
     /// record of where the run was pointed.
     /// </summary>
     /// <remarks>
-    /// Its own method so the wording can be held by a test without the suite
-    /// writing to the Application channel, which is what the lock-refusal and
-    /// stopped-move lines are separated for: an entry a test run forged is
-    /// indistinguishable from one a real run wrote, on a channel whose contract
-    /// is that a run leaves exactly one summary.
+    /// Its own method so the wording can be read back without driving a run.
     ///
     /// Built outside the en-GB scope, like <see cref="AbortedMoveEventLogLine"/>:
     /// the caller wraps it, so the line renders English in production and in the
