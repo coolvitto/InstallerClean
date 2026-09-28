@@ -143,10 +143,11 @@ public class InstallerCacheHelpersResolveTests
     [Fact]
     public void ResolveFinalPathOutcome_answers_OpenRefused_below_a_folder_that_refuses_the_open()
     {
-        // System Volume Information on the system drive is there to be seen and
-        // refuses a handle to an administrator as well as to a standard user, so
-        // the walk stops at it and the open is refused. The path below it is
-        // handed back as GetFullPath spells it.
+        // System Volume Information on the system drive is there to be seen, and
+        // the access list Windows gives it grants full control to SYSTEM and
+        // nothing to anybody else, administrators included. So the open is
+        // refused whether or not the test runs elevated, and the walk stops at
+        // it. The path below it is handed back as GetFullPath spells it.
         var folder = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "System Volume Information");
         Assert.True(Directory.Exists(folder), $"{folder} is not there to be seen on this host");
         var path = Path.Combine(folder, "x.msi");
