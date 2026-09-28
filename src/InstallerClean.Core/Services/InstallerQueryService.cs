@@ -45,13 +45,6 @@ public sealed class InstallerQueryService : IInstallerQueryService
     private readonly IPackageIdentityReader _identityReader;
 
     /// <summary>
-    /// Lists the accounts whose own hive is loaded under <c>HKEY_USERS</c>, taken a
-    /// second time after the confirmation pass. <see cref="ReadLoadedUserHives"/> outside
-    /// the tests.
-    /// </summary>
-    private readonly Func<IReadOnlyCollection<string>?> _readLoadedHives;
-
-    /// <summary>
     /// Reads the registry fallback into <paramref name="claimed"/> and reports
     /// what it saw on the way.
     ///
@@ -196,15 +189,6 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// is no code, nor a product key whose own name is no code. Null where the caller
     /// supplied no reader, which establishes no listing anywhere.
     /// </param>
-    /// <param name="LoadedUserHives">
-    /// The accounts whose own registry hive is loaded under <c>HKEY_USERS</c> when the
-    /// fallback reads the registry, taken as 'S-' followed by digits and hyphens
-    /// (<see cref="IsAccount"/>), so a user's <c>_Classes</c> hive is not among them.
-    /// With a second listing taken after the confirmation pass, it decides whether a
-    /// per-user unmanaged installation's records answer in
-    /// <see cref="RegistryHoldsWhatWasLost"/>. Null where the listing did not read or the
-    /// caller supplied no reader, which leaves no such installation answering yes.
-    /// </param>
     internal readonly record struct FallbackRead(
         int Failures,
         int ProductKeys,
@@ -221,8 +205,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
         PathCensus? Paths = null,
         EstablishedPatchReach Reach = default,
         IReadOnlyList<RegistryPackageRecord>? PackageRecords = null,
-        IReadOnlyDictionary<AccountCode, IReadOnlyCollection<string>>? PatchListings = null,
-        IReadOnlyCollection<string>? LoadedUserHives = null)
+        IReadOnlyDictionary<AccountCode, IReadOnlyCollection<string>>? PatchListings = null)
     {
         /// <summary>
         /// Product entries naming a cached file the API's own loop never claimed and
@@ -679,19 +662,13 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// declared no targets, which is the same as the file being absent and is what
     /// those tests already assume; the tests whose subject IS route B inject one.
     /// </param>
-    /// <param name="readLoadedHives">
-    /// Null reads the real <c>HKEY_USERS</c>. A seam so a test can build an owner whose
-    /// hive is loaded at one listing and not at the other.
-    /// </param>
     internal InstallerQueryService(IMsiApi msi, FallbackReader readFallback,
-        Action<Exception>? crashLogSink = null, IPackageIdentityReader? identityReader = null,
-        Func<IReadOnlyCollection<string>?>? readLoadedHives = null)
+        Action<Exception>? crashLogSink = null, IPackageIdentityReader? identityReader = null)
     {
         _msi = msi;
         _readFallback = readFallback;
         _crashLogSink = crashLogSink;
         _identityReader = identityReader ?? NoPackageIdentity.Instance;
-        _readLoadedHives = readLoadedHives ?? ReadLoadedUserHives;
     }
 
     /// <summary>
@@ -1221,36 +1198,14 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // superseded patch's verdict away (WithholdOnRegistryPackageRecords). What
         // such an installation holds or could uninstall is asked by name, one superseded
         // patch at a time, in the judging pass and the per-pairing pass.
-        //
-        // A PER-USER UNMANAGED INSTALLATION'S OWNER MUST HAVE THEIR HIVE LOADED BOTH WHEN
-        // THE FALLBACK READ THE REGISTRY AND NOW, after every question put by name in the
-        // confirmation pass above. The same installations are put through the same check
-        // with that condition dropped, and a code in the first set and not the second is
-        // one this scan could not settle only for its owner's hive.
-        var loadedNow = _readLoadedHives();
-        bool OwnerHiveLoaded(string account) =>
-            fallback.LoadedUserHives is { } atFallback
-            && atFallback.Contains(account, StringComparer.OrdinalIgnoreCase)
-            && loadedNow is not null
-            && loadedNow.Contains(account, StringComparer.OrdinalIgnoreCase);
-
         var unsettledEnumerated = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var unsettledWithEveryHiveLoaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var installation in shortInstallations)
-        {
-            if (!RegistryHoldsWhatWasLost(installation, fallback, OwnerHiveLoaded))
+            if (!RegistryHoldsWhatWasLost(installation, fallback))
                 unsettledEnumerated.Add(installation.ProductCode);
-            if (!RegistryHoldsWhatWasLost(installation, fallback, _ => true))
-                unsettledWithEveryHiveLoaded.Add(installation.ProductCode);
-        }
         foreach (var code in fallback.UnclaimedProductFileCodes ?? [])
             if (code is not null && missed.UnsettledEnumerated.Contains(code))
-            {
                 unsettledEnumerated.Add(code);
-                unsettledWithEveryHiveLoaded.Add(code);
-            }
         var unsettledEnumeratedProducts = unsettledEnumerated.Count + unreadableRows;
-        var unsettledOwnerHiveNotLoaded = unsettledEnumerated.Count(code => !unsettledWithEveryHiveLoaded.Contains(code));
 
         // The other two: a code Windows would not answer about, and a key whose name
         // yielded no code to ask with. Nothing shows either was asked its InstanceType,
@@ -1323,8 +1278,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
             fallback.Failures,
             unsettledEnumeratedProducts,
             missed.RecoveredOfEnumerated,
-            unattributedPatchFiles,
-            unsettledOwnerHiveNotLoaded);
+            unattributedPatchFiles);
 
         // LIVE, AND ON NO ACCOUNT TO BE DELETED AS DEAD MACHINERY. A superseded row
         // on a machine whose patch sets read clean arrives here still carrying
@@ -1587,22 +1541,13 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// one: it may be another installation's. An account <see cref="UserDataAccount"/>
     /// cannot name, and a result with no registry reader, answer no.
     ///
-    /// A PER-USER UNMANAGED INSTALLATION ANSWERS ONLY WHERE <paramref name="ownerHiveLoaded"/>
-    /// SAYS ITS OWNER'S HIVE IS LOADED, and so does each patch record it lost in that
-    /// context. For an installation that answers yes, the answers <c>MsiGetPatchInfoEx</c>
-    /// gives about each superseded patch stand in place of the hold, and Microsoft's page
-    /// for that call says: "Not all values are guaranteed to be available for per-user,
-    /// non-managed applications if the user is not logged on." A user's hive is loaded
-    /// under <c>HKEY_USERS</c> while the user is signed in.
-    ///
     /// A value that is there and is not a string is a failed fallback read, and with a
     /// short installation that refuses the scan before this is asked, so a record absent
     /// here is absent from the registry.
     /// </summary>
-    private static bool RegistryHoldsWhatWasLost(
-        ShortInstallation installation, FallbackRead fallback, Func<string, bool> ownerHiveLoaded)
+    private static bool RegistryHoldsWhatWasLost(ShortInstallation installation, FallbackRead fallback)
     {
-        var account = AnsweringAccount(installation.Sid, installation.Context, ownerHiveLoaded);
+        var account = UserDataAccount(installation.Sid, installation.Context);
         if (account is null) return false;
 
         if (installation.PackageLost
@@ -1623,29 +1568,13 @@ public sealed class InstallerQueryService : IInstallerQueryService
 
         foreach (var (patchCode, patchSid, patchContext) in installation.LostPatchRecords)
         {
-            var patchAccount = AnsweringAccount(patchSid, patchContext, ownerHiveLoaded);
+            var patchAccount = UserDataAccount(patchSid, patchContext);
             if (patchAccount is null
                 || !HoldsPackageRecord(fallback.PackageRecords, patchAccount, isPatch: true, patchCode))
                 return false;
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// The account subtree whose records answer for an installation or patch record in
-    /// <paramref name="sid"/> and <paramref name="context"/> in
-    /// <see cref="RegistryHoldsWhatWasLost"/>: <see cref="UserDataAccount"/>, and for a
-    /// per-user unmanaged one only where <paramref name="ownerHiveLoaded"/> answers true
-    /// for the account. Null answers no.
-    /// </summary>
-    private static string? AnsweringAccount(
-        string? sid, MsiInstallContext context, Func<string, bool> ownerHiveLoaded)
-    {
-        var account = UserDataAccount(sid, context);
-        if (account is null || context != MsiInstallContext.UserUnmanaged) return account;
-
-        return ownerHiveLoaded(account) ? account : null;
     }
 
     /// <summary>
@@ -3536,38 +3465,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
             pathCensus,
             new EstablishedPatchReach(patchCodesByProduct, cachedPathsByPatchCode),
             packageRecords,
-            patchListings,
-            ReadLoadedUserHives());
-    }
-
-    /// <summary>
-    /// The accounts whose own hive is loaded under <c>HKEY_USERS</c>, as
-    /// <see cref="FallbackRead.LoadedUserHives"/> describes them. A user's hive is loaded
-    /// there while the user is signed in, and for as long as any process holds it open
-    /// after that.
-    ///
-    /// NULL WHERE THE LISTING DOES NOT READ, and no failure is counted: the listing takes
-    /// no part in the degraded-sources gate, and a null leaves every per-user unmanaged
-    /// installation answering no in <see cref="RegistryHoldsWhatWasLost"/>.
-    /// </summary>
-    internal static HashSet<string>? ReadLoadedUserHives()
-    {
-        try
-        {
-            using var users = Microsoft.Win32.RegistryKey.OpenBaseKey(
-                Microsoft.Win32.RegistryHive.Users,
-                Microsoft.Win32.RegistryView.Registry64);
-
-            var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var name in users.GetSubKeyNames())
-                if (IsAccount(name)) loaded.Add(name);
-
-            return loaded;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+            patchListings);
     }
 
     /// <summary>

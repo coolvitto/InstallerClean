@@ -1042,17 +1042,6 @@ public sealed record MachineInfo(
 /// on the whole machine from a hold on one file.
 /// <paramref name="SupersededRecordedPathUnestablishedCount"/> is a sub-count of this.
 /// </param>
-/// <param name="UnsettledOwnerHiveNotLoadedProductCount">
-/// Program codes in <paramref name="UnsettledEnumeratedProductCount"/> only because a
-/// per-user unmanaged installation's owner was not listed with their hive loaded under
-/// <c>HKEY_USERS</c>, at either of the two listings the scan takes, or a listing did not
-/// read. With the owner's hive taken as loaded, each such code's installations whose
-/// records came back short would all have what they lost answered from the registry
-/// under their own account. One per code.
-///
-/// A SUB-COUNT OF <paramref name="UnsettledEnumeratedProductCount"/>, never added to it,
-/// so the Application-log figure that count is part of does not move for it.
-/// </param>
 public sealed record ScanInfo(
     long DurationMs,
     int RegisteredCount,
@@ -1090,8 +1079,7 @@ public sealed record ScanInfo(
     int UnsettledEnumeratedProductCount,
     int RecoveredEnumeratedInstallationCount,
     int UnattributedPatchFileCount,
-    int SupersededScanWideWithheldCount,
-    int UnsettledOwnerHiveNotLoadedProductCount)
+    int SupersededScanWideWithheldCount)
 {
     public static ScanInfo From(ScanResult scan, long durationMs)
     {
@@ -1168,9 +1156,7 @@ public sealed record ScanInfo(
             scan.Census.UnattributedPatchFileCount,
             // Also a sub-count of the withheld superseded figure, and the one above is
             // a sub-count of this.
-            scan.SupersededScanWideWithheldCount,
-            // A sub-count of the unsettled program codes above, never added to it.
-            scan.Census.UnsettledOwnerHiveNotLoadedProductCount);
+            scan.SupersededScanWideWithheldCount);
     }
 }
 
