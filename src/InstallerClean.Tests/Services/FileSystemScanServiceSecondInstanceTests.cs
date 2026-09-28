@@ -9,12 +9,13 @@ namespace InstallerClean.Tests.Services;
 /// What a scan offers on a PC carrying the same program installed twice.
 ///
 /// THE CONDITION AND WHAT IT HOLDS. A product installed under an instance transform
-/// registers under a product code the transform produced, while the package cached for
-/// it declares the base code. The declared-product screen reads a product code OUT OF
+/// registers under a product code the transform produced, while the original package it
+/// was installed from declares the base code and can be a file in the folder that the
+/// copy's source list names. The declared-product screen reads a product code OUT OF
 /// the candidate file and asks Windows about it, so on such a machine that screen can be
 /// told there is no record while the second copy's own registration still needs the
-/// file. Nothing in the scan can work out WHICH cached installation package belongs to
-/// the second copy, so no walk-derived installation package is offered. A walk-derived
+/// file. The census that finds the copy cannot say WHICH file in the folder is its
+/// original package, so no walk-derived installation package is offered. A walk-derived
 /// patch file goes on to the screen, which puts its patch code to every installation the
 /// scan listed; only where the registry names a product the scan could not ask about is
 /// it held with the packages.

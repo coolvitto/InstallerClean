@@ -15,6 +15,11 @@ namespace InstallerClean.Services;
 /// points at and the package in the folder each one records as its
 /// <c>InstallSource</c>. Every answer about a product is held against the installations
 /// the caller's own enumeration listed, and one leaving out any of them keeps the file.
+/// The cached package of each of those installations is read too, and a candidate is
+/// also put to every installation whose cached package declares the candidate's code
+/// while the installation is registered under another, read by the code it is registered
+/// under. A per-user-unmanaged installation whose cached package does not say which
+/// product it declares keeps every candidate installation package.
 /// For each candidate patch it reads the patch's own code and the products its Template
 /// names, finds the registrations of that patch through the machine-wide patch
 /// enumeration and the keyed patch read, and reads the <c>LocalPackage</c> each
@@ -168,7 +173,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             var code = identity.Value.Code;
             if (!asked.TryGetValue(code, out var answer))
             {
-                answer = Ask(code, pass, namesAFileInInstallerFolder);
+                answer = Ask(code, pass, namesAFileInInstallerFolder, recordRefusal);
                 asked[code] = answer;
             }
 
@@ -187,10 +192,24 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
     /// <summary>
     /// What Windows holds for one declared product code, asked once per code per
-    /// pass.
+    /// pass: the installations of that code, and every installation the caller listed
+    /// whose cached package declares it while the installation is registered under
+    /// another code.
+    ///
+    /// AN INSTALLATION CAN ANSWER FOR A CODE IT IS NOT REGISTERED UNDER. A program
+    /// installed a second time under an instance transform is registered under the
+    /// product code the transform produced, while the original package it was installed
+    /// from declares the base code, and so can the package cached for it. That original
+    /// can be this candidate: a file in the Installer folder which the copy's source list
+    /// names. So an installation whose cached package declares the candidate's code
+    /// answers for the candidate beside the installations of the code itself, each read
+    /// by the code it is registered under (<see cref="LinksOf"/>).
     /// </summary>
     private DeclarationAnswer Ask(
-        string code, PassAnswers pass, Func<string, bool?>? namesAFileInInstallerFolder)
+        string code,
+        PassAnswers pass,
+        Func<string, bool?>? namesAFileInInstallerFolder,
+        Action<Exception, string>? recordRefusal)
     {
         var resolved = pass.InstancesOf(code);
 
@@ -203,19 +222,154 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         if (resolved.Unaskable)
             return new DeclarationAnswer(DeclaredProductOutcome.Unestablished, null);
 
-        if (resolved.Instances.Count == 0)
+        // A per-user-unmanaged installation whose cached package does not say what it
+        // declares could be a second copy of any program, so it keeps every file.
+        var links = LinksOf(pass, recordRefusal);
+        if (links.UnmanagedPackageUnread)
+            return new DeclarationAnswer(DeclaredProductOutcome.Unestablished, null);
+
+        var installations = new List<(string RegisteredCode, string? Sid, MsiInstallContext Context)>();
+        foreach (var (sid, context) in resolved.Instances) installations.Add((code, sid, context));
+        if (links.ByDeclaredCode.TryGetValue(code, out var linked)) installations.AddRange(linked);
+
+        if (installations.Count == 0)
             return new DeclarationAnswer(DeclaredProductOutcome.DeclaredProductNotInstalled, null);
 
         return new DeclarationAnswer(
             DeclaredProductOutcome.DeclaredProductInstalled,
-            PackagesOpenedBy(code, resolved.Instances, namesAFileInInstallerFolder));
+            PackagesOpenedBy(code, installations, namesAFileInInstallerFolder));
     }
 
     /// <summary>
-    /// The identity of every file an installation of <paramref name="code"/> opens as
-    /// its package: the cached package each installation records, and the original
-    /// package at each folder on its source list that holds one. Null where any of
-    /// them cannot be seen.
+    /// Every installation the caller listed that is registered under a code other than
+    /// the one its cached package declares, keyed by the declared code, and whether the
+    /// cached package of a per-user-unmanaged installation did not say what it declares.
+    /// Read once per pass, the first time a candidate's declared code is put to Windows.
+    ///
+    /// EVERY CONTEXT IS READ, AND ONE CONTEXT KEEPS ON A FAILED READ. A link only ever
+    /// adds an installation to the ones a candidate is compared with, so it can keep a
+    /// file and never offer one. Where an installation's cached package does not say
+    /// what it declares, nothing links it to any candidate: in the per-user-unmanaged
+    /// context that keeps every file, because <c>InstanceType</c> for such an
+    /// installation is recorded in its owner's own registry rather than the machine's. In
+    /// every other context, an installation the scan reads as a second copy withholds
+    /// every installation package before this check runs.
+    ///
+    /// The codes are compared as GUIDs, because the reader canonicalises the declared
+    /// code and the listed code is in whatever spelling the caller's enumeration gave.
+    /// Compared as text, an ordinary installation listed in lower case would be linked
+    /// to its own code.
+    /// </summary>
+    private InstallationLinks LinksOf(PassAnswers pass, Action<Exception, string>? recordRefusal)
+    {
+        if (pass.Links is { } read) return read;
+
+        var byDeclaredCode =
+            new Dictionary<string, List<(string RegisteredCode, string? Sid, MsiInstallContext Context)>>(
+                StringComparer.Ordinal);
+        string? unread = null;
+
+        foreach (var installation in pass.Installations)
+        {
+            pass.CancellationToken.ThrowIfCancellationRequested();
+
+            var context = (MsiInstallContext)installation.Context;
+            var declared = CodeTheCachedPackageDeclares(
+                installation.ProductCode, installation.UserSid, context, out var detail);
+            if (declared is null)
+            {
+                if (context == MsiInstallContext.UserUnmanaged) unread ??= detail;
+                continue;
+            }
+
+            if (SameCode(declared, installation.ProductCode)) continue;
+
+            if (!byDeclaredCode.TryGetValue(declared, out var linked))
+                byDeclaredCode[declared] = linked = new();
+            linked.Add((installation.ProductCode, installation.UserSid, context));
+        }
+
+        // Once for the pass: one installation keeps every installation package, and the
+        // log says why once.
+        if (unread is not null)
+            recordRefusal?.Invoke(
+                new InvalidOperationException(
+                    "A per-user program's cached package did not yield the product code it declares, so every "
+                    + "installation package is kept rather than offered. Detail: " + unread + "."),
+                unread);
+
+        return pass.Links = new InstallationLinks(byDeclaredCode, unread is not null);
+    }
+
+    /// <summary>
+    /// The product code the cached package of one installation declares, read by the
+    /// code the installation is registered under. Null, with what went wrong, where the
+    /// record names no package, the value will not read, names no file, or names a file
+    /// that does not yield a product code; and for every installation where the check
+    /// was built without its file readers, having no way to look.
+    /// </summary>
+    private string? CodeTheCachedPackageDeclares(
+        string registeredCode, string? sid, MsiInstallContext context, out string detail)
+    {
+        if (!ComparesRecordedPackages)
+        {
+            detail = "no way to read a cached package";
+            return null;
+        }
+
+        var read = InstallerQueryService.ReadProductProperty(
+            _msi, registeredCode, sid, context, MsiInstallProperty.LocalPackage);
+        if (read.Unreadable)
+        {
+            detail = "the cached package's path would not read";
+            return null;
+        }
+
+        var path = read.Value.TrimEnd('\0');
+        if (path.Length == 0)
+        {
+            detail = "the installation records no cached package";
+            return null;
+        }
+
+        if (!_fileSystem!.File.Exists(path))
+        {
+            detail = "the cached package is not a file that is there";
+            return null;
+        }
+
+        var identity = _identityReader.Read(path, isPatch: false, out var readerDetail);
+        if (identity is null)
+        {
+            detail = readerDetail.Length == 0 ? "the cached package would not read" : readerDetail;
+            return null;
+        }
+
+        if (identity.Value.IsPatch || identity.Value.Code.Length == 0)
+        {
+            detail = "the cached package declares no product code";
+            return null;
+        }
+
+        detail = string.Empty;
+        return identity.Value.Code;
+    }
+
+    /// <summary>Whether two spellings name one product code.</summary>
+    private static bool SameCode(string a, string b) =>
+        Guid.TryParse(a, out var first) && Guid.TryParse(b, out var second)
+            ? first == second
+            : string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The identity of every file the installations answering for <paramref name="code"/>
+    /// open as their package: the cached package each installation records, and the
+    /// original package at each folder on its source list that holds one. Null where
+    /// any of them cannot be seen.
+    ///
+    /// EACH INSTALLATION IS READ BY THE CODE IT IS REGISTERED UNDER, which for a second
+    /// copy is not <paramref name="code"/>, and its cached package has to declare
+    /// <paramref name="code"/> all the same.
     ///
     /// NULL IS THE ANSWER THAT KEEPS THE FILE, and every way an installation's package
     /// can fail to be seen reaches it: a <c>LocalPackage</c> read that failed or came
@@ -227,16 +381,16 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// </summary>
     private IReadOnlyList<FileIdentity>? PackagesOpenedBy(
         string code,
-        IReadOnlyList<(string? Sid, MsiInstallContext Context)> instances,
+        IReadOnlyList<(string RegisteredCode, string? Sid, MsiInstallContext Context)> installations,
         Func<string, bool?>? namesAFileInInstallerFolder)
     {
         if (_fileIdentities is null || _fileSystem is null) return null;
 
-        var identities = new List<FileIdentity>(instances.Count);
-        foreach (var (sid, context) in instances)
+        var identities = new List<FileIdentity>(installations.Count);
+        foreach (var (registeredCode, sid, context) in installations)
         {
             var read = InstallerQueryService.ReadProductProperty(
-                _msi, code, sid, context, MsiInstallProperty.LocalPackage);
+                _msi, registeredCode, sid, context, MsiInstallProperty.LocalPackage);
             if (read.Unreadable) return null;
 
             var path = read.Value.TrimEnd('\0');
@@ -263,7 +417,8 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
             identities.Add(recorded);
 
-            if (!AddSourcePackages(code, isPatch: false, sid, context, namesAFileInInstallerFolder, identities))
+            if (!AddSourcePackages(
+                    registeredCode, isPatch: false, sid, context, namesAFileInInstallerFolder, identities))
                 return null;
         }
 
@@ -1034,6 +1189,18 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         DeclaredProductOutcome Outcome,
         IReadOnlyList<FileIdentity>? RecordedPackages);
 
+    /// <param name="ByDeclaredCode">
+    /// Every listed installation registered under a code other than the one its cached
+    /// package declares, keyed by the declared code.
+    /// </param>
+    /// <param name="UnmanagedPackageUnread">
+    /// Whether the cached package of a per-user-unmanaged installation did not say what
+    /// it declares.
+    /// </param>
+    private sealed record InstallationLinks(
+        Dictionary<string, List<(string RegisteredCode, string? Sid, MsiInstallContext Context)>> ByDeclaredCode,
+        bool UnmanagedPackageUnread);
+
     /// <summary>
     /// What one pass has asked Windows about installations and patch registrations,
     /// kept so that nothing is asked twice inside the pass and nothing outlives it.
@@ -1059,6 +1226,9 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         }
 
         internal CancellationToken CancellationToken { get; }
+
+        /// <summary>The pass's links, once the first declared code has been asked about.</summary>
+        internal InstallationLinks? Links { get; set; }
 
         /// <summary>Every installation the caller's enumeration listed.</summary>
         internal IReadOnlyList<ListedInstallation> Installations { get; }

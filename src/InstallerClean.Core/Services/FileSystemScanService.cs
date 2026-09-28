@@ -585,13 +585,14 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // What all three share is that something this scan established or could not
         // establish leaves it unable to say which cached files belong to which programs.
         // A product installed as a second instance of itself registers under a code the
-        // instance transform produced while its cached package declares the base code,
-        // and the per-file screen below reads a code out of a file and asks Windows
-        // about it. On such a machine that screen can be told there is no record while
-        // a live registration still needs the file, and no part of this scan can work
-        // out WHICH cached installation package belongs to the second copy. So where the
-        // scan cannot establish that no product is such a copy, no walk-derived
-        // installation package is offered. The question is asked of the census, where
+        // instance transform produced while the original package it was installed from
+        // declares the base code, and that original can be a file in this folder. The
+        // per-file screen below reads a code out of a file and asks Windows about it. On
+        // such a machine that screen can be told there is no record while a live
+        // registration still needs the file, and the census says nothing about WHICH file
+        // in the folder is the second copy's original package. So where the scan cannot
+        // establish that no product is such a copy, no walk-derived installation package
+        // is offered. The question is asked of the census, where
         // its members live, on the same rule as the other two.
         //
         // A PATCH FILE IS SCREENED ON THAT THIRD CONDITION RATHER THAN HELD. It declares

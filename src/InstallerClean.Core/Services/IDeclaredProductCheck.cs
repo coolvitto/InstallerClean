@@ -91,12 +91,26 @@ namespace InstallerClean.Services;
 /// short of that installation, and the check does not use it: an installation package
 /// declaring the product is kept, and so is a patch naming it.
 ///
+/// AN INSTALLATION ANSWERS FOR THE CODE ITS CACHED PACKAGE DECLARES, WHATEVER CODE IT IS
+/// REGISTERED UNDER. A second copy of a program, installed under an instance transform,
+/// is registered under the code the transform produced, while the original package it was
+/// installed from declares the base code, and so can the package cached for it. So the
+/// check reads the cached package of every installation the caller's enumeration listed,
+/// and an installation package is put to every installation whose cached package
+/// declares the code it declares, as well as to the installations of that code, each read
+/// by the code it is registered under. Where the cached package of a per-user-unmanaged
+/// installation does not say which product it declares, every installation package is
+/// kept: whether such an installation is a second copy is recorded in its owner's own
+/// registry rather than the machine's.
+///
 /// IT ONLY EVER WITHHOLDS. No answer it can give puts a file on the list, clears
 /// one another gate kept, or weakens anything upstream: a candidate it lets
 /// through is decided by the rest of the scan exactly as if this check had not
 /// run. For an installation package, a file it cannot read, a question it cannot
-/// put, an answer that contradicts the caller's enumeration, a source that answers
-/// off the allowlist and a recorded package it cannot identify all keep the file. For
+/// put, an answer that contradicts the caller's enumeration, a per-user-unmanaged
+/// installation whose cached package does not say which product it declares, a source
+/// that answers off the allowlist and a recorded package it cannot identify all keep the
+/// file. For
 /// a patch, a file it cannot read, a registration it cannot list or ask about, an
 /// answer about a product it names that contradicts the caller's enumeration, a source
 /// that answers off the allowlist and a recorded copy it cannot identify all keep the
@@ -136,6 +150,8 @@ public interface IDeclaredProductCheck
     /// out one of these is an answer the check cannot use: the product half then gives
     /// <see cref="DeclaredProductOutcome.Unestablished"/>, and a patch naming that
     /// product gives <see cref="DeclaredProductOutcome.DeclaredPatchUnestablished"/>.
+    /// The check also reads the cached package of each, once per pass, to find the
+    /// installations registered under a code other than the one their package declares.
     /// An empty list compares nothing, which is right only for an enumeration that
     /// listed nothing.
     /// </param>
@@ -188,7 +204,9 @@ public enum DeclaredProductOutcome
     /// table, its ProductCode row is absent or is not a GUID. The other is about
     /// the RECORDS: the keyed enumeration answered with something outside the
     /// returns that mean an answer, or with an answer that leaves out an installation
-    /// of the product the caller's own enumeration listed. They are different things
+    /// of the product the caller's own enumeration listed, or a per-user-unmanaged
+    /// installation the caller listed has a cached package that does not say which
+    /// product it declares. They are different things
     /// to have found out, which is exactly why they are not reported anywhere as one
     /// thing; what they share, and the whole of what this value claims, is that
     /// nothing was established. Nothing outside this pass reads which of the two it
@@ -198,8 +216,10 @@ public enum DeclaredProductOutcome
 
     /// <summary>
     /// The file declared a product code, Windows positively answered that no such
-    /// product is installed, in any account and any context, and the caller's own
-    /// enumeration listed no installation of it. The candidate goes on being decided by
+    /// product is installed, in any account and any context, the caller's own
+    /// enumeration listed no installation of it, and no cached package the check read,
+    /// of the installations it listed, declares it, the cached package of every
+    /// per-user-unmanaged one having read. The candidate goes on being decided by
     /// everything else.
     ///
     /// A POSITIVE ANSWER AND NOT AN ABSENCE OF ONE, which is the distinction the
@@ -211,8 +231,9 @@ public enum DeclaredProductOutcome
 
     /// <summary>
     /// Windows still holds a record of the product this file declares it belongs
-    /// to, and for at least one installation of that product the check cannot show
-    /// that every package it opens is a different file. Kept back.
+    /// to, or of an installation whose cached package declares that product, and for at
+    /// least one such installation the check cannot show that every package it opens is
+    /// a different file. Kept back.
     ///
     /// That covers a recorded <c>LocalPackage</c> value that is empty or will not
     /// read, one naming a folder or a file that is absent or cannot be identified,
@@ -244,9 +265,10 @@ public enum DeclaredProductOutcome
     DeclaredProductInstalled,
 
     /// <summary>
-    /// Windows still holds a record of the product this file declares, every
-    /// installation of that product records a cached package that is present, is a
-    /// different file, and itself declares the same product, no installation is in a
+    /// Windows still holds a record of the product this file declares, or of an
+    /// installation whose cached package declares it, every such installation records a
+    /// cached package that is present, is a different file, and itself declares the same
+    /// product, no installation is in a
     /// per-user-unmanaged context, and no installation's source list or
     /// <c>InstallSource</c> points at the Installer folder or at this file. Every
     /// installation's source list is held in the registry as the API returns it, with

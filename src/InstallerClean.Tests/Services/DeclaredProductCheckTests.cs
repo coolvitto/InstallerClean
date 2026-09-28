@@ -2815,13 +2815,16 @@ public class DeclaredProductCheckTests
     public void A_copy_is_let_through_when_the_answer_holds_every_installation_the_caller_listed()
     {
         // The test above with product A answering both installations. The account is
-        // listed in lower case, and is the same account.
+        // listed in lower case, and is the same account. Each listed installation's cached
+        // package is read once under the listed spelling, to see which code it declares,
+        // and once under the answered spelling, to be compared with the copy.
         const string UsersPackage = @"C:\Windows\Installer\c.msi";
         var f = ACopyBesideTheRecordedPackage();
         f.Msi.Installed(ProductA,
             (null, MsiInstallContext.Machine),
             (UserSid, MsiInstallContext.UserManaged));
         f.Msi.RecordsPackage(ProductA, UserSid, MsiInstallContext.UserManaged, UsersPackage);
+        f.Msi.RecordsPackage(ProductA, UserSid.ToLowerInvariant(), MsiInstallContext.UserManaged, UsersPackage);
         f.Msi.RecordsSources(ProductA, UserSid, MsiInstallContext.UserManaged, SetupName, SetupFolder);
         f.Packages.Declares(UsersPackage, ProductA);
         f.Files.Opens(UsersPackage, 3);
@@ -2834,7 +2837,7 @@ public class DeclaredProductCheckTests
         ]);
 
         Assert.Equal(DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, outcome);
-        Assert.Equal(2, f.Msi.PackageReads.Count);
+        Assert.Equal(4, f.Msi.PackageReads.Count);
     }
 
     [Fact]
@@ -3091,6 +3094,247 @@ public class DeclaredProductCheckTests
             .Screen(new[] { Package(@"C:\Windows\Installer\a.msi") }, [],
                 recordRefusal: (ex, _) => recorded.Add(ex));
 
+        Assert.Empty(recorded);
+    }
+
+    // ---- An installation registered under a code its cached package does not declare ----
+    //
+    // A second copy of a program, installed under an instance transform, is registered
+    // under the product code the transform produced, while the original package it was
+    // installed from declares the base code, and so can the package cached for it. That
+    // original can be a file in the Installer folder that the copy's source list names. A
+    // copy declaring a code is therefore put to every installation whose cached package
+    // declares that code as well as to the installations of the code itself, and each of
+    // those installations is read by the code it is registered under.
+
+    private const string SecondCopy = "{33333333-3333-3333-3333-333333333333}";
+    private const string SecondCopysPackage = @"C:\Windows\Installer\copy.msi";
+
+    /// <summary>
+    /// Product A is installed nowhere under its own code. One installation, in the
+    /// context given and another user's account where the context has one, is registered
+    /// as <see cref="SecondCopy"/>, and the package cached for it declares product A. The
+    /// candidate declares product A. Each test changes one thing.
+    /// </summary>
+    private static (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
+        ScriptedFileIdentities Files, MockFileSystem Disk, ListedInstallation[] Listed)
+        ACopyBesideASecondCopy(MsiInstallContext context = MsiInstallContext.UserUnmanaged)
+    {
+        var sid = context == MsiInstallContext.Machine ? null : OtherUserSid;
+
+        var packages = new ScriptedPackageIdentities();
+        packages.Declares(Candidate, ProductA);
+        packages.Declares(SecondCopysPackage, ProductA);
+
+        var msi = new ScriptedMsiProducts();
+        msi.NotInstalled(ProductA, MsiError.UnknownProduct);
+        msi.RecordsPackage(SecondCopy, sid, context, SecondCopysPackage);
+
+        var files = new ScriptedFileIdentities();
+        files.Opens(Candidate, 1);
+        files.Opens(SecondCopysPackage, 2);
+
+        var disk = new MockFileSystem();
+        disk.AddFile(Candidate, new MockFileData(new byte[100]));
+        disk.AddFile(SecondCopysPackage, new MockFileData(new byte[100]));
+
+        return (packages, msi, files, disk, [new ListedInstallation(SecondCopy, sid, (int)context)]);
+    }
+
+    private static IReadOnlyList<DeclaredProductOutcome> ScreenBesideTheSecondCopy(
+        (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
+            ScriptedFileIdentities Files, MockFileSystem Disk, ListedInstallation[] Listed) f,
+        OrphanedFile[]? candidates = null,
+        Action<Exception, string>? recordRefusal = null) =>
+        new DeclaredProductCheck(f.Msi, f.Packages, f.Files, f.Disk, f.Msi.Registry)
+            .Screen(candidates ?? [Package(Candidate)], f.Listed, default, recordRefusal, InInstallerFolder);
+
+    [Fact]
+    public void A_copy_declaring_the_code_another_users_second_copy_caches_is_kept()
+    {
+        // THE SHAPE THIS SECTION IS FOR. Nothing is installed under product A, so the
+        // code the candidate declares has no installation of its own, and the second copy
+        // that was installed from it is registered under another code. The copy is per
+        // user and unmanaged, whose source list is not read, so the candidate is kept.
+        var f = ACopyBesideASecondCopy();
+
+        var outcome = ScreenBesideTheSecondCopy(f)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcome);
+        Assert.True(outcome.Withholds());
+        // Read by the code it is registered under, and never by the code its package
+        // declares. Inside this context the verdict is the same either way, so the reads
+        // are what show which code was used.
+        Assert.Contains((SecondCopy, (string?)OtherUserSid, MsiInstallContext.UserUnmanaged), f.Msi.PackageReads);
+        Assert.DoesNotContain(f.Msi.PackageReads, read => read.ProductCode == ProductA);
+    }
+
+    [Fact]
+    public void A_copy_is_let_through_where_the_other_installations_cached_package_declares_its_own_code()
+    {
+        // The must-miss half of the test above: the same installation, whose cached
+        // package declares the code it is registered under. It is no second copy of
+        // product A, and product A is not installed.
+        var f = ACopyBesideASecondCopy();
+        f.Packages.Declares(SecondCopysPackage, SecondCopy);
+
+        var outcome = ScreenBesideTheSecondCopy(f)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcome);
+        Assert.False(outcome.Withholds());
+    }
+
+    [Fact]
+    public void A_copy_declaring_a_code_no_installation_caches_is_let_through_beside_a_second_copy()
+    {
+        // The second copy is put to the files declaring product A and to no others, so a
+        // machine holding one keeps its offer of everything else.
+        const string OtherCandidate = @"C:\Windows\Installer\b2.msi";
+        var f = ACopyBesideASecondCopy();
+        f.Packages.Declares(OtherCandidate, ProductB);
+        f.Msi.NotInstalled(ProductB, MsiError.UnknownProduct);
+
+        var outcomes = ScreenBesideTheSecondCopy(f, [Package(Candidate), Package(OtherCandidate)]);
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcomes[0]);
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcomes[1]);
+    }
+
+    [Fact]
+    public void A_second_copy_in_any_context_is_asked_about_its_sources_by_the_code_it_is_registered_under()
+    {
+        // A per-machine second copy installed from a file in the Installer folder. Its
+        // source list is read, by its own code, and names that folder, so the candidate is
+        // kept. The fake answers no read of product A, so a source read by the declared
+        // code fails the test rather than passing it.
+        var f = ACopyBesideASecondCopy(MsiInstallContext.Machine);
+        f.Msi.RecordsSources(SecondCopy, null, MsiInstallContext.Machine, "setup.msi", InstallerFolder + @"\");
+
+        var outcome = ScreenBesideTheSecondCopy(f)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcome);
+        Assert.Equal(new[] { (SecondCopy, (string?)null, MsiInstallContext.Machine) }, f.Msi.PackageNameReads);
+    }
+
+    [Fact]
+    public void A_per_machine_second_copy_installed_from_elsewhere_lets_the_copy_through()
+    {
+        // The must-miss half of the test above: the second copy was installed from a
+        // folder that no longer holds its package, and its cached package is another
+        // file, so nothing it opens is the candidate.
+        var f = ACopyBesideASecondCopy(MsiInstallContext.Machine);
+        f.Msi.RecordsSources(SecondCopy, null, MsiInstallContext.Machine, SetupName, SetupFolder);
+        f.Files.Answers(SetupPackage, FileIdentityRead.NamesNothing);
+
+        var outcome = ScreenBesideTheSecondCopy(f)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, outcome);
+        Assert.False(outcome.Withholds());
+    }
+
+    [Fact]
+    public void An_installation_listed_in_another_case_is_not_taken_for_a_second_copy_of_itself()
+    {
+        // The code the cached package declares comes back in the reader's own spelling
+        // and the listed code in the caller's. Compared as text, an ordinary installation
+        // would look registered under a code its package does not declare, and would be
+        // asked about a second time under the listed spelling, which the fake does not
+        // answer for its sources.
+        var f = ACopyBesideASecondCopy(MsiInstallContext.Machine);
+        f.Packages.Declares(Candidate, LetteredProduct);
+        f.Packages.Declares(SecondCopysPackage, LetteredProduct);
+        f.Msi.Installed(LetteredProduct);
+        f.Msi.RecordsPackage(LetteredProduct, null, MsiInstallContext.Machine, SecondCopysPackage);
+        f.Msi.RecordsPackage(LetteredProduct.ToLowerInvariant(), null, MsiInstallContext.Machine, SecondCopysPackage);
+        f.Msi.RecordsSources(LetteredProduct, null, MsiInstallContext.Machine, SetupName, SetupFolder);
+        f.Files.Answers(SetupPackage, FileIdentityRead.NamesNothing);
+        f = f with { Listed = [ListedPerMachine(LetteredProduct.ToLowerInvariant())] };
+
+        var outcome = ScreenBesideTheSecondCopy(f)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, outcome);
+    }
+
+    /// <summary>The ways an installation's cached package can fail to say what it declares.</summary>
+    public enum CachedPackageFault { ReadFails, NamesNoPackage, NotAFile, NoIdentity, APatch, NoCode }
+
+    private static void Break(
+        (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
+            ScriptedFileIdentities Files, MockFileSystem Disk, ListedInstallation[] Listed) f,
+        CachedPackageFault fault, string? sid, MsiInstallContext context)
+    {
+        switch (fault)
+        {
+            case CachedPackageFault.ReadFails:
+                f.Msi.PackageReadAnswers(SecondCopy, sid, context, MsiError.AccessDenied);
+                break;
+            case CachedPackageFault.NamesNoPackage:
+                f.Msi.RecordsPackage(SecondCopy, sid, context, string.Empty);
+                break;
+            case CachedPackageFault.NotAFile:
+                f.Disk.RemoveFile(SecondCopysPackage);
+                break;
+            case CachedPackageFault.NoIdentity:
+                f.Packages.YieldsNothing(SecondCopysPackage);
+                break;
+            case CachedPackageFault.APatch:
+                f.Packages.DeclaresPatch(SecondCopysPackage, "{44444444-4444-4444-4444-444444444444}", ProductA);
+                break;
+            case CachedPackageFault.NoCode:
+                f.Packages.Yields(SecondCopysPackage, new PackageIdentity(string.Empty, IsPatch: false, []));
+                break;
+        }
+    }
+
+    [Theory]
+    [InlineData(CachedPackageFault.ReadFails)]
+    [InlineData(CachedPackageFault.NamesNoPackage)]
+    [InlineData(CachedPackageFault.NotAFile)]
+    [InlineData(CachedPackageFault.NoIdentity)]
+    [InlineData(CachedPackageFault.APatch)]
+    [InlineData(CachedPackageFault.NoCode)]
+    public void Every_installation_package_is_kept_while_a_per_user_unmanaged_cached_package_does_not_say_what_it_declares(
+        CachedPackageFault fault)
+    {
+        // That installation could be a second copy of any program, and the candidate its
+        // original package, so no candidate can be put to it or ruled out. The second
+        // candidate declares a code no installation holds, and is kept all the same. The
+        // refusal is recorded once for the pass, not once per file.
+        const string OtherCandidate = @"C:\Windows\Installer\b2.msi";
+        var f = ACopyBesideASecondCopy();
+        f.Packages.Declares(OtherCandidate, ProductB);
+        f.Msi.NotInstalled(ProductB, MsiError.UnknownProduct);
+        Break(f, fault, OtherUserSid, MsiInstallContext.UserUnmanaged);
+        var recorded = new List<Exception>();
+
+        var outcomes = ScreenBesideTheSecondCopy(f, [Package(Candidate), Package(OtherCandidate)],
+            (ex, _) => recorded.Add(ex));
+
+        Assert.All(outcomes, outcome => Assert.Equal(DeclaredProductOutcome.Unestablished, outcome));
+        Assert.Single(recorded);
+    }
+
+    [Theory]
+    [InlineData(CachedPackageFault.ReadFails)]
+    [InlineData(CachedPackageFault.NamesNoPackage)]
+    [InlineData(CachedPackageFault.NotAFile)]
+    [InlineData(CachedPackageFault.NoIdentity)]
+    [InlineData(CachedPackageFault.APatch)]
+    [InlineData(CachedPackageFault.NoCode)]
+    public void A_cached_package_outside_that_context_that_does_not_say_what_it_declares_keeps_nothing(
+        CachedPackageFault fault)
+    {
+        // The must-miss half of the theory above: the same faults on a per-machine
+        // installation. Whether one outside that context is a second copy is read from its
+        // own record, and a second copy there withholds every installation package before
+        // this screen runs.
+        var f = ACopyBesideASecondCopy(MsiInstallContext.Machine);
+        Break(f, fault, null, MsiInstallContext.Machine);
+        var recorded = new List<Exception>();
+
+        var outcome = ScreenBesideTheSecondCopy(f, recordRefusal: (ex, _) => recorded.Add(ex))[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcome);
         Assert.Empty(recorded);
     }
 }

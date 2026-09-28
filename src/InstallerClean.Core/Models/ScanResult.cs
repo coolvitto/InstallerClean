@@ -286,10 +286,11 @@ namespace InstallerClean.Models;
 /// in the raw spelling Windows gave, so it matches nothing the walk produces, and the
 /// identity match cannot help either, because a value the path API refuses is a value
 /// CreateFile refuses too and there is nothing to open and compare. For a second copy of
-/// one program, the cached package registered to it declares the base product code, so
-/// the per-file screen can be told there is no such record while the second copy's own
-/// registration still needs the file, and nothing in the scan can work out which cached
-/// installation package belongs to that copy. Every unclaimed file of the set is
+/// one program, the original package it was installed from declares the base product
+/// code and can be a file in the folder that the copy's source list names, so the
+/// per-file screen can be told there is no such record while the second copy's own
+/// registration still needs the file, and the census that finds the copy cannot say
+/// which file in the folder is its original package. Every unclaimed file of the set is
 /// therefore one that could have been meant, and the app cannot say of any of them that
 /// nothing needs it. The set is the installation packages alone where the only finding
 /// is a second copy the scan could ask about by name, the screen putting each patch

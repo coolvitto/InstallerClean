@@ -270,10 +270,11 @@ public record InstallerQueryResult(
 /// instance of themselves under an instance transform. PRODUCTS, not files, and
 /// not a count of anything held back.
 ///
-/// IT DECIDES. A keyed question about the product code written inside a cached
-/// package can answer "no record" while a registration under a transform-generated
-/// code still needs the file, and <see cref="Services.DeclaredProductCheck"/> reads
-/// that code out of the file and asks exactly that question.
+/// IT DECIDES. A second copy's original package, the one it was installed from,
+/// declares the base code, and a keyed question about that code can answer "no record"
+/// while the copy, registered under a transform-generated code, still needs the file.
+/// <see cref="Services.DeclaredProductCheck"/> reads the code out of a file and asks
+/// exactly that question.
 ///
 /// What acts on it is <see cref="SecondInstanceNotRuledOut"/>, which reads this
 /// count together with the one below, and with the two counts of products the
@@ -597,13 +598,14 @@ public readonly record struct EnumerationCensus(
     /// cause over them, here or on any surface.
     ///
     /// WHY ANY OF THEM WITHHOLDS. A product installed under an instance transform registers
-    /// under a product code the transform produced, while the package cached for it
-    /// declares the base code. So <see cref="Services.DeclaredProductCheck"/>, which
-    /// reads a product code OUT OF A CACHED FILE and puts it to Windows, can be told
-    /// there is no such record while a live registration still needs that file. The app
-    /// has no way to tell WHICH cached installation package belongs to the second copy,
-    /// which is the whole condition, so the walk-derived installation packages are
-    /// withheld.
+    /// under a product code the transform produced, while the original package it was
+    /// installed from declares the base code, and that original can be a file in the
+    /// Installer folder which the copy's source list names. So
+    /// <see cref="Services.DeclaredProductCheck"/>, which reads a product code OUT OF A
+    /// FILE in the folder and puts it to Windows, can be told there is no such record
+    /// while a live registration still needs that file. The census cannot tell WHICH file
+    /// in the folder is a second copy's original package, which is the whole condition,
+    /// so the walk-derived installation packages are withheld.
     ///
     /// WALK-DERIVED PATCH FILES ARE WITHHELD ONLY ON <see cref="RegistryProductUnaskable"/>.
     /// A patch file declares its patch code, and the check puts that code to every
