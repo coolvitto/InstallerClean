@@ -50,7 +50,7 @@ public class CliNothingOfferedTests
         var (exit, stdout) = await Run(Scan(
             withheld: 2,
             split: new WithholdingSplit(WholesaleCount: 2),
-            census: SecondInstanceUnruled));
+            census: ProductNobodyCouldAsk));
 
         Assert.Equal(CliExitCode.Ok, exit);
         Assert.Contains(Expected(Strings.Cli_NothingOffered_Plural, 2), stdout, StringComparison.Ordinal);
@@ -142,7 +142,7 @@ public class CliNothingOfferedTests
         var (exit, stdout) = await Run(Scan(
             withheld: 2,
             split: new WithholdingSplit(IdentityUnestablishedCount: 1, WholesaleCount: 1),
-            census: SecondInstanceUnruled));
+            census: ProductNobodyCouldAsk));
 
         Assert.Equal(CliExitCode.Ok, exit);
         Assert.Contains(Expected(Strings.Cli_NothingOfferedPerFile_Plural, 2), stdout, StringComparison.Ordinal);
@@ -159,10 +159,10 @@ public class CliNothingOfferedTests
         var (_, stdout) = await Run(Scan(
             withheld: 2,
             split: new WithholdingSplit(IdentityUnestablishedCount: 1, WholesaleCount: 1),
-            census: SecondInstanceUnruled));
+            census: ProductNobodyCouldAsk));
 
         Assert.Contains(Strings.Cli_WithheldReasons_Header, stdout, StringComparison.Ordinal);
-        Assert.Contains(Program.LineFor(WithholdingLeg.SecondInstanceNotRuledOut), stdout, StringComparison.Ordinal);
+        Assert.Contains(Program.LineFor(WithholdingLeg.RegistryProductUnaskable), stdout, StringComparison.Ordinal);
         Assert.Contains(Program.LineFor(WithholdingSplitArm.IdentityUnestablished), stdout, StringComparison.Ordinal);
         // And nothing it did not meet.
         Assert.DoesNotContain(Program.LineFor(WithholdingSplitArm.ScreenUnanswered), stdout, StringComparison.Ordinal);
@@ -205,6 +205,37 @@ public class CliNothingOfferedTests
         Assert.Equal(1, Occurrences(stdout, Strings.Cli_WithheldReasons_Header));
         Assert.Equal(1, Occurrences(stdout, Program.LineFor(WithholdingSplitArm.DeclaredPatchUnestablished)));
         Assert.DoesNotContain(Program.LineFor(WithholdingSplitArm.DeclaredProductUnestablished), stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_run_meeting_the_third_leg_and_the_second_copy_arm_prints_their_one_line_once()
+    {
+        // The second-copy arm prints the third leg's line. A run holding files both ways
+        // prints it once, under one heading, beside the other lines it met.
+        var (_, stdout) = await Run(Scan(
+            withheld: 2,
+            split: new WithholdingSplit(WholesaleCount: 1, SecondCopyUnestablishedCount: 1),
+            census: ProductNobodyCouldAsk));
+
+        var line = Program.LineFor(WithholdingSplitArm.SecondCopyUnestablished);
+
+        Assert.Equal(Program.LineFor(WithholdingLeg.RegistryProductUnaskable), line);
+        Assert.Equal(1, Occurrences(stdout, Strings.Cli_WithheldReasons_Header));
+        Assert.Equal(1, Occurrences(stdout, line));
+    }
+
+    [Fact]
+    public async Task The_second_copy_arm_on_its_own_gets_the_per_file_line_and_its_reason()
+    {
+        // Every held file counted by the second-copy arm: the per-file sentence, since the
+        // wholesale arm accounts for none of them, and the arm's line under it.
+        var (_, stdout) = await Run(Scan(
+            withheld: 2,
+            split: new WithholdingSplit(SecondCopyUnestablishedCount: 2)));
+
+        Assert.Contains(Expected(Strings.Cli_NothingOfferedPerFile_Plural, 2), stdout, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(stdout, Strings.Cli_WithheldReasons_Header));
+        Assert.Equal(1, Occurrences(stdout, Strings.Cli_WithheldReasons_SecondInstance));
     }
 
     [Fact]
@@ -357,13 +388,14 @@ public class CliNothingOfferedTests
     // ---- fixtures ----
 
     /// <summary>
-    /// A census with the second-instance leg set, so a fixture that wants the wholesale
-    /// branch's own reason line has one to print. The legs are read off the census
-    /// rather than off the split, so a wholesale count on its own would leave the
-    /// breakdown empty and a test about it passing over nothing.
+    /// A census with the third leg set, a product the registry names that the scan could
+    /// not ask about, so a fixture that wants the wholesale branch's own reason line has
+    /// one to print. The legs are read off the census rather than off the split, so a
+    /// wholesale count on its own would leave the breakdown empty and a test about it
+    /// passing over nothing.
     /// </summary>
-    private static EnumerationCensus SecondInstanceUnruled =>
-        new(InstanceProductCount: 1);
+    private static EnumerationCensus ProductNobodyCouldAsk =>
+        new(UnansweredProductCount: 1);
 
     // A sentence's words up to its first placeholder, which no count or size changes.
     private static string Opening(string value) => value[..value.IndexOf('{')];

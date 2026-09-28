@@ -60,13 +60,18 @@ public sealed record ResultLogEntry(
     /// KEY WHOSE MEANING CHANGES IS NOT, which is why the missing-files split was
     /// added beside its total rather than over it.
     ///
-    /// SCHEMA 5 ADDS TWELVE KEYS AND TAKES NONE AWAY: the registry side's failed reads
-    /// under <c>machine</c>; under <c>scan</c> the six arms of the withholding split
-    /// that schema 4 does not carry, so that from 5 the split's eleven counts add up to
-    /// <c>withheldCandidateCount</c>, the two counts of superseded rows the
-    /// containment check kept back, and the count of superseded rows withheld on a
-    /// recorded path the scan could not settle; and under <c>operation</c> a fifth held-back
-    /// cause, <c>heldBackFileNotConfirmed</c>. Under <c>app</c> it adds
+    /// SCHEMA 5 ADDS KEYS AND TAKES NONE AWAY: the registry side's failed reads under
+    /// <c>machine</c>; under <c>scan</c> the seven arms of the withholding split that
+    /// schema 4 does not carry, so that from 5 the split's twelve counts add up to
+    /// <c>withheldCandidateCount</c>, the two counts of superseded rows the containment
+    /// check kept back, the count of superseded rows withheld on a recorded path the scan
+    /// could not settle, the count of superseded rows a condition on the whole machine held
+    /// back, the count of listed programs the scan could not check, the count of
+    /// installations of a program the enumeration returned that the scan found under an
+    /// account or context the enumeration did not list them in, and the count of patch
+    /// registrations naming a cached file that the scan could not match to a program it
+    /// asks about; and under <c>operation</c> a fifth
+    /// held-back cause, <c>heldBackFileNotConfirmed</c>. Under <c>app</c> it adds
     /// <c>windowsLanguage</c>, the Windows display language with no country, AND
     /// <c>app.language</c> CHANGES WHAT IT MEANS AT 5: it is the language the app was
     /// showing, one of the languages it ships, where schema 4 carries the UI culture's
@@ -295,15 +300,15 @@ public sealed record AppInfo(string Version, string Language, string WindowsLang
 /// IT TRAVELS BECAUSE HOW OFTEN A MACHINE CARRIES SUCH A PRODUCT is a fact only these
 /// reports can establish.
 ///
-/// THE COUNT DECIDES NOTHING AND THE CONDITION IT FEEDS IS LIVE. What acts is
-/// <see cref="EnumerationCensus.SecondInstanceNotRuledOut"/>, which fires on this
-/// count, on an InstanceType read that failed, or on a product the registry names
-/// that nothing shows was asked. It is a withholding leg, so a machine carrying one
-/// of these products has its walk-derived installation packages withheld whole, and
-/// its walk-derived patch files put to every installation the scan listed; the
-/// re-verification pass puts the same question again between the scan and the click;
-/// and the command line prints a line naming it among the reasons a run could not be
-/// certain.
+/// THE COUNT DECIDES NOTHING AND THE READING BEHIND IT IS LIVE. Each such installation,
+/// and each whose InstanceType read failed, carries
+/// <see cref="ListedInstallation.SecondCopyNotRuledOut"/> into the declared-product
+/// screen, which compares every walk-derived installation package with the packages
+/// that installation opens. A file one of them opens is kept as a package an installed
+/// program opens, and where they cannot all be seen every such package is kept and
+/// counted in <see cref="ScanInfo.WithheldSecondCopyUnestablishedCount"/>. The re-verification pass
+/// puts the same question again between the scan and the click, and the command line
+/// prints a line for that count among the reasons a run could not be certain.
 ///
 /// A machine fact rather than a run observation, which is what puts it in this
 /// object: two scans of one machine agree about it.
@@ -832,10 +837,10 @@ public sealed record MachineInfo(
 ///
 /// NO CAUSE TRAVELS WITH THIS FIGURE AND NONE MAY BE ATTACHED TO IT. Five separate
 /// decisions put files on that list and they are different facts about a machine; a
-/// sentence naming any one of them would be false of the others. The eleven counts below
+/// sentence naming any one of them would be false of the others. The twelve counts below
 /// are where those decisions are counted apart, one finding each, and they are read
 /// apart for the same reason. They are the scan's whole split of the list, taken off the
-/// same result as this figure, so the eleven add up to it.
+/// same result as this figure, so the twelve add up to it.
 /// </param>
 /// <param name="WithheldTotalBytes">
 /// The bytes of the files behind <paramref name="WithheldCandidateCount"/>, summed
@@ -876,7 +881,7 @@ public sealed record MachineInfo(
 /// the candidate's own path names: at the identity comparison, or at the
 /// declared-product screen when it came to compare the candidate with the packages or
 /// copies the records name, where a candidate found gone is counted too:
-/// <c>ScanResult.WithheldBy.IdentityUnestablishedCount</c>. The first of the eleven
+/// <c>ScanResult.WithheldBy.IdentityUnestablishedCount</c>. The first of the twelve
 /// counts that split <paramref name="WithheldCandidateCount"/>.
 ///
 /// IT IS NOT <c>machine</c>'S CANDIDATE-SIDE REFUSAL TOTAL. That total counts the
@@ -885,9 +890,7 @@ public sealed record MachineInfo(
 /// </param>
 /// <param name="WithheldWholesaleCount">
 /// Candidates kept back in one go on a fact about the machine rather than about any
-/// file: the whole walk-derived offer, or its installation packages alone where the only
-/// fact is a program that may be installed more than once and that the scan could ask
-/// about by name (<c>ScanResult.WithheldBy.WholesaleCount</c>).
+/// file: the whole walk-derived offer (<c>ScanResult.WithheldBy.WholesaleCount</c>).
 ///
 /// NO CAUSE TRAVELS WITH IT. Three named conditions reach that branch and any
 /// combination of them can be true at once, so nothing may say which one held a
@@ -897,7 +900,9 @@ public sealed record MachineInfo(
 /// Candidates the declared-product screen kept back because Windows still holds a
 /// record of the product the file itself declares it belongs to, and some
 /// installation of that product opens a package, its cached copy or its original at
-/// a source, that the screen could not show is another file:
+/// a source, that the screen could not show is another file; or because an
+/// installation the scan could not rule out as a second copy of a program opens the
+/// file as its package:
 /// <c>ScanResult.WithheldBy.DeclaredProductInstalledCount</c>.
 /// </param>
 /// <param name="WithheldDeclaredProductUnestablishedCount">
@@ -1042,6 +1047,19 @@ public sealed record MachineInfo(
 /// on the whole machine from a hold on one file.
 /// <paramref name="SupersededRecordedPathUnestablishedCount"/> is a sub-count of this.
 /// </param>
+/// <param name="WithheldSecondCopyUnestablishedCount">
+/// Candidates the declared-product screen kept back because an installation the scan
+/// could not rule out as a second copy of a program opens packages that could not all
+/// be seen, or because an installation's cached package did not say which product it
+/// declares and its own record did not show it to be an ordinary installation:
+/// <c>ScanResult.WithheldBy.SecondCopyUnestablishedCount</c>. The last of the twelve
+/// counts that split <paramref name="WithheldCandidateCount"/>, appended after the
+/// members before it for the reason they were.
+///
+/// NEVER ADDED TO <paramref name="WithheldDeclaredProductUnestablishedCount"/>. That one
+/// is about the product a file declares; this is about another installation on the
+/// machine.
+/// </param>
 public sealed record ScanInfo(
     long DurationMs,
     int RegisteredCount,
@@ -1079,7 +1097,8 @@ public sealed record ScanInfo(
     int UnsettledEnumeratedProductCount,
     int RecoveredEnumeratedInstallationCount,
     int UnattributedPatchFileCount,
-    int SupersededScanWideWithheldCount)
+    int SupersededScanWideWithheldCount,
+    int WithheldSecondCopyUnestablishedCount)
 {
     public static ScanInfo From(ScanResult scan, long durationMs)
     {
@@ -1128,8 +1147,8 @@ public sealed record ScanInfo(
             // Counted off the kept list by the scan, so the number sent and the rows
             // the registered-files window shows cannot come apart.
             scan.RegisteredWithheldCount,
-            // The eleven counts that split the withheld count above, taken off the one
-            // place that knows them, so the eleven add up to it. Appended rather than
+            // Eleven of the twelve counts that split the withheld count above, taken off
+            // the one place that knows them, so with the twelfth they add up to it. Appended rather than
             // placed among the members they belong beside: every argument after an
             // insertion point re-points at its neighbour's value, and a shift within a
             // run of ints compiles silently.
@@ -1156,7 +1175,10 @@ public sealed record ScanInfo(
             scan.Census.UnattributedPatchFileCount,
             // Also a sub-count of the withheld superseded figure, and the one above is
             // a sub-count of this.
-            scan.SupersededScanWideWithheldCount);
+            scan.SupersededScanWideWithheldCount,
+            // The twelfth arm of the split of the withheld count, appended here rather
+            // than beside the other eleven for the reason they were.
+            scan.WithheldBy.SecondCopyUnestablishedCount);
     }
 }
 

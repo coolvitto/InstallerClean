@@ -8,20 +8,19 @@ namespace InstallerClean.Tests.Services;
 /// THE ACT-TIME HALF OF THE SCAN'S WHOLESALE WITHHOLDING.
 ///
 /// The scan offers no walk-derived file on a machine whose recorded paths it could not
-/// settle, and no walk-derived installation package on one carrying the same program
-/// installed twice, its patch files too where the registry names a product it could not
-/// ask about. This pass re-runs the whole enumeration immediately before a Move or a
-/// Delete and asks both questions again, so on a machine that reached one of those states
-/// between the list appearing and the button being pressed, the walk-derived files leave
-/// the batch as the scan would by then have held them back. Nothing need be wrong with any file in it; the machine has changed
-/// underneath it.
+/// settle, or whose registry names a product it could not ask about. This pass re-runs
+/// the whole enumeration immediately before a Move or a Delete and asks both questions
+/// again, so on a machine that reached one of those states between the list appearing and
+/// the button being pressed, the walk-derived files leave the batch as the scan would by
+/// then have held them back. Nothing need be wrong with any file in it; the machine has
+/// changed underneath it. A second copy the enumeration lists is not one of those
+/// states: it is compared file by file by the declared-product screen, which
+/// <see cref="RemovableReverifierWalkDerivedTests"/> drives.
 ///
 /// IT DROPS THE WALK-DERIVED HALF AND NOT THE WHOLE BATCH. A superseded registration is
-/// judged by its own row in the same enumeration: a recorded path that will not settle
-/// takes the row's removable verdict away there, and the pass drops the file on that row,
-/// while a second instance does not reach it. Refusing the whole batch on a second instance
-/// would keep back superseded files the same scan would still offer a moment later. A path
-/// no registration names is the walk-derived half, and that is the test.
+/// judged by its own row in the same enumeration, which takes the row's removable verdict
+/// away there on either condition, and the pass drops the file on that row. A path no
+/// registration names is the walk-derived half, and that is the test.
 ///
 /// READ WHAT EACH FIXTURE SETS UP. They differ in the census alone, or in whether a
 /// registration names the path, and nothing else.
@@ -62,34 +61,45 @@ public class RemovableReverifierSecondInstanceTests
         Assert.Equal(0, result.Reasons.Total);
     }
 
-    [Fact]
-    public async Task A_second_instance_appearing_before_the_click_drops_the_walk_derived_batch()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_product_nobody_could_ask_about_appearing_before_the_click_drops_the_walk_derived_batch(
+        bool unanswered)
     {
-        // The machine gained a product installed as a second instance of itself between
+        // The registry came to name a product the enumeration could not ask about between
         // the list appearing and the button being pressed. The scan would no longer offer
-        // this file, so neither may the action.
-        var svc = Reverifier(Query(new EnumerationCensus(InstanceProductCount: 1)));
+        // either file, so neither may the action.
+        var census = unanswered
+            ? new EnumerationCensus(UnansweredProductCount: 1)
+            : new EnumerationCensus(UnparseableProductKeyNames: 1);
+        var svc = Reverifier(Query(census));
 
-        var result = await svc.ReverifyAsync(new[] { Orphan });
+        var result = await svc.ReverifyAsync(new[] { Orphan, PatchOrphan });
 
         Assert.Empty(result.Surviving);
-        Assert.Equal(Orphan, Assert.Single(result.Dropped));
-        Assert.Equal(1, result.Reasons.OwnershipUnestablished);
-        Assert.Equal(1, result.Reasons.Total);
+        Assert.Equal(new[] { Orphan, PatchOrphan }, result.Dropped);
+        Assert.Equal(2, result.Reasons.OwnershipUnestablished);
+        Assert.Equal(2, result.Reasons.Total);
     }
 
-    [Fact]
-    public async Task A_question_that_could_not_be_answered_drops_it_on_the_same_terms()
+    [Theory]
+    [InlineData(nameof(EnumerationCensus.InstanceProductCount))]
+    [InlineData(nameof(EnumerationCensus.InstanceTypeUnreadableCount))]
+    public async Task A_second_copy_in_the_census_drops_nothing_on_its_own(string member)
     {
-        // Arm two at act time. Not knowing withholds exactly as knowing does, or the
-        // rule is armed by the machines that answer and disarmed by the machines that
-        // do not.
-        var svc = Reverifier(Query(new EnumerationCensus(InstanceTypeUnreadableCount: 1)));
+        // Each is an installation the enumeration listed with its mark, which the
+        // declared-product screen acts on file by file. No screen is injected here, so
+        // the count on its own drops nothing.
+        var census = member == nameof(EnumerationCensus.InstanceProductCount)
+            ? new EnumerationCensus(InstanceProductCount: 1)
+            : new EnumerationCensus(InstanceTypeUnreadableCount: 1);
+        var svc = Reverifier(Query(census));
 
-        var result = await svc.ReverifyAsync(new[] { Orphan });
+        var result = await svc.ReverifyAsync(new[] { Orphan, PatchOrphan });
 
-        Assert.Equal(Orphan, Assert.Single(result.Dropped));
-        Assert.Equal(1, result.Reasons.OwnershipUnestablished);
+        Assert.Equal(new[] { Orphan, PatchOrphan }, result.Surviving);
+        Assert.Equal(0, result.Reasons.Total);
     }
 
     [Fact]
@@ -108,39 +118,17 @@ public class RemovableReverifierSecondInstanceTests
     }
 
     [Fact]
-    public async Task A_second_instance_leaves_a_walk_derived_patch_file_to_the_checks_on_the_file()
-    {
-        // The installation package leaves the batch. The patch file goes on to the checks
-        // the scan makes on the file itself, none of which is injected here, and stays.
-        var svc = Reverifier(Query(new EnumerationCensus(InstanceProductCount: 1)));
-
-        var result = await svc.ReverifyAsync(new[] { Orphan, PatchOrphan });
-
-        Assert.Equal(PatchOrphan, Assert.Single(result.Surviving));
-        Assert.Equal(Orphan, Assert.Single(result.Dropped));
-        Assert.Equal(1, result.Reasons.OwnershipUnestablished);
-    }
-
-    [Fact]
-    public async Task A_product_nobody_could_ask_about_drops_the_patch_file_as_well()
-    {
-        var svc = Reverifier(Query(new EnumerationCensus(UnansweredProductCount: 1)));
-
-        var result = await svc.ReverifyAsync(new[] { Orphan, PatchOrphan });
-
-        Assert.Empty(result.Surviving);
-        Assert.Equal(2, result.Reasons.OwnershipUnestablished);
-    }
-
-    [Fact]
     public async Task A_superseded_row_still_removable_survives_the_same_machine()
     {
         // THE NARROW RULE AT ACT TIME, and the fixture that stops the blunt one being
         // written here by mistake. One batch, one file of each half, one machine
         // carrying the condition: the walk-derived file goes and the registered one
-        // stays, because the condition cannot reach a row judged by product code.
+        // stays, because this pass's wholesale withholding does not reach a row judged by
+        // product code. The enumeration takes such a row's verdict away itself on this
+        // condition; the fixture leaves it removable so that what it pins is this pass's
+        // own part.
         var svc = Reverifier(Query(
-            new EnumerationCensus(InstanceProductCount: 1),
+            new EnumerationCensus(UnansweredProductCount: 1),
             StillRemovable(Superseded)));
 
         var result = await svc.ReverifyAsync(new[] { Orphan, Superseded });
@@ -159,7 +147,7 @@ public class RemovableReverifierSecondInstanceTests
         // round the other way would tell somebody the app was unsure about a file it
         // had positively established a program still claims.
         var svc = Reverifier(Query(
-            new EnumerationCensus(InstanceProductCount: 1),
+            new EnumerationCensus(UnansweredProductCount: 1),
             new RegisteredPackage(Orphan, "Product", Code)));
 
         var result = await svc.ReverifyAsync(new[] { Orphan });

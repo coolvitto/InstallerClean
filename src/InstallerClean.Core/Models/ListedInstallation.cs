@@ -15,7 +15,19 @@ namespace InstallerClean.Models;
 /// unmanaged, 4 per-machine), carried as the raw API value for the reason
 /// <see cref="PatchClaim.Context"/> is.
 /// </param>
+/// <param name="SecondCopyNotRuledOut">
+/// Whether the enumeration's own reading of the installation's <c>InstanceType</c>
+/// failed to show it to be an ordinary installation: the reading was positive, a second
+/// instance of the product under an instance transform, or it did not read. Set where
+/// that reading is taken, for the row it is taken for.
+///
+/// NO DEFAULT, SO NO ROW IS BUILT WITHOUT IT. The declared-product check compares every
+/// installation package with the packages each such installation opens, and a row
+/// that took false by omission would let a candidate through beside a second copy
+/// nothing compared it with.
+/// </param>
 public sealed record ListedInstallation(
     string ProductCode,
     string? UserSid,
-    int Context);
+    int Context,
+    bool SecondCopyNotRuledOut);

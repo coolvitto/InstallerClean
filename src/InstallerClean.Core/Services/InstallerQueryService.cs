@@ -738,23 +738,30 @@ public sealed class InstallerQueryService : IInstallerQueryService
         var unreadablePatchStates = 0;
 
         // Products installed as a second instance of themselves, and the products
-        // that would not answer the question. NEITHER MAY BE READ WITHOUT THE OTHER,
-        // and there is a rule that obeys that rather than a note saying it:
-        // EnumerationCensus.SecondInstanceNotRuledOut asks them together and the walk's
-        // installation packages are withheld wholesale on the answer. See that property
-        // for what the pair means and InstanceProductCount for what a positive reading
+        // that would not answer the question. NEITHER MAY BE READ WITHOUT THE OTHER: a
+        // machine reading no second instance while some reads failed has not been shown
+        // to hold none. Neither count decides anything. What acts on each reading is the
+        // mark the installation carries into the declared-product check
+        // (ListedInstallation.SecondCopyNotRuledOut), and a read that failed marks it as
+        // a positive reading does. See InstanceProductCount for what a positive reading
         // rests on.
         //
         // FED FROM TWO PLACES AND NOT ONE. The loop below asks every product the
         // enumeration returned; the pass after it asks every product the enumeration
         // lost that the registry named and Windows confirmed installed. A product the
         // registry names that nothing shows was asked is counted as unanswered or as
-        // an unparseable key name, and the rule reads those two counts as well. A product
-        // in neither the enumeration nor the registry's product keys is one nothing on
-        // this machine can name, which is the limit of the whole scan and not of this
-        // rule.
+        // an unparseable key name, and EnumerationCensus.RegistryProductUnaskable
+        // withholds the walk-derived offer on those two counts. A product in neither the
+        // enumeration nor the registry's product keys is one nothing on this machine can
+        // name, which is the limit of the whole scan and not of this rule.
         var instanceProducts = 0;
         var instanceTypeUnreadable = 0;
+
+        // Every installation this enumeration established, for
+        // InstallerQueryResult.Installations: each row the product walk listed, in walk
+        // order, then each installation the recovery by name found, each marked by its
+        // own InstanceType reading.
+        var listed = new List<ListedInstallation>(products.Count);
 
         // THE API's OWN READING OF EACH PRODUCT'S PATCH SET, which is one of the
         // three sources the superseded-patch condition unions. It is built here
@@ -871,11 +878,20 @@ public sealed class InstallerQueryService : IInstallerQueryService
             // property carries no claim on any file, so counting it there would treat a
             // fact about the machine as a lost claim. What it DOES feed is a separate rule, and
             // where the two counts are read together is EnumerationCensus.
-            switch (ReadInstanceType(_msi, productCode, userSid, context))
+            //
+            // THE ROW IS LISTED HERE, WITH ITS OWN READING. What the declared-product
+            // check does with an installation that is not shown to be ordinary turns on
+            // this one answer, so the row carries the answer it was given rather than
+            // having it looked up again later by code, account and context.
+            var instanceReading = ReadInstanceType(_msi, productCode, userSid, context);
+            switch (instanceReading)
             {
                 case InstanceReading.SecondInstance: instanceProducts++; break;
                 case InstanceReading.Unreadable: instanceTypeUnreadable++; break;
             }
+
+            listed.Add(new ListedInstallation(productCode, userSid, (int)context,
+                SecondCopyNotRuledOut: instanceReading != InstanceReading.Ordinary));
 
             // LocalPackage is the one property whose failed read DELETES this
             // product's claim rather than degrading it. An unreadable State or
@@ -1039,27 +1055,31 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // and a context and reads no property at all. This loop puts the InstanceType
         // question to each recovered product in that account and context.
         //
-        // ASKED RATHER THAN ASSUMED UNANSWERABLE. A recovered product counted as
-        // unreadable instead would empty the offer on exactly the machines the recovery
+        // ASKED RATHER THAN ASSUMED UNANSWERABLE. A recovered product marked unasked
+        // would have every installation package compared with the packages it opens, and
+        // kept wherever those cannot all be seen, on exactly the machines the recovery
         // pass exists to rescue. Recovery closes a gap by asking, and this is one more
         // question to the products it recovered.
         //
         // IT COSTS ONE KEYED PROPERTY READ PER RECOVERED PRODUCT, on a set that is
         // empty on a machine whose enumeration came back whole, and it fails in the
-        // safe direction by construction: the read that will not answer reaches the
-        // unreadable count, which withholds, and a positive reaches the count that
-        // withholds for the other reason.
+        // safe direction by construction: a read that will not answer marks the
+        // installation as a positive reading does.
         //
         // The account and context are the ones the recovery established, because a
         // per-user product answers in its own account and nowhere else.
         foreach (var (recoveredCode, recoveredSid, recoveredContext) in missed.Recovered)
         {
             ct.ThrowIfCancellationRequested();
-            switch (ReadInstanceType(_msi, recoveredCode, recoveredSid, recoveredContext))
+            var instanceReading = ReadInstanceType(_msi, recoveredCode, recoveredSid, recoveredContext);
+            switch (instanceReading)
             {
                 case InstanceReading.SecondInstance: instanceProducts++; break;
                 case InstanceReading.Unreadable: instanceTypeUnreadable++; break;
             }
+
+            listed.Add(new ListedInstallation(recoveredCode, recoveredSid, (int)recoveredContext,
+                SecondCopyNotRuledOut: instanceReading != InstanceReading.Ordinary));
         }
 
         WithholdOnRegistryPackageRecords(claimed, patchClaims, fallback.PackageRecords);
@@ -1209,7 +1229,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
 
         // The other two: a code Windows would not answer about, and a key whose name
         // yielded no code to ask with. Nothing shows either was asked its InstanceType,
-        // so both also reach EnumerationCensus.SecondInstanceNotRuledOut, which reads them
+        // so both also reach EnumerationCensus.RegistryProductUnaskable, which reads them
         // apart through the census below.
         var unresolvedProducts = missed.Unresolved + fallback.UnparseableProductKeyNames;
 
@@ -1402,7 +1422,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
         var pairingsHeldByName = PairingsStillOnOffer(heldByName, packages, patchClaims);
 
         return new InstallerQueryResult(packages.AsReadOnly(), withheldProducts, patchClaims.AsReadOnly(),
-            census, ListedInstallations(products, missed.Recovered),
+            census, listed,
             pairingsHeldByName,
             PairingsOfHoldersWithNoClaims(pairingsHeldByName, patchClaims, ct, abandonedLog));
         }
@@ -1660,24 +1680,6 @@ public sealed class InstallerQueryService : IInstallerQueryService
     }
 
     /// <summary>
-    /// Every installation this enumeration established, for
-    /// <see cref="InstallerQueryResult.Installations"/>: each row the product walk
-    /// listed, in walk order, then each installation the recovery by name found.
-    /// </summary>
-    private static List<ListedInstallation> ListedInstallations(
-        List<(string ProductCode, string? UserSid, MsiInstallContext Context)> products,
-        List<(string ProductCode, string? Sid, MsiInstallContext Context)> recovered)
-    {
-        var installations = new List<ListedInstallation>(products.Count + recovered.Count);
-        foreach (var (code, sid, context) in products)
-            installations.Add(new ListedInstallation(code, sid, (int)context));
-        foreach (var (code, sid, context) in recovered)
-            installations.Add(new ListedInstallation(code, sid, (int)context));
-
-        return installations;
-    }
-
-    /// <summary>
     /// Which installations of the products the registry names the product enumeration
     /// did not list, asked as a question about named products rather than inferred from
     /// two headcounts.
@@ -1733,7 +1735,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
         var unsettled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (registryCodes is null || registryCodes.Count == 0) return new(recovered, 0, 0, unsettled);
 
-        var enumerated = InstallationsByCode(ListedInstallations(products, []));
+        var enumerated = InstallationsByCode(products);
 
         // Unbounded: one keyed read per code the registry names, a set already
         // bounded by the machine's own registry keys, which the fallback has just
@@ -2113,7 +2115,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
         // installation the product walk or the recovery by name established, withholds
         // as a code that could not be asked about does
         // (HoldsEveryListedInstallation).
-        var listed = InstallationsByCode(ListedInstallations(products, recovered));
+        var listed = InstallationsByCode(products.Concat(recovered));
         var declaredByPath = new Dictionary<string, DeclaredTargets>(StringComparer.OrdinalIgnoreCase);
         DeclaredTargets DeclaredTargetsFor(string patchPath)
         {
@@ -2702,15 +2704,15 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// spelling of one code.
     /// </summary>
     internal static Dictionary<string, List<(string? Sid, MsiInstallContext Context)>> InstallationsByCode(
-        IEnumerable<ListedInstallation> installations)
+        IEnumerable<(string ProductCode, string? Sid, MsiInstallContext Context)> installations)
     {
         var byCode = new Dictionary<string, List<(string? Sid, MsiInstallContext Context)>>(
             StringComparer.OrdinalIgnoreCase);
-        foreach (var installation in installations)
+        foreach (var (code, sid, context) in installations)
         {
-            if (!byCode.TryGetValue(installation.ProductCode, out var of))
-                byCode[installation.ProductCode] = of = [];
-            of.Add((installation.UserSid, (MsiInstallContext)installation.Context));
+            if (!byCode.TryGetValue(code, out var of))
+                byCode[code] = of = [];
+            of.Add((sid, context));
         }
 
         return byCode;

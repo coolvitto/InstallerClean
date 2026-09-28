@@ -83,7 +83,7 @@ public class CliNoticeEntryTests
         {
             WithheldFiles = Held,
             WithheldBy = new WithholdingSplit(WholesaleCount: 2),
-            Census = new EnumerationCensus(InstanceProductCount: 1),
+            Census = new EnumerationCensus(UnansweredProductCount: 1),
         });
 
         AssertNotice(entries, CliEventClass.ScanNothingOfferedNotice,

@@ -108,7 +108,11 @@ public class InstallerQueryServiceUnclaimedEntryTests
         var result = await Scan(msi, Fallback(registryCodes: [Listed]));
 
         Assert.Equal(2, result.Census.InstanceTypeUnreadableCount);
-        Assert.True(result.Census.SecondInstanceNotRuledOut);
+        // Both installations are listed, each marked by the reading that failed for it.
+        var listed = result.Installations.Where(i => i.ProductCode == Listed).ToList();
+        Assert.Equal(2, listed.Count);
+        Assert.All(listed, i => Assert.True(i.SecondCopyNotRuledOut));
+        Assert.False(result.Census.RegistryProductUnaskable);
     }
 
     [Fact]
@@ -129,7 +133,7 @@ public class InstallerQueryServiceUnclaimedEntryTests
         // It is not a code Windows would not answer about, which would hold the whole
         // walk-derived offer as well.
         Assert.Equal(0, result.Census.UnansweredProductCount);
-        Assert.False(result.Census.SecondInstanceNotRuledOut);
+        Assert.False(result.Census.RegistryProductUnaskable);
     }
 
     [Fact]

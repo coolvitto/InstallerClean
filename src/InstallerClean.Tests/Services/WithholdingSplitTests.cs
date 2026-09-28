@@ -61,13 +61,13 @@ public class WithholdingSplitTests
     [Fact]
     public async Task A_walk_offer_withheld_in_one_go_is_counted_as_its_own_arm()
     {
-        // The census says a product may be installed more than once, which is one of
-        // the three conditions that keep the whole walk-derived offer back. The screen
-        // is never reached on this path, so its arms must read zero.
+        // The census says the registry names a product the scan could not ask about,
+        // which is one of the three conditions that keep the whole walk-derived offer
+        // back. The screen is never reached on this path, so its arms must read zero.
         var result = await Scan(
             walked: new[] { $@"{Folder}\a.msi", $@"{Folder}\b.msi" },
             registered: Array.Empty<string>(),
-            census: new EnumerationCensus(InstanceProductCount: 1));
+            census: new EnumerationCensus(UnansweredProductCount: 1));
 
         Assert.Equal(2, result.WithheldBy.WholesaleCount);
         Assert.Equal(0, result.WithheldBy.DeclaredProductInstalledCount);

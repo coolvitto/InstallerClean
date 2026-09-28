@@ -271,6 +271,26 @@ public class ScanResultTests
     }
 
     [Fact]
+    public void Packages_kept_beside_a_second_copy_whose_packages_could_not_all_be_seen_are_held_back_per_file()
+    {
+        // The arm is not one of the silent arms. It names a line of its own, and the
+        // finished screen counts its files with the per-file reading.
+        var result = new ScanResult([], [], 0,
+            WithheldFiles: [File("a.msi", 1024), File("b.msi", 2048)],
+            WithheldBy: new WithholdingSplit(SecondCopyUnestablishedCount: 2));
+
+        Assert.Equal(WithholdingAccount.PerFile, result.Withholding);
+        Assert.True(result.HasWithholdingToReport);
+        Assert.Equal(2, result.UnestablishedWithheldCount);
+        Assert.Equal(3072, result.UnestablishedWithheldBytes);
+        Assert.Equal(new[] { WithholdingSplitArm.SecondCopyUnestablished }, result.WithheldBy.ArmsFired);
+        Assert.True(result.NamedConditionsCoverEveryHeldBackFile);
+        Assert.Equal(2, result.UnsettledHeldBackCount);
+        Assert.Equal(3072, result.UnsettledHeldBackBytes);
+        Assert.False(result.UnsettledHeldBackIsWholesale);
+    }
+
+    [Fact]
     public void A_patch_copy_the_scan_could_not_settle_is_counted_apart_from_one_kept_for_its_patch_s_registrations()
     {
         // One of each. The sentence counts and sizes the first alone, and only the

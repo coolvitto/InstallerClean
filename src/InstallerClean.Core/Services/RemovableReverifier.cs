@@ -258,10 +258,9 @@ public sealed class RemovableReverifier : IRemovableReverifier
     /// held rather than left for the action services' own guard, which runs later
     /// against a root of its own and could answer differently.
     ///
-    /// WHERE A LEG FIRES, EVERY INSTALLATION PACKAGE STILL STANDING IS HELD, AND EVERY
-    /// PATCH FILE TOO WHERE THE LEG HOLDS THEM, as in the scan: each is already kept on a
-    /// fact about the machine, and the last two steps run on what is left. A patch file is
-    /// told by its extension, as the screen's own call below tells it.
+    /// WHERE A LEG FIRES, EVERY FILE STILL STANDING IS HELD, as in the scan: each is
+    /// already kept on a fact about the machine, and the last two steps have nothing left
+    /// to run on.
     /// </summary>
     private void HoldWalkDerivedFilesTheScanWouldHold(
         List<string> walkDerived,
@@ -311,11 +310,7 @@ public sealed class RemovableReverifier : IRemovableReverifier
         // being edited. Where the identity comparison did not run, its tally is zero
         // attempts and the enumeration's two legs answer alone.
         if (WithholdingLegs.Any(query.Census, registrationReads))
-        {
-            var patchFilesToo = WithholdingLegs.AnyHoldingPatchFiles(query.Census, registrationReads);
-            standing = Keep(standing, held, path =>
-                patchFilesToo || !IsPatchFile(path) ? HeldBackReason.OwnershipUnestablished : null);
-        }
+            standing = Keep(standing, held, _ => HeldBackReason.OwnershipUnestablished);
 
         if (_declaredProducts is not null && cacheRoot is not null && standing.Count > 0)
             standing = ScreenByWhatTheyDeclare(standing, held, cacheRoot, query.Installations, cancellationToken);
@@ -337,6 +332,11 @@ public sealed class RemovableReverifier : IRemovableReverifier
     /// own enumeration listed, and returns what it lets through. A screen that answers
     /// about a different number of files than it was handed has not answered about these
     /// files, so all of them are held.
+    ///
+    /// <see cref="DeclaredProductOutcome.SecondCopyUnestablished"/> IS HELD AS
+    /// <see cref="HeldBackReason.OwnershipUnestablished"/>, being a finding about another
+    /// installation on the machine and not about the file. Every other verdict that
+    /// withholds is held as <see cref="HeldBackReason.FileNotConfirmed"/>.
     /// </summary>
     private List<string> ScreenByWhatTheyDeclare(
         List<string> standing,
@@ -371,8 +371,12 @@ public sealed class RemovableReverifier : IRemovableReverifier
             }
 
             var index = 0;
-            return Keep(standing, held, _ =>
-                outcomes[index++].Withholds() ? HeldBackReason.FileNotConfirmed : null);
+            return Keep(standing, held, _ => outcomes[index++] switch
+            {
+                DeclaredProductOutcome.SecondCopyUnestablished => HeldBackReason.OwnershipUnestablished,
+                var outcome when outcome.Withholds() => HeldBackReason.FileNotConfirmed,
+                _ => null,
+            });
         }
         finally
         {

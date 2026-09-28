@@ -548,13 +548,13 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // EnumerationCensus.AnyRecordedPathUnestablished before it returns and takes
         // the removable verdict off every superseded row where it answers true.
         //
-        // IT IS NOT WITHHELD ON THE SECOND-INSTANCE CONDITION ITSELF. A second copy is
-        // registered under its own product code and is therefore asked by the
-        // per-product condition like any other product, whatever the cached patch's
-        // own Template names, so a patch it still holds takes the offer away. Two of
-        // that condition's members, a product Windows would not answer about and a
-        // registry key whose name yields no code, are also products the scan could not
-        // account for, and the enumeration withholds the superseded half on that count.
+        // IT IS NOT WITHHELD ON A SECOND COPY. A second copy is registered under its own
+        // product code and is therefore asked by the per-product condition like any
+        // other product, whatever the cached patch's own Template names, so a patch it
+        // still holds takes the offer away. The third condition below, a product the
+        // registry names that this scan could not ask about, is also a product the scan
+        // could not account for, and the enumeration withholds the superseded half on
+        // that count.
         //
         // THE QUESTION IS ASKED OF THE CENSUS RATHER THAN ASSEMBLED HERE. Naming the
         // members one by one at this line is correct and is one edit away from not
@@ -581,50 +581,43 @@ public sealed class FileSystemScanService : IFileSystemScanService
         // is spelled where the members are declared, and this line only says that a
         // failure on either side withholds.
         //
-        // AND THE THIRD, ARMED BY A POSITIVE FINDING AND BY A FAILURE TO ESTABLISH ONE.
-        // What all three share is that something this scan established or could not
-        // establish leaves it unable to say which cached files belong to which programs.
-        // A product installed as a second instance of itself registers under a code the
-        // instance transform produced while the original package it was installed from
-        // declares the base code, and that original can be a file in this folder. The
-        // per-file screen below reads a code out of a file and asks Windows about it. On
-        // such a machine that screen can be told there is no record while a live
-        // registration still needs the file, and the census says nothing about WHICH file
-        // in the folder is the second copy's original package. So where the scan cannot
-        // establish that no product is such a copy, no walk-derived installation package
-        // is offered. The question is asked of the census, where
-        // its members live, on the same rule as the other two.
+        // AND THE THIRD, A PRODUCT THE REGISTRY NAMES THAT THIS SCAN COULD NOT ASK ABOUT.
+        // What all three share is that something this scan could not establish leaves
+        // it unable to say which cached files belong to which programs. Such a product
+        // was never asked its InstanceType, so nothing shows it is not a second copy of a
+        // program, registered under a code an instance transform produced while the
+        // original package it was installed from declares the base code; and that
+        // original can be a file in this folder. The per-file screen below compares
+        // every installation package with the packages each listed installation not
+        // ruled out as a second copy opens, and this product is on no list, so nothing
+        // compares a file with it. Nor does the screen's question about a patch file
+        // reach it, which may hold the patch. So no walk-derived file is offered. The
+        // question is asked of the census, where its members live, on the same rule as
+        // the other two.
         //
-        // A PATCH FILE IS SCREENED ON THAT THIRD CONDITION RATHER THAN HELD. It declares
-        // its patch code, and the screen puts that code to every installation this scan
-        // listed, so a second copy the scan listed that holds the patch answers for
-        // itself. Where the registry names a product the scan could not ask about, which
-        // two of the condition's members are, the patch files are held as well; the
-        // first two conditions hold them always.
+        // A SECOND COPY THE SCAN LISTED IS NOT A CONDITION HERE. Each listed
+        // installation carries whether its own InstanceType reading ruled it out as one,
+        // and the screen below compares the files with the packages each such
+        // installation opens and keeps every installation package where those cannot
+        // all be seen.
         //
-        // AND IT IS ONE CALL PER KIND RATHER THAN THREE CONDITIONS SPELLED OUT HERE. A
-        // host names which of these held, so the gate and that host read the same
-        // expression: a condition added to WithholdingLeg is one this line acts on and
-        // one that host prints. A condition written in beside these calls instead,
-        // which would withhold an offer the breakdown has nothing to say about, is
-        // what FileSystemScanServiceWithholdingLegsTests holds this line against.
-        var holdPackagesWholesale = WithholdingLegs.Any(query.Census, registrationIdentityReads);
-        var holdPatchFilesWholesale =
-            WithholdingLegs.AnyHoldingPatchFiles(query.Census, registrationIdentityReads);
-
-        if (holdPackagesWholesale)
+        // AND IT IS ONE CALL RATHER THAN THREE CONDITIONS SPELLED OUT HERE. A host names
+        // which of these held, so the gate and that host read the same expression: a
+        // condition added to WithholdingLeg is one this line acts on and one that host
+        // prints. A condition written in beside this call instead, which would withhold
+        // an offer the breakdown has nothing to say about, is what
+        // FileSystemScanServiceWithholdingLegsTests holds this line against.
+        if (WithholdingLegs.Any(query.Census, registrationIdentityReads))
         {
-            // Every candidate of a kind held here is already kept back on a fact about
-            // the machine, so the per-file screen below could only reach the same answer
-            // at the cost of opening it. It is not handed to the screen.
+            // Every candidate is already kept back on a fact about the machine, so the
+            // per-file screen below could only reach the same answer at the cost of
+            // opening it. None is handed to the screen.
             //
             // Candidates the identity pass already withheld one at a time are on the
             // withheld list and off this one, so nothing lands on it twice.
-            bool HeldWholesale(OrphanedFile candidate) => holdPatchFilesWholesale || !candidate.IsPatch;
-            var heldWholesale = unclaimedByPath.Where(HeldWholesale).ToList();
-            withheld.AddRange(heldWholesale);
-            withheldBy.Wholesale(heldWholesale.Count);
-            unclaimedByPath.RemoveAll(HeldWholesale);
+            withheld.AddRange(unclaimedByPath);
+            withheldBy.Wholesale(unclaimedByPath.Count);
+            unclaimedByPath.Clear();
         }
 
         // THE SCREEN IS A PHASE OF ITS OWN IN THE PROGRESS, with a milestone here and a
@@ -1084,8 +1077,8 @@ public sealed class FileSystemScanService : IFileSystemScanService
             registrationIdentityReads,
             candidateIdentityReads,
             // Which decision took each file on the withheld list. Read here rather
-            // than derived, and held to that list's own length by a test: eleven
-            // counts that no longer sum to it mean a twelfth arm has been added and
+            // than derived, and held to that list's own length by a test: twelve
+            // counts that no longer sum to it mean a thirteenth arm has been added and
             // is reported by none of them.
             withheldBy.Taken(),
             withheldBy.DeclaredProductInstalledBytes,
@@ -1191,6 +1184,7 @@ public sealed class FileSystemScanService : IFileSystemScanService
         private int _declaredPatchRegistered;
         private long _declaredPatchRegisteredBytes;
         private int _declaredPatchUnestablished;
+        private int _secondCopyUnestablished;
         private readonly ContainmentTally _containment = new();
 
         internal void IdentityUnestablished() => _identityUnestablished++;
@@ -1253,6 +1247,9 @@ public sealed class FileSystemScanService : IFileSystemScanService
                 case DeclaredProductOutcome.CandidateIdentityUnestablished:
                     _identityUnestablished++;
                     break;
+                case DeclaredProductOutcome.SecondCopyUnestablished:
+                    _secondCopyUnestablished++;
+                    break;
             }
         }
 
@@ -1287,7 +1284,8 @@ public sealed class FileSystemScanService : IFileSystemScanService
             _declaredPatchRegistered,
             _declaredPatchUnestablished,
             _containment.RefusedCount,
-            _containment.UnestablishedCount);
+            _containment.UnestablishedCount,
+            _secondCopyUnestablished);
     }
 
     /// <summary>
@@ -1336,8 +1334,10 @@ public sealed class FileSystemScanService : IFileSystemScanService
     /// <paramref name="withheld"/> every installation package whose own declared
     /// product Windows still holds a record of, unless every package each
     /// installation of that product opens, cached or original, is shown to be a
-    /// different file; every installation package this pass could not settle; every
-    /// patch whose own declared patch Windows holds a registration of, unless every
+    /// different file; every installation package that an installation not ruled out as a
+    /// second copy of a program opens, and every one while the packages such an
+    /// installation opens cannot all be seen; every installation package this pass could
+    /// not settle; every patch whose own declared patch Windows holds a registration of, unless every
     /// copy of the patch each registration opens, cached or original, is shown to be a
     /// different file; and every patch this pass could not settle. Both lists keep walk
     /// order.

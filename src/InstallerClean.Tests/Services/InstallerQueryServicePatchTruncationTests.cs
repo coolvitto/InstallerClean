@@ -1218,9 +1218,9 @@ public class InstallerQueryServicePatchTruncationTests
         Assert.Equal(
             new[]
             {
-                new ListedInstallation(Superseding, null, (int)MsiInstallContext.Machine),
-                new ListedInstallation(AlsoSuperseding, PerUserSid, (int)MsiInstallContext.UserUnmanaged),
-                new ListedInstallation(StillApplied, null, (int)MsiInstallContext.Machine),
+                new ListedInstallation(Superseding, null, (int)MsiInstallContext.Machine, SecondCopyNotRuledOut: false),
+                new ListedInstallation(AlsoSuperseding, PerUserSid, (int)MsiInstallContext.UserUnmanaged, SecondCopyNotRuledOut: false),
+                new ListedInstallation(StillApplied, null, (int)MsiInstallContext.Machine, SecondCopyNotRuledOut: false),
             },
             result.Installations);
     }

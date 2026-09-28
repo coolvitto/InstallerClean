@@ -133,16 +133,26 @@ public class CliWithholdingReasonsTests
     }
 
     [Fact]
-    public void The_legs_and_the_arms_never_print_the_same_line()
+    public void Only_the_third_leg_and_the_second_copy_arm_print_the_same_line()
     {
-        // ONE HEADING CARRIES BOTH SETS AND A RUN CAN MEET CONDITIONS FROM EACH, so two
-        // of them rendering identically would put the same sentence under that caption
-        // twice and tell a reader one of the conditions had not been reported.
-        var lines = Enum.GetValues<WithholdingLeg>().Select(leg => Program.LineFor(leg))
-            .Concat(Enum.GetValues<WithholdingSplitArm>().Select(arm => Program.LineFor(arm)))
+        // ONE HEADING CARRIES BOTH SETS. The third leg and the second-copy arm print the
+        // same line, and the list under the heading prints each distinct line once, so
+        // the sentence never appears twice under it. No other pair shares a line, so a
+        // line two conditions come to share without anybody choosing it fails here.
+        var lines = Enum.GetValues<WithholdingLeg>()
+            .Select(leg => (Name: $"leg {leg}", Line: Program.LineFor(leg)))
+            .Concat(Enum.GetValues<WithholdingSplitArm>()
+                .Select(arm => (Name: $"arm {arm}", Line: Program.LineFor(arm))))
             .ToList();
 
-        Assert.Equal(lines.Count, lines.Distinct().Count());
+        var shared = lines.GroupBy(entry => entry.Line, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Select(entry => entry.Name).Order(StringComparer.Ordinal).ToArray())
+            .ToList();
+
+        Assert.Equal(
+            new[] { $"arm {WithholdingSplitArm.SecondCopyUnestablished}", $"leg {WithholdingLeg.RegistryProductUnaskable}" },
+            Assert.Single(shared));
     }
 
     [Fact]

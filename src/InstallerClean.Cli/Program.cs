@@ -1095,8 +1095,12 @@ internal static class Program
             // in that count and has no line, so on a run holding one the lead stands on
             // its own rather than over a list that states reasons for the other files
             // alone.
+            //
+            // EACH DISTINCT LINE PRINTS ONCE. A leg and an arm can share a line, and a
+            // run meeting both would otherwise say the same thing twice.
             var reasons = scanResult.WithholdingLegsFired.Select(leg => LineFor(leg))
                 .Concat(scanResult.WithheldBy.ArmsFired.Select(arm => LineFor(arm)))
+                .Distinct(StringComparer.Ordinal)
                 .ToList();
 
             if (reasons.Count > 0 && scanResult.NamedConditionsCoverEveryHeldBackFile)
@@ -1541,7 +1545,7 @@ internal static class Program
     {
         WithholdingLeg.RecordedPathUnestablished => Strings.Cli_WithheldReasons_RecordedPath,
         WithholdingLeg.FileIdentityUnestablished => Strings.Cli_WithheldReasons_FileIdentity,
-        WithholdingLeg.SecondInstanceNotRuledOut => Strings.Cli_WithheldReasons_SecondInstance,
+        WithholdingLeg.RegistryProductUnaskable => Strings.Cli_WithheldReasons_SecondInstance,
         _ => Strings.Cli_WithheldReasons_Header,
     };
 
@@ -1563,6 +1567,11 @@ internal static class Program
     /// files they count. The first three are not in the held-back lead's count; the
     /// fourth is, and a run holding one prints the lead with no list under it.
     ///
+    /// THE SECOND-COPY ARM PRINTS THE THIRD LEG'S LINE, which is true of both: each is a
+    /// program that may be installed more than once, whose packages nothing could compare
+    /// a file with. The list prints each distinct line once, so the line never appears
+    /// twice under the heading.
+    ///
     /// The fallback is the heading's own antecedent rather than a blank, on the same
     /// reasoning as above, and it is unreachable while every arm is handled.
     /// </summary>
@@ -1576,6 +1585,7 @@ internal static class Program
             Strings.Cli_WithheldReasons_ScreenUnanswered,
         WithholdingSplitArm.DeclaredPatchUnestablished =>
             Strings.Cli_WithheldReasons_DeclaredPatchUnestablished,
+        WithholdingSplitArm.SecondCopyUnestablished => Strings.Cli_WithheldReasons_SecondInstance,
         _ => Strings.Cli_WithheldReasons_Header,
     };
 

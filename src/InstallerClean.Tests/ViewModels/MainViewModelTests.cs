@@ -338,7 +338,7 @@ public class MainViewModelTests
         _scanService.ScanAsync(Arg.Any<IProgress<ScanProgressUpdate>?>(), Arg.Any<CancellationToken>())
             .Returns(new ScanResult(
                 Array.Empty<OrphanedFile>(), Array.Empty<RegisteredPackage>(), 0,
-                Census: new EnumerationCensus(InstanceProductCount: 1),
+                Census: new EnumerationCensus(UnansweredProductCount: 1),
                 WithheldFiles: Array.Empty<OrphanedFile>()));
 
         await vm.Scan.ScanWithProgressAsync(null);

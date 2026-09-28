@@ -1644,8 +1644,8 @@ Esegui di nuovo InstallerClean come amministratore.</value></data>
        do nothing different on one of them than on another.
 
        No leg carries a count. Leg one's two groups can double-count one value, so
-       their sum is a count of refusals and not of paths; leg three's members include
-       opposite findings and a single number states a cause over them; a count on
+       their sum is a count of refusals and not of paths; leg three's two members are
+       different findings and a single number states a cause over them; a count on
        leg two alone would read as a total. The count and the size of what was held
        back are on the line above. And no line says whether re-running helps, because
        each leg holds members that differ on exactly that. -->
@@ -1661,6 +1661,12 @@ Esegui di nuovo InstallerClean come amministratore.</value></data>
        Files kept by the declared-product-installed, declared-patch-registered,
        under-a-day-old and age-unestablished arms have no line here:
        WithholdingSplit.ArmsFired leaves those arms out.
+
+       The second-copy arm has no line here either. It prints
+       Cli.WithheldReasons.SecondInstance, above, which is true of its files too: a
+       program may be installed more than once and a file could not be compared with
+       every package it opens. The list prints each distinct line once, so the line
+       never appears twice.
 
        CandidateIdentity is a file in the folder whose own identity would not read,
        at the identity pass or at the check on the program or patch the file

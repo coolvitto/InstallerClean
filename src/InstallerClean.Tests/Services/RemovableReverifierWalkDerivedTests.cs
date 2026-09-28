@@ -126,6 +126,40 @@ public class RemovableReverifierWalkDerivedTests
     }
 
     [Fact]
+    public async Task A_file_the_screen_keeps_beside_a_second_copy_it_could_not_see_is_held_as_its_ownership_unestablished()
+    {
+        // The screen keeps one file because it could not see every package a second copy
+        // of a program opens, and another because the program it declares is installed.
+        // Each is held under its own cause, and the file beside them survives.
+        const string besideTheCopy = Folder + @"\beside.msi";
+        const string installed = Folder + @"\installed.msi";
+        const string spare = Folder + @"\spare.msi";
+        const string registered = Folder + @"\registered.msi";
+        var ids = new ScriptedFileIdentities();
+        ids.Opens(registered, 1);
+        ids.Opens(besideTheCopy, 2);
+        ids.Opens(installed, 3);
+        ids.Opens(spare, 4);
+        var screen = Substitute.For<IDeclaredProductCheck>();
+        screen.Screen(Arg.Any<IReadOnlyList<OrphanedFile>>(), Arg.Any<IReadOnlyList<ListedInstallation>>(),
+                Arg.Any<CancellationToken>(), Arg.Any<Action<Exception, string>?>(), Arg.Any<Func<string, bool?>?>())
+            .Returns(call => call.ArgAt<IReadOnlyList<OrphanedFile>>(0)
+                .Select(f => f.FullPath switch
+                {
+                    besideTheCopy => DeclaredProductOutcome.SecondCopyUnestablished,
+                    installed => DeclaredProductOutcome.DeclaredProductInstalled,
+                    _ => DeclaredProductOutcome.DeclaredProductNotInstalled,
+                })
+                .ToList());
+
+        var result = await Reverifier(Query(Live(registered)), ids, screen, OldTimes(spare))
+            .ReverifyAsync(new[] { besideTheCopy, installed, spare });
+
+        Assert.Equal(new[] { spare }, result.Surviving);
+        Assert.Equal(new HeldBackReasons(OwnershipUnestablished: 1, FileNotConfirmed: 1), result.Reasons);
+    }
+
+    [Fact]
     public async Task The_screen_holds_its_answers_against_the_installations_this_check_s_own_enumeration_listed()
     {
         // The real screen, with Windows answering that the file's product is not
@@ -153,7 +187,7 @@ public class RemovableReverifierWalkDerivedTests
         Assert.Equal(new[] { orphan }, unlisted.Surviving);
 
         var listed = await Reverifier(
-                QueryListing([new ListedInstallation(Product, null, (int)MsiInstallContext.Machine)], Live(registered)),
+                QueryListing([new ListedInstallation(Product, null, (int)MsiInstallContext.Machine, SecondCopyNotRuledOut: false)], Live(registered)),
                 Ids(), screen, OldTimes(orphan))
             .ReverifyAsync(new[] { orphan });
 
@@ -355,7 +389,7 @@ public class RemovableReverifierWalkDerivedTests
         var screen = Screen();
 
         var result = await Reverifier(
-                Query(new EnumerationCensus(InstanceProductCount: 1), Live(registered)),
+                Query(new EnumerationCensus(UnansweredProductCount: 1), Live(registered)),
                 ids, screen, new ScriptedFileTimes())
             .ReverifyAsync(new[] { orphan });
 

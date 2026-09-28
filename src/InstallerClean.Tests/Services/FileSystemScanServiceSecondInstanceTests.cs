@@ -6,24 +6,22 @@ using NSubstitute;
 namespace InstallerClean.Tests.Services;
 
 /// <summary>
-/// What a scan offers on a PC carrying the same program installed twice.
+/// What a scan offers on a PC that may carry the same program installed twice.
 ///
 /// THE CONDITION AND WHAT IT HOLDS. A product installed under an instance transform
 /// registers under a product code the transform produced, while the original package it
 /// was installed from declares the base code and can be a file in the folder that the
-/// copy's source list names. The declared-product screen reads a product code OUT OF
-/// the candidate file and asks Windows about it, so on such a machine that screen can be
-/// told there is no record while the second copy's own registration still needs the
-/// file. The census that finds the copy cannot say WHICH file in the folder is its
-/// original package, so no walk-derived installation package is offered. A walk-derived
-/// patch file goes on to the screen, which puts its patch code to every installation the
-/// scan listed; only where the registry names a product the scan could not ask about is
-/// it held with the packages.
+/// copy's source list names. An installation the scan listed and could not rule out as
+/// such a copy is marked, and the declared-product screen compares every file with the
+/// packages it opens (<see cref="DeclaredProductCheckTests"/>). A product the registry
+/// names that the scan could not ask about is on no list, so nothing compares a file
+/// with it, and the whole walk-derived offer is held, installation packages and patch
+/// files alike.
 ///
 /// READ WHAT THESE FIXTURES SET UP AND NOT WHAT THEY ASSERT. Every one of them differs
 /// from <see cref="An_ordinary_machine_keeps_every_file_it_would_have_offered"/> in the
-/// census alone, which is exactly the pair the rule reads. Without that must-hit sitting
-/// beside them, a scan that offered nothing to anybody would pass every other test here.
+/// census alone. Without that must-hit sitting beside them, a scan that offered nothing
+/// to anybody would pass every test here that holds files back.
 /// </summary>
 public class FileSystemScanServiceSecondInstanceTests
 {
@@ -53,72 +51,14 @@ public class FileSystemScanServiceSecondInstanceTests
         Assert.Empty(result.WithheldFiles!);
     }
 
-    [Fact]
-    public async Task A_product_installed_as_a_second_instance_of_itself_empties_the_walk_offer()
-    {
-        // ARM ONE. A positive reading from one product, and the file the machine would
-        // otherwise have been offered is kept back instead.
-        var result = await Scan(new EnumerationCensus(InstanceProductCount: 1));
-
-        Assert.Empty(result.RemovableFiles);
-        Assert.True(result.WithheldBy.WholesaleCount > 0);
-        Assert.Equal(Orphan, Assert.Single(result.WithheldFiles!).FullPath);
-    }
-
-    [Fact]
-    public async Task A_product_that_would_not_answer_the_question_empties_it_on_the_same_terms()
-    {
-        // ARM TWO. An enumeration that failed, was denied or stopped short fires the
-        // withholding just as a positive reading does: a question put and not answered
-        // leaves the machine, as far as this rule can tell, in exactly the state the
-        // positive reading describes.
-        var result = await Scan(new EnumerationCensus(InstanceTypeUnreadableCount: 1));
-
-        Assert.Empty(result.RemovableFiles);
-        Assert.True(result.WithheldBy.WholesaleCount > 0);
-        Assert.Equal(Orphan, Assert.Single(result.WithheldFiles!).FullPath);
-    }
-
-    [Fact]
-    public async Task A_second_instance_does_not_touch_a_superseded_row_the_records_cleared()
-    {
-        // THE NARROW RULE, PINNED, because the blunter one is the obvious thing to write
-        // and nothing in the code would stop somebody writing it. The superseded half of
-        // the offer is judged by REGISTERED product code and patch code: a second copy is
-        // registered under its own code, so the per-product condition asks it like any
-        // other product and a patch it still holds takes the offer away by that route,
-        // whatever the cached patch's own Template names. The instance transform's
-        // peculiarity is confined to a code read out of a FILE, and the declared-product
-        // screen, which puts such a code to Windows and lets a file through on a no, runs
-        // over the walk's unclaimed candidates and never reads a superseded row.
-        var result = await Scan(
-            new EnumerationCensus(InstanceProductCount: 1),
-            supersededOffer: true);
-
-        Assert.Equal(Superseded, Assert.Single(result.RemovableFiles).FullPath);
-        Assert.True(result.WithheldBy.WholesaleCount > 0);
-    }
-
-    [Fact]
-    public async Task A_second_instance_holds_the_installation_package_and_leaves_the_patch_file_to_the_checks()
-    {
-        // A product answered that it is a second instance of itself, which the scan could
-        // ask about by name. The walked patch file goes on to the per-file checks, none of
-        // which is injected here, and is offered.
-        var result = await Scan(new EnumerationCensus(InstanceProductCount: 1), walkPatchOrphan: true);
-
-        Assert.Equal(PatchOrphan, Assert.Single(result.RemovableFiles).FullPath);
-        Assert.Equal(Orphan, Assert.Single(result.WithheldFiles!).FullPath);
-        Assert.Equal(1, result.WithheldBy.WholesaleCount);
-    }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task A_product_nobody_could_ask_about_holds_the_patch_file_as_well(bool unanswered)
+    public async Task A_product_nobody_could_ask_about_holds_the_whole_walk_offer(bool unanswered)
     {
         // A code Windows would not say was installed, or a key whose name is no code: no
-        // question the screen could put reaches that product.
+        // question the screen could put reaches that product, whether about a package it
+        // opens or a patch it holds.
         var census = unanswered
             ? new EnumerationCensus(UnansweredProductCount: 1)
             : new EnumerationCensus(UnparseableProductKeyNames: 1);
@@ -130,6 +70,46 @@ public class FileSystemScanServiceSecondInstanceTests
         Assert.Equal(2, result.WithheldBy.WholesaleCount);
     }
 
+    [Theory]
+    [InlineData(nameof(EnumerationCensus.InstanceProductCount))]
+    [InlineData(nameof(EnumerationCensus.InstanceTypeUnreadableCount))]
+    public async Task A_second_copy_in_the_census_holds_nothing_back_on_its_own(string member)
+    {
+        // A product that answered it is a second instance of itself, or one whose answer
+        // did not read. Each is an installation the scan listed with its mark, which the
+        // screen acts on file by file, and no screen is injected here, so the count on
+        // its own holds nothing back: the installation package and the patch file are
+        // both offered.
+        var census = member == nameof(EnumerationCensus.InstanceProductCount)
+            ? new EnumerationCensus(InstanceProductCount: 1)
+            : new EnumerationCensus(InstanceTypeUnreadableCount: 1);
+
+        var result = await Scan(census, walkPatchOrphan: true);
+
+        Assert.Equal(new[] { Orphan, PatchOrphan }, result.RemovableFiles.Select(f => f.FullPath));
+        Assert.Equal(0, result.WithheldBy.WholesaleCount);
+        Assert.Empty(result.WithheldFiles!);
+    }
+
+    [Fact]
+    public async Task A_wholesale_withholding_does_not_touch_a_superseded_row_the_records_cleared()
+    {
+        // THE NARROW RULE, PINNED, because the blunter one is the obvious thing to write
+        // and nothing in the code would stop somebody writing it. The superseded half of
+        // the offer is judged by REGISTERED product code and patch code, and the
+        // enumeration withholds it on a product nobody could ask about before the scan
+        // sees it. The enumeration would not hand over a removable superseded row beside
+        // this census; the fixture does, so that what it pins is the scan's own part:
+        // its wholesale withholding runs over the walk's unclaimed candidates, which a
+        // superseded row never is.
+        var result = await Scan(
+            new EnumerationCensus(UnansweredProductCount: 1),
+            supersededOffer: true);
+
+        Assert.Equal(Superseded, Assert.Single(result.RemovableFiles).FullPath);
+        Assert.True(result.WithheldBy.WholesaleCount > 0);
+    }
+
     [Fact]
     public async Task A_wholesale_withholding_that_caught_nothing_does_not_report_itself()
     {
@@ -138,7 +118,7 @@ public class FileSystemScanServiceSecondInstanceTests
         // zero and the withheld list is empty. The window's finished screen counts that
         // list, and at zero it gives the all-clear, which is right for this machine,
         // nothing in its folder having gone unclaimed.
-        var result = await Scan(new EnumerationCensus(InstanceProductCount: 1), walkOrphan: false);
+        var result = await Scan(new EnumerationCensus(UnansweredProductCount: 1), walkOrphan: false);
 
         Assert.Empty(result.RemovableFiles);
         Assert.Equal(0, result.WithheldBy.WholesaleCount);

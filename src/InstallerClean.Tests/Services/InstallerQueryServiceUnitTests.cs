@@ -2615,8 +2615,9 @@ public class InstallerQueryServiceUnitTests
     //
     // THE READING DECIDES THE WALK-DERIVED OFFER, and the pass that reads a product
     // code out of a cached file is the last one between an unclaimed candidate and the
-    // offer. What acts on these two counts is EnumerationCensus.SecondInstanceNotRuledOut,
-    // which reads them together and never one on its own. The tests below are about the
+    // offer. What acts on each reading is the mark it puts on the installation's listed
+    // row (ListedInstallation.SecondCopyNotRuledOut), which that pass reads; the two
+    // counts go to the report and decide nothing. The tests below are about the
     // READING: what a positive is, what an absence is, and what a failure is.
     // The population these cover is the products the enumeration returned; the ones it
     // lost are in InstallerQueryServiceSecondInstanceTests.

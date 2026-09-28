@@ -104,13 +104,22 @@ namespace InstallerClean.Services;
 /// installation. A per-user installation keeps that record under its owner's account,
 /// and it is read only where the owner is the account this process runs as.
 ///
+/// AND AN INSTALLATION THE CALLER COULD NOT RULE OUT AS A SECOND COPY ANSWERS FOR EVERY
+/// FILE. Its cached package and its original package need not declare any code the check
+/// can link it by, so every installation package the answer about its own product would
+/// let through is compared by file identity with the packages each such installation
+/// opens, its cached package and the packages its sources name, and one it opens as is
+/// kept. Where those packages cannot all be seen, every such installation package is
+/// kept.
+///
 /// IT ONLY EVER WITHHOLDS. No answer it can give puts a file on the list, clears
 /// one another gate kept, or weakens anything upstream: a candidate it lets
 /// through is decided by the rest of the scan exactly as if this check had not
 /// run. For an installation package, a file it cannot read, a question it cannot
 /// put, an answer that contradicts the caller's enumeration, an installation whose
 /// cached package does not say which product it declares and whose own record does not
-/// show it to be an ordinary installation, a source that answers off the allowlist and
+/// show it to be an ordinary installation, an installation not ruled out as a second
+/// copy whose packages cannot all be seen, a source that answers off the allowlist and
 /// a recorded package it cannot identify all keep the file. For a patch, a file it
 /// cannot read, a registration it cannot list or ask about, an answer about a product
 /// it names that contradicts the caller's enumeration, a source that answers off the
@@ -151,9 +160,11 @@ public interface IDeclaredProductCheck
     /// <see cref="DeclaredProductOutcome.Unestablished"/>, and a patch naming that
     /// product gives <see cref="DeclaredProductOutcome.DeclaredPatchUnestablished"/>.
     /// The check also reads the cached package of each, once per pass, to find the
-    /// installations registered under a code other than the one their package declares.
-    /// An empty list compares nothing, which is right only for an enumeration that
-    /// listed nothing.
+    /// installations registered under a code other than the one their package declares;
+    /// and it reads the packages opened by each one marked
+    /// <see cref="ListedInstallation.SecondCopyNotRuledOut"/>, once per pass, to compare
+    /// every installation package with. An empty list compares nothing, which is right
+    /// only for an enumeration that listed nothing.
     /// </param>
     /// <param name="recordRefusal">
     /// Where a reader refusal goes, given the exception to log and the reader's own
@@ -204,10 +215,8 @@ public enum DeclaredProductOutcome
     /// table, its ProductCode row is absent or is not a GUID. The other is about
     /// the RECORDS: the keyed enumeration answered with something outside the
     /// returns that mean an answer, or with an answer that leaves out an installation
-    /// of the product the caller's own enumeration listed, or an installation the
-    /// caller listed has a cached package that does not say which product it declares
-    /// and is not shown by its own record to be an ordinary installation. They are
-    /// different things to have found out, which is exactly why they are not reported
+    /// of the product the caller's own enumeration listed. They are different things to
+    /// have found out, which is exactly why they are not reported
     /// anywhere as one thing; what they share, and the whole of what this value claims,
     /// is that nothing was established. Nothing outside this pass reads which of the two
     /// it was.
@@ -219,7 +228,9 @@ public enum DeclaredProductOutcome
     /// product is installed, in any account and any context, the caller's own
     /// enumeration listed no installation of it, and no cached package the check read,
     /// of the installations it listed, declares it, every one whose cached package did
-    /// not read being shown by its own record to be an ordinary installation. The
+    /// not read being shown by its own record to be an ordinary installation. Every
+    /// installation the caller could not rule out as a second copy opens packages the
+    /// check saw, and this file is shown to be a different file from all of them. The
     /// candidate goes on being decided by everything else.
     ///
     /// A POSITIVE ANSWER AND NOT AN ABSENCE OF ONE, which is the distinction the
@@ -233,7 +244,8 @@ public enum DeclaredProductOutcome
     /// Windows still holds a record of the product this file declares it belongs
     /// to, or of an installation whose cached package declares that product, and for at
     /// least one such installation the check cannot show that every package it opens is
-    /// a different file. Kept back.
+    /// a different file; or an installation the caller could not rule out as a second copy
+    /// of a program opens this file as its package. Kept back.
     ///
     /// That covers a recorded <c>LocalPackage</c> value that is empty or will not
     /// read, one naming a folder or a file that is absent or cannot be identified,
@@ -276,8 +288,10 @@ public enum DeclaredProductOutcome
     /// one, which starts with a drive letter, a ':' and a '\', or with two '\'. Every
     /// source list holds network entries only, none of them naming an environment
     /// variable, names no media package path, has a package name naming a file alone,
-    /// and was last used from one of its own network entries or not at all. The
-    /// candidate goes on being decided by everything else.
+    /// and was last used from one of its own network entries or not at all. Every
+    /// installation the caller could not rule out as a second copy opens packages the
+    /// check saw, and this file is a different file from all of them too. The candidate
+    /// goes on being decided by everything else.
     ///
     /// Windows Installer opens a product's cached package through the
     /// <c>LocalPackage</c> value recorded for each installation, and its original
@@ -407,6 +421,30 @@ public enum DeclaredProductOutcome
     /// a different file from any the records name.
     /// </summary>
     CandidateIdentityUnestablished,
+
+    /// <summary>
+    /// The answer about the product this installation package declares would let it
+    /// through, and either an installation the caller could not rule out as a second copy
+    /// of a program opens packages the check could not all see, or an installation's
+    /// cached package does not say which product it declares and its own record does not
+    /// show it to be an ordinary installation. Kept back.
+    ///
+    /// IT IS ABOUT ANOTHER INSTALLATION AND NOT ABOUT THIS FILE. Such an installation
+    /// could be a second copy of a program installed under an instance transform, whose
+    /// packages need not declare any code this file could be linked to it by, so any
+    /// installation package could be one it opens. So every candidate the answer would
+    /// let through is given this verdict, on the same pass, whatever it declares.
+    ///
+    /// Where a single installation's packages cannot all be seen it covers what
+    /// <see cref="DeclaredProductInstalled"/> covers for one: a cached package that is
+    /// empty, will not read, names nothing identifiable or yields no product code, and
+    /// every source the check cannot rule out, a per-user-unmanaged context and a source
+    /// in the Installer folder among them. A check constructed without its two file
+    /// readers or its registry reader, or screening without the Installer folder to
+    /// compare against, answers this beside every such installation, having no way to
+    /// look.
+    /// </summary>
+    SecondCopyUnestablished,
 }
 
 /// <summary>Reading a <see cref="DeclaredProductOutcome"/>.</summary>

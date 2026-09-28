@@ -217,13 +217,13 @@ public enum HeldBackReason
     /// This one rests on a fact about the machine and on nothing about the file,
     /// which is why it earns a count of its own even though no sentence names it.
     ///
-    /// WHAT REACHES IT is <see cref="WithholdingLegs.Any"/> for an installation package
-    /// and <see cref="WithholdingLegs.AnyHoldingPatchFiles"/> for a patch file, the
-    /// expressions the scan's own withholding asks, put to the re-enumeration's census and
-    /// to the registration side of the identity comparison this check re-runs: a leg added
-    /// there is acted on here without this file being edited. Several different
-    /// findings reach it, which is one reason among several that the copy names no
-    /// cause at all.
+    /// WHAT REACHES IT is <see cref="WithholdingLegs.Any"/>, the expression the scan's own
+    /// withholding asks, put to the re-enumeration's census and to the registration side
+    /// of the identity comparison this check re-runs, so a leg added there is acted on
+    /// here without this file being edited; and the declared-product screen's
+    /// <see cref="DeclaredProductOutcome.SecondCopyUnestablished"/>, under which the scan
+    /// offers no installation package that verdict reaches. Several different findings
+    /// reach it, which is one reason among several that the copy names no cause at all.
     ///
     /// IT DROPS THE WALK-DERIVED HALF OF A BATCH AND NOT THE WHOLE OF IT, as the scan
     /// does. A superseded registration is offered beside the walk-derived files and is
@@ -240,8 +240,9 @@ public enum HeldBackReason
     /// A check the scan makes on the file itself, made again just before acting, did
     /// not let the file through: the containment guard did not answer Safe, its own
     /// identity would not read or matches only registrations that are still
-    /// removable, the declared-product screen kept it, or its age was not shown to be
-    /// a day old.
+    /// removable, the declared-product screen kept it on any verdict but
+    /// <see cref="DeclaredProductOutcome.SecondCopyUnestablished"/>, or its age was not
+    /// shown to be a day old.
     ///
     /// IT IS ABOUT THE FILE AND NOT ABOUT A REGISTRATION NAMING ITS PATH, which is what
     /// separates it from the first three, and it is about one file where

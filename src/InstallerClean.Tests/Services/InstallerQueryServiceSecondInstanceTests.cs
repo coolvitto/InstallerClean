@@ -17,10 +17,16 @@ namespace InstallerClean.Tests.Services;
 /// recovered-product condition opens by describing exactly that machine: a copy the
 /// sweep does not return and the registry does.
 ///
+/// EACH INSTALLATION IS LISTED WITH ITS OWN READING. A positive reading, or one that did
+/// not read, marks the row it was taken for
+/// (<see cref="ListedInstallation.SecondCopyNotRuledOut"/>), a recovered row as much as
+/// an enumerated one, and the declared-product check compares every installation package
+/// with the packages each marked installation opens. The counts decide nothing.
+///
 /// AND THE PRODUCTS NOTHING SHOWS WERE ASKED. A product the registry names that Windows
 /// would not say is installed is never recovered, so it is never put the question, and
 /// a registry key whose name yields no code cannot be matched to any product that was.
-/// The rule reads both counts, and the last two fixtures are those two states.
+/// The third withholding leg reads both counts, and two fixtures are those two states.
 ///
 /// READ WHAT EACH FIXTURE SETS UP. Every one of them differs from its neighbour in a
 /// single reading, so a count that moved for any other reason would show up as the
@@ -46,7 +52,7 @@ public class InstallerQueryServiceSecondInstanceTests
         Assert.Equal(1, census.RecoveredProductCount);
         Assert.Equal(1, census.InstanceProductCount);
         Assert.Equal(0, census.InstanceTypeUnreadableCount);
-        Assert.True(census.SecondInstanceNotRuledOut);
+        Assert.False(census.RegistryProductUnaskable);
     }
 
     [Fact]
@@ -62,7 +68,7 @@ public class InstallerQueryServiceSecondInstanceTests
         Assert.Equal(1, census.RecoveredProductCount);
         Assert.Equal(0, census.InstanceProductCount);
         Assert.Equal(0, census.InstanceTypeUnreadableCount);
-        Assert.False(census.SecondInstanceNotRuledOut);
+        Assert.False(census.RegistryProductUnaskable);
     }
 
     [Fact]
@@ -78,22 +84,23 @@ public class InstallerQueryServiceSecondInstanceTests
         Assert.Equal(1, census.RecoveredProductCount);
         Assert.Equal(0, census.InstanceProductCount);
         Assert.Equal(0, census.InstanceTypeUnreadableCount);
-        Assert.False(census.SecondInstanceNotRuledOut);
+        Assert.False(census.RegistryProductUnaskable);
     }
 
     [Fact]
-    public async Task A_recovered_product_that_would_not_answer_withholds_on_the_same_terms()
+    public async Task A_recovered_product_that_would_not_answer_is_counted_as_unreadable()
     {
         // A question put and not answered, on the population that had never been asked
         // one. It reaches the unreadable count and not the positive one, which is the
-        // only honest place for it: nothing has been established either way, and the
-        // rule reads the two together.
+        // only honest place for it: nothing has been established either way. The row it
+        // was taken for is marked as a positive reading marks it, which the test on the
+        // marks below pins.
         var census = await Scan(recoveredInstanceTypeResult: BadConfiguration);
 
         Assert.Equal(1, census.RecoveredProductCount);
         Assert.Equal(0, census.InstanceProductCount);
         Assert.Equal(1, census.InstanceTypeUnreadableCount);
-        Assert.True(census.SecondInstanceNotRuledOut);
+        Assert.False(census.RegistryProductUnaskable);
     }
 
     [Fact]
@@ -139,7 +146,7 @@ public class InstallerQueryServiceSecondInstanceTests
         Assert.Equal(1, census.UnansweredProductCount);
         Assert.Equal(0, census.InstanceProductCount);
         Assert.Equal(0, census.InstanceTypeUnreadableCount);
-        Assert.True(census.SecondInstanceNotRuledOut);
+        Assert.True(census.RegistryProductUnaskable);
     }
 
     [Fact]
@@ -155,12 +162,48 @@ public class InstallerQueryServiceSecondInstanceTests
         Assert.Equal(0, census.UnansweredProductCount);
         Assert.Equal(0, census.InstanceProductCount);
         Assert.Equal(0, census.InstanceTypeUnreadableCount);
-        Assert.True(census.SecondInstanceNotRuledOut);
+        Assert.True(census.RegistryProductUnaskable);
+    }
+
+    public static TheoryData<string?, uint?, string?, uint?, bool, bool> Readings() => new()
+    {
+        // enumerated value, enumerated forced result, recovered value, recovered forced result,
+        //                                     enumerated marked, recovered marked
+        { "1",  null,             "0",  null,             true,  false },
+        { null, null,             "1",  null,             false, true },
+        { null, null,             null, BadConfiguration, false, true },
+        { null, BadConfiguration, "0",  null,             true,  false },
+        { "0",  null,             null, UnknownProperty,  false, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(Readings))]
+    public async Task Each_listed_installation_carries_the_reading_taken_for_it(
+        string? enumeratedInstanceType, uint? enumeratedInstanceTypeResult,
+        string? recoveredInstanceType, uint? recoveredInstanceTypeResult,
+        bool enumeratedMarked, bool recoveredMarked)
+    {
+        // The walk's row first, then the recovered row, each marked by its own reading
+        // and by nothing the other installation answered. A positive reading and a read
+        // that failed mark the row alike; an ordinary value and an absent one leave it
+        // unmarked.
+        var result = await Enumerate(
+            enumeratedInstanceType: enumeratedInstanceType,
+            enumeratedInstanceTypeResult: enumeratedInstanceTypeResult,
+            recoveredInstanceType: recoveredInstanceType,
+            recoveredInstanceTypeResult: recoveredInstanceTypeResult);
+
+        Assert.Equal(
+            new[] { (Enumerated, enumeratedMarked), (Recovered, recoveredMarked) },
+            result.Installations.Select(i => (i.ProductCode, i.SecondCopyNotRuledOut)));
     }
 
     /// <param name="enumeratedInstanceType">
     /// What the product the machine-wide sweep DID return answers. Null leaves the
     /// property unset, which is the ordinary machine.
+    /// </param>
+    /// <param name="enumeratedInstanceTypeResult">
+    /// A forced return code out of the enumerated product's read instead.
     /// </param>
     /// <param name="recoveredInstanceType">
     /// What the product the sweep lost answers once the registry has named it and
@@ -182,6 +225,16 @@ public class InstallerQueryServiceSecondInstanceTests
         string? recoveredInstanceType = null,
         uint? recoveredInstanceTypeResult = null,
         bool recoveredUnaskable = false,
+        int unparseableKeyNames = 0) =>
+        (await Enumerate(enumeratedInstanceType, null, recoveredInstanceType, recoveredInstanceTypeResult,
+            recoveredUnaskable, unparseableKeyNames)).Census;
+
+    private static async Task<InstallerQueryResult> Enumerate(
+        string? enumeratedInstanceType = null,
+        uint? enumeratedInstanceTypeResult = null,
+        string? recoveredInstanceType = null,
+        uint? recoveredInstanceTypeResult = null,
+        bool recoveredUnaskable = false,
         int unparseableKeyNames = 0)
     {
         var msi = new FakeMsiApi();
@@ -190,6 +243,8 @@ public class InstallerQueryServiceSecondInstanceTests
         msi.SetProductProperty(Enumerated, "ProductName", "A Program");
         if (enumeratedInstanceType is not null)
             msi.SetProductProperty(Enumerated, "InstanceType", enumeratedInstanceType);
+        if (enumeratedInstanceTypeResult is { } enumeratedForced)
+            msi.ProductPropertyResult[(Enumerated, "InstanceType")] = enumeratedForced;
 
         // The recovered product is deliberately NOT added to the enumeration. It reaches
         // the scan only through the registry comparison naming it and the keyed question
@@ -217,6 +272,6 @@ public class InstallerQueryServiceSecondInstanceTests
                 crashLogSink: null)
             .GetRegisteredPackagesAsync();
 
-        return result.Census;
+        return result;
     }
 }

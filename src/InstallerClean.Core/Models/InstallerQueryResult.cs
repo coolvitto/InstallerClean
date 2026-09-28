@@ -55,8 +55,7 @@ namespace InstallerClean.Models;
 /// decides from it whether the superseded rows are withheld, before
 /// <see cref="Packages"/> is returned. The scan and the check made just before a Move or
 /// Delete decide from it, with the registration side's identity reads, whether the
-/// walk-derived offer, or its installation packages alone, is withheld wholesale (see
-/// <see cref="WithholdingLegs"/>). The
+/// walk-derived offer is withheld wholesale (see <see cref="WithholdingLegs"/>). The
 /// scan carries it into its own result, where the opt-in report reads it and the
 /// command line names the withholding legs that fired.
 /// Default on a result built by anything that does not enumerate, which reads as a
@@ -115,7 +114,7 @@ public record InstallerQueryResult(
 ///
 /// THE FIELDS THAT DECIDE ANYTHING ARE READ THROUGH THE TWO PROPERTIES AT THE END,
 /// <see cref="AnyRecordedPathUnestablished"/> and
-/// <see cref="SecondInstanceNotRuledOut"/>, and the rest decide nothing. A count
+/// <see cref="RegistryProductUnaskable"/>, and the rest decide nothing. A count
 /// that gained a consumer anywhere else would be a second, quieter copy of a rule
 /// that already exists in one place.
 ///
@@ -235,10 +234,9 @@ public record InstallerQueryResult(
 ///
 /// IT WITHHOLDS TWICE. The superseded class is withheld, each such code being one of the
 /// program entries this scan could not check. And the whole walk-derived offer is
-/// withheld, through <see cref="SecondInstanceNotRuledOut"/> and
-/// <see cref="RegistryProductUnaskable"/>: a product Windows would not answer about was
-/// never asked its <c>InstanceType</c>, so nothing shows it is not a second instance of
-/// itself, and it cannot be asked whether it holds a patch.
+/// withheld, through <see cref="RegistryProductUnaskable"/>: a product Windows would not
+/// answer about was never asked its <c>InstanceType</c>, so nothing shows it is not a
+/// second instance of itself, and it cannot be asked whether it holds a patch.
 /// </param>
 /// <param name="UnparseableProductKeyNames">
 /// Registry product key names that yielded no product code, so there was nothing
@@ -257,9 +255,9 @@ public record InstallerQueryResult(
 /// missed, so it is a property of the registry's contents rather than of a run.
 ///
 /// It withholds on the same two terms as the count above, the whole walk-derived offer
-/// included: a key whose name yields no code cannot be matched to any product that was
-/// asked, so nothing shows the product it belongs to was asked its <c>InstanceType</c>
-/// or whether it holds a patch.
+/// included, through <see cref="RegistryProductUnaskable"/>: a key whose name yields no
+/// code cannot be matched to any product that was asked, so nothing shows the product it
+/// belongs to was asked its <c>InstanceType</c> or whether it holds a patch.
 ///
 /// Between them these three report, per machine, what proportion of its registry
 /// keys really were residue. The difference between the two product totals cannot
@@ -270,17 +268,18 @@ public record InstallerQueryResult(
 /// instance of themselves under an instance transform. PRODUCTS, not files, and
 /// not a count of anything held back.
 ///
-/// IT DECIDES. A second copy's original package, the one it was installed from,
-/// declares the base code, and a keyed question about that code can answer "no record"
-/// while the copy, registered under a transform-generated code, still needs the file.
+/// THE COUNT DECIDES NOTHING; THE READING BEHIND IT DOES. A second copy's original
+/// package, the one it was installed from, declares the base code, and a keyed question
+/// about that code can answer "no record" while the copy, registered under a
+/// transform-generated code, still needs the file.
 /// <see cref="Services.DeclaredProductCheck"/> reads the code out of a file and asks
-/// exactly that question.
+/// exactly that question, so each installation read this way, and each whose reading
+/// failed, carries <see cref="ListedInstallation.SecondCopyNotRuledOut"/> into the
+/// check, which compares every installation package with the packages that
+/// installation opens.
 ///
-/// What acts on it is <see cref="SecondInstanceNotRuledOut"/>, which reads this
-/// count together with the one below, and with the two counts of products the
-/// registry names that nothing shows were asked, and never on its own. This member
-/// is carried and sent apart, because how often a machine ANSWERS the question and
-/// how often it REFUSES to are different facts.
+/// This member is carried and sent apart from the one below, because how often a
+/// machine ANSWERS the question and how often it REFUSES to are different facts.
 ///
 /// A POSITIVE READING IS THE ONLY THING COUNTED. A value that will not parse is
 /// not a positive, and neither is an absent property, which Microsoft documents as
@@ -291,7 +290,9 @@ public record InstallerQueryResult(
 /// <param name="InstanceTypeUnreadableCount">
 /// Products whose <c>InstanceType</c> read failed, so they were neither counted
 /// above nor shown to be ordinary. THIS IS WHAT STOPS A ZERO ABOVE BEING READ AS
-/// "NO SUCH PRODUCT ON THIS MACHINE".
+/// "NO SUCH PRODUCT ON THIS MACHINE". Each such installation carries
+/// <see cref="ListedInstallation.SecondCopyNotRuledOut"/> into the declared-product check
+/// as a positive reading does.
 ///
 /// IT IS THE HALF THAT MAKES THE COUNT HONEST AND IT IS NOT A TRI-STATE. A single
 /// three-valued verdict could say complete, incomplete or unreadable and could not
@@ -299,16 +300,15 @@ public record InstallerQueryResult(
 /// machines needs. A count beside a count is the shape every other member here
 /// uses.
 ///
-/// WHICH PRODUCTS WERE ASKED AT ALL. Both counts
-/// cover the products the enumeration returned AND the products it lost that the
-/// registry named and the recovery pass resolved as installed
-/// (<see cref="RecoveredProductCount"/>), which are asked one keyed read each. A
-/// product the walk never reached goes unasked only in the two states the recovery
-/// cannot settle: a code Windows
-/// would not answer about (<see cref="UnansweredProductCount"/>) and a registry key
-/// whose name yielded no code (<see cref="UnparseableProductKeyNames"/>). Either of
-/// those non-zero, or <see cref="UnreadableProducts"/> on a run where no fallback
-/// named the lost product, makes both counts a floor.
+/// WHICH PRODUCTS WERE ASKED AT ALL. Both counts cover the products the enumeration
+/// returned AND the products it lost that the registry named and the recovery pass
+/// resolved as installed (<see cref="RecoveredProductCount"/>), which are asked one keyed
+/// read each. A product the walk never reached goes unasked only in the two states the
+/// recovery cannot settle: a code Windows would not answer about
+/// (<see cref="UnansweredProductCount"/>) and a registry key whose name yielded no code
+/// (<see cref="UnparseableProductKeyNames"/>). Either of those non-zero, or
+/// <see cref="UnreadableProducts"/> on a run where no fallback named the lost product,
+/// makes both counts a floor.
 /// </param>
 /// <param name="ProductPatchKeyCount">
 /// Products whose registry <c>Patches</c> key opened, from the per-product patch
@@ -578,80 +578,46 @@ public readonly record struct EnumerationCensus(
         PathNormalisationRefusedTotal > 0 || PathResolverRefusedTotal > 0;
 
     /// <summary>
-    /// Whether this scan failed to establish that every product it knows of is an
-    /// ordinary single-instance installation. THE ONE THING THE SECOND-INSTANCE LEG FIRES
-    /// ON, with <see cref="RegistryProductUnaskable"/> deciding whether it takes the
-    /// walk-derived patch files as well, and it is here rather than in the service that
-    /// acts on it for the reason <see cref="AnyRecordedPathUnestablished"/> is: a rule
-    /// that named the members itself would be one edit away from silently not acting on a
-    /// member added later, with a green build and a counter still reporting.
-    ///
-    /// FOUR MEMBERS, AND THE SUPERORDINATE IS EXACT. <see cref="InstanceProductCount"/>
-    /// is a positive answer that a product IS a second instance of itself.
-    /// <see cref="InstanceTypeUnreadableCount"/> is a question that was put and not
-    /// answered. <see cref="UnansweredProductCount"/> is a product the registry names
-    /// that Windows would not say was installed, so it was never put the question.
-    /// <see cref="UnparseableProductKeyNames"/> is a registry product key whose name
-    /// yields no code, so it cannot be matched to any product that was asked. The only
-    /// thing true of all four is the one this property is named for: the scan cannot say
-    /// that no installed product is a second instance of itself. Nothing may state a
-    /// cause over them, here or on any surface.
-    ///
-    /// WHY ANY OF THEM WITHHOLDS. A product installed under an instance transform registers
-    /// under a product code the transform produced, while the original package it was
-    /// installed from declares the base code, and that original can be a file in the
-    /// Installer folder which the copy's source list names. So
-    /// <see cref="Services.DeclaredProductCheck"/>, which reads a product code OUT OF A
-    /// FILE in the folder and puts it to Windows, can be told there is no such record
-    /// while a live registration still needs that file. The census cannot tell WHICH file
-    /// in the folder is a second copy's original package, which is the whole condition,
-    /// so the walk-derived installation packages are withheld.
-    ///
-    /// WALK-DERIVED PATCH FILES ARE WITHHELD ONLY ON <see cref="RegistryProductUnaskable"/>.
-    /// A patch file declares its patch code, and the check puts that code to every
-    /// installation this scan listed, a second copy included, so a copy holding the patch
-    /// answers for itself. A product the registry names that this scan could not ask about
-    /// is the one such a question cannot reach.
-    ///
-    /// AND NOT KNOWING WITHHOLDS ON THE SAME TERMS AS KNOWING. A read that failed leaves
-    /// the machine in exactly the state the positive reading describes as far as this rule
-    /// can tell, and so does a product the registry names that nothing shows was asked.
-    /// A code Windows would not say was installed is never recovered, so the pass over
-    /// the products the enumeration lost does not ask it; and a key whose name yields no
-    /// code cannot be matched to any product that was asked. A rule that acted on the
-    /// positive alone would be armed by the machines that answer and disarmed by the
-    /// machines that do not.
-    ///
-    /// A BOOL RATHER THAN A SUM. The four count different things and adding them would
-    /// produce a figure that reads as a product count and is not one. The counts are
-    /// carried apart for the report, which reads them apart; the rule needs only whether
-    /// any of them is above zero.
-    ///
-    /// WHAT IT READS. Every product the enumeration returned, asked one keyed read each;
-    /// every product it lost that a key under <c>UserData</c> names and Windows confirms
-    /// installed, asked the same way; and, through the two counts, every such key that
-    /// names a code Windows would not answer about or carries a name yielding no code.
-    /// Do not widen it to the chance that an enumeration is short: that is true of every
-    /// scan, so the rule would then fire on all of them.
-    /// </summary>
-    public bool SecondInstanceNotRuledOut =>
-        InstanceProductCount > 0
-        || InstanceTypeUnreadableCount > 0
-        || UnansweredProductCount > 0
-        || UnparseableProductKeyNames > 0;
-
-    /// <summary>
     /// Whether the registry names a product this scan could not put a question to by
     /// name: a code Windows would not say was installed
     /// (<see cref="UnansweredProductCount"/>), or a product key whose name yields no code
-    /// (<see cref="UnparseableProductKeyNames"/>). Two of
-    /// <see cref="SecondInstanceNotRuledOut"/>'s four members, and the two on which the
-    /// walk-derived patch files are withheld as well as the installation packages.
+    /// (<see cref="UnparseableProductKeyNames"/>). THE ONE THING THE THIRD WITHHOLDING LEG
+    /// FIRES ON, and it is here rather than in the service that acts on it for the reason
+    /// <see cref="AnyRecordedPathUnestablished"/> is: a rule that named the members itself
+    /// would be one edit away from silently not acting on a member added later, with a
+    /// green build and a counter still reporting.
     ///
-    /// WHY THESE TWO. The check on a walk-derived patch file puts the patch's code to every
-    /// installation this scan listed and to every installation of a product the file
-    /// names. Neither reaches a product this scan could not ask about, which may hold the
-    /// patch, or be a second copy of a program that does.
+    /// TWO MEMBERS, AND NOTHING MAY STATE ONE CAUSE OVER THEM. The first is a question
+    /// Windows did not answer; the second was never a question, the key's name yielding
+    /// nothing to ask with. What is true of both is the one thing this property is named
+    /// for: the registry names a product this scan did not ask about.
+    ///
+    /// WHY IT WITHHOLDS THE WHOLE WALK-DERIVED OFFER. Such a product was never asked its
+    /// <c>InstanceType</c>, so nothing shows it is not a second instance of itself under an
+    /// instance transform. A second copy registers under the product code the transform
+    /// produced, while the original package it was installed from declares the base code,
+    /// and that original can be a file in the Installer folder which the copy's source list
+    /// names. <see cref="Services.DeclaredProductCheck"/> compares every installation
+    /// package with the packages each listed installation not ruled out as a second copy
+    /// opens, and a product this scan did not ask about is on no list, so nothing compares a
+    /// file with its packages. The same product may hold a patch, and the check on a patch
+    /// file puts the patch's code to the installations this scan listed and to the
+    /// installations of the products the file names, neither of which reaches it. So the
+    /// walk-derived installation packages and patch files are both withheld.
+    ///
+    /// A LISTED INSTALLATION IS NOT A MEMBER, WHATEVER ITS <c>InstanceType</c> READING. One
+    /// read as a second copy, or whose reading failed, is compared file by file
+    /// (<see cref="ListedInstallation.SecondCopyNotRuledOut"/>), and
+    /// <see cref="InstanceProductCount"/> and <see cref="InstanceTypeUnreadableCount"/>
+    /// count such installations for the report and withhold nothing themselves.
+    ///
+    /// A BOOL RATHER THAN A SUM. The two count different things and adding them would
+    /// produce a figure that reads as a product count and is not one. The counts are
+    /// carried apart for the report, which reads them apart; the rule needs only whether
+    /// either of them is above zero.
+    ///
+    /// Do not widen it to the chance that an enumeration is short: that is true of every
+    /// scan, so the rule would then fire on all of them.
     /// </summary>
     public bool RegistryProductUnaskable =>
         UnansweredProductCount > 0

@@ -79,7 +79,8 @@ public class ResultLogEntryTests
         UnsettledEnumeratedProductCount: 0,
         RecoveredEnumeratedInstallationCount: 0,
         UnattributedPatchFileCount: 0,
-        SupersededScanWideWithheldCount: 0);
+        SupersededScanWideWithheldCount: 0,
+        WithheldSecondCopyUnestablishedCount: 0);
 
     private static MachineInfo SampleMachine() => new(
         ShortNameCreation: ShortNameCreationLabels.NoVolumes,
@@ -264,13 +265,14 @@ public class ResultLogEntryTests
                 // there. Three withheld figures over three different populations;
                 // adding any two of them would answer no question.
                 "withheldTotalBytes", "registeredWithheldCount",
-                // The eleven counts that split withheldCandidateCount, appended in the
-                // order the split declares them, and they add up to it. Each is one
-                // finding about one machine and nothing may add any two of them: the
-                // screen's four verdicts, that screen having answered about nothing,
-                // a per-file identity read that gave up, the whole walk-derived offer
-                // going at once on a fact about the machine, the age check's two, and
-                // the containment check's two.
+                // Eleven of the twelve counts that split withheldCandidateCount, appended
+                // in the order the split declares them; the twelfth is last in the
+                // object. Together they add up to it. Each is one finding about one
+                // machine and nothing may add any two of them: the screen's four
+                // verdicts, that screen having answered about nothing, a per-file
+                // identity read that gave up, the whole walk-derived offer going at once
+                // on a fact about the machine, the age check's two, and the containment
+                // check's two.
                 "withheldIdentityUnestablishedCount", "withheldWholesaleCount",
                 "withheldDeclaredProductInstalledCount",
                 "withheldDeclaredProductUnestablishedCount",
@@ -295,6 +297,12 @@ public class ResultLogEntryTests
                 // withheldPatchCount, and the recorded-path count above is a sub-count of
                 // this.
                 "supersededScanWideWithheldCount",
+                // The twelfth arm of the split of withheldCandidateCount: installation
+                // packages the screen kept beside an installation that may be a second
+                // copy of a program, either one whose packages it could not all see or one
+                // whose cached package does not say what it declares and whose own record
+                // does not show an ordinary installation.
+                "withheldSecondCopyUnestablishedCount",
             ],
             root.GetProperty("scan").EnumerateObject().Select(p => p.Name));
 
@@ -859,7 +867,7 @@ public class ResultLogEntryTests
                 UnattributedPatchFileCount: 36),
             RegisteredWithheldCount: 19,
             WithheldFiles: withheld,
-            WithheldBy: new WithholdingSplit(20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
+            WithheldBy: new WithholdingSplit(20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 37),
             SupersededContainmentRefusedCount: 32,
             SupersededContainmentUnestablishedCount: 33);
 
@@ -902,6 +910,7 @@ public class ResultLogEntryTests
         Assert.Equal(35, info.RecoveredEnumeratedInstallationCount);
         Assert.Equal(36, info.UnattributedPatchFileCount);
         Assert.Equal(7, info.SupersededScanWideWithheldCount);
+        Assert.Equal(37, info.WithheldSecondCopyUnestablishedCount);
     }
 
     [Fact]

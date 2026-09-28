@@ -18,9 +18,12 @@ namespace InstallerClean.Services;
 /// The cached package of each of those installations is read too, and a candidate is
 /// also put to every installation whose cached package declares the candidate's code
 /// while the installation is registered under another, read by the code it is registered
-/// under. An installation whose cached package does not say which product it declares
-/// keeps every candidate installation package, unless its own record shows it to be an
-/// ordinary installation.
+/// under. Every candidate installation package is compared as well with the packages
+/// each installation the caller could not rule out as a second copy of a program opens,
+/// its cached package and the packages its sources name, and where those cannot all be
+/// seen every candidate installation package is kept. So is every one where an
+/// installation's cached package does not say which product it declares, unless its own
+/// record shows it to be an ordinary installation.
 /// For each candidate patch it reads the patch's own code and the products its Template
 /// names, finds the registrations of that patch through the machine-wide patch
 /// enumeration and the keyed patch read, and reads the <c>LocalPackage</c> each
@@ -75,8 +78,10 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// whose declared product is installed is kept as
     /// <see cref="DeclaredProductOutcome.DeclaredProductInstalled"/>, and every
     /// candidate whose declared patch is registered as
-    /// <see cref="DeclaredProductOutcome.DeclaredPatchRegistered"/>. WITHOUT THE
-    /// REGISTRY READER NO SOURCE LIST IS RELIED ON, and every candidate the comparison
+    /// <see cref="DeclaredProductOutcome.DeclaredPatchRegistered"/>, and beside an
+    /// installation not ruled out as a second copy every candidate the answer would let
+    /// through is kept as <see cref="DeclaredProductOutcome.SecondCopyUnestablished"/>.
+    /// WITHOUT THE REGISTRY READER NO SOURCE LIST IS RELIED ON, and every candidate the comparison
     /// reaches a source list for is kept the same way. WITHOUT THE RUNNING ACCOUNT NO
     /// PER-USER INSTALLATION'S RECORD IS READ, so one whose cached package does not say
     /// what it declares keeps every installation package. That is the direction a missing
@@ -193,11 +198,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             // The product-level answer is shared by every candidate declaring the
             // code; whether the recorded packages are OTHER files is a question about
             // this candidate, so it is asked per file.
-            outcomes[i] = answer.Outcome == DeclaredProductOutcome.DeclaredProductInstalled
-                && answer.RecordedPackages is { } recorded
-                    ? CompareWithRecorded(candidate.FullPath, recorded,
-                        DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, answer.Outcome)
-                    : answer.Outcome;
+            outcomes[i] = Settle(candidate.FullPath, answer, pass, namesAFileInInstallerFolder, recordRefusal);
         }
 
         return outcomes;
@@ -235,12 +236,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         if (resolved.Unaskable)
             return new DeclarationAnswer(DeclaredProductOutcome.Unestablished, null);
 
-        // An installation whose cached package does not say what it declares, and whose
-        // own record does not show it to be an ordinary installation, could be a second
-        // copy of any program, so it keeps every file.
         var links = LinksOf(pass, recordRefusal);
-        if (links.UnreadPackageNotRuledOut)
-            return new DeclarationAnswer(DeclaredProductOutcome.Unestablished, null);
 
         var installations = new List<(string RegisteredCode, string? Sid, MsiInstallContext Context)>();
         foreach (var (sid, context) in resolved.Instances) installations.Add((code, sid, context));
@@ -255,20 +251,173 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     }
 
     /// <summary>
+    /// The verdict for one installation package, given the answer about the product it
+    /// declares: that answer, put to the packages opened by every installation the
+    /// caller could not rule out as a second copy of a program.
+    ///
+    /// ONLY A CANDIDATE THE ANSWER LETS THROUGH IS PUT TO THEM. A verdict that already
+    /// keeps the file stands, so a file whose own product's packages cannot be seen stays
+    /// <see cref="DeclaredProductOutcome.DeclaredProductInstalled"/> whatever a second
+    /// copy opens.
+    ///
+    /// A SECOND COPY OPENS PACKAGES THAT DECLARE NO PARTICULAR CODE. A program installed
+    /// under an instance transform is registered under the code the transform produced,
+    /// and the package it was installed from, and the package cached for it, need not
+    /// declare that code or any code the check can link it by. So the candidate is
+    /// compared by file identity with every package such an installation opens, its
+    /// cached package and the packages its sources name, whatever each declares. A
+    /// candidate that opens as one of them is kept as
+    /// <see cref="DeclaredProductOutcome.DeclaredProductInstalled"/>, and a candidate
+    /// shown to be a different file from all of them is given the answer it already had.
+    /// Where those packages cannot all be seen
+    /// (<see cref="PackagesSecondCopiesOpen"/>), or an installation's cached package does
+    /// not say what it declares and its own record does not show an ordinary installation
+    /// (<see cref="LinksOf"/>), every candidate the answer lets through is
+    /// <see cref="DeclaredProductOutcome.SecondCopyUnestablished"/>.
+    ///
+    /// THE CANDIDATE'S IDENTITY IS READ ONCE, against its own product's packages and the
+    /// second copies' together, where both can be seen. A candidate whose product is not
+    /// installed and which no such installation stands beside is let through without its
+    /// identity being read, having nothing to be compared with.
+    /// </summary>
+    private DeclaredProductOutcome Settle(
+        string candidatePath,
+        DeclarationAnswer answer,
+        PassAnswers pass,
+        Func<string, bool?>? namesAFileInInstallerFolder,
+        Action<Exception, string>? recordRefusal)
+    {
+        IReadOnlyList<FileIdentity> recorded;
+        DeclaredProductOutcome letThrough;
+        switch (answer.Outcome)
+        {
+            case DeclaredProductOutcome.DeclaredProductInstalled when answer.RecordedPackages is { } packages:
+                recorded = packages;
+                letThrough = DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile;
+                break;
+            case DeclaredProductOutcome.DeclaredProductNotInstalled:
+                recorded = [];
+                letThrough = DeclaredProductOutcome.DeclaredProductNotInstalled;
+                break;
+            default:
+                return answer.Outcome;
+        }
+
+        IReadOnlyList<FileIdentity>? secondCopies = LinksOf(pass, recordRefusal).UnreadPackageNotRuledOut
+            ? null
+            : PackagesSecondCopiesOpen(pass, namesAFileInInstallerFolder);
+
+        if (secondCopies is null)
+        {
+            var own = recorded.Count == 0
+                ? letThrough
+                : CompareWithRecorded(candidatePath, recorded, letThrough, DeclaredProductOutcome.DeclaredProductInstalled);
+            return own.Withholds() ? own : DeclaredProductOutcome.SecondCopyUnestablished;
+        }
+
+        IReadOnlyList<FileIdentity> opened = secondCopies.Count == 0 ? recorded : [.. recorded, .. secondCopies];
+        return opened.Count == 0
+            ? letThrough
+            : CompareWithRecorded(candidatePath, opened, letThrough, DeclaredProductOutcome.DeclaredProductInstalled);
+    }
+
+    /// <summary>
+    /// The identity of every package opened by an installation the caller listed and
+    /// could not rule out as a second copy of a program
+    /// (<see cref="ListedInstallation.SecondCopyNotRuledOut"/>): the cached package each
+    /// records, and the original package at each folder its sources name. Empty where no
+    /// such installation is listed, and null where any of those packages cannot be seen.
+    /// Read once per pass, the first time a candidate the answer lets through is put to
+    /// them, and kept for every candidate after it.
+    ///
+    /// NULL IS THE ANSWER THAT KEEPS EVERY CANDIDATE, and every way such an
+    /// installation's packages can fail to be seen reaches it: a <c>LocalPackage</c> read
+    /// that failed or came back empty, a value that names nothing, names a folder, will not
+    /// open to an identity, or names a file that yields no product code; any source
+    /// <see cref="AddSourcePackages"/> cannot rule out, a per-user-unmanaged context and a
+    /// source in the Installer folder among them; and a check built without its file
+    /// readers, having no way to look. One such installation is enough, because any
+    /// candidate could be the package it opens.
+    ///
+    /// EACH INSTALLATION IS READ BY THE CODE IT IS REGISTERED UNDER, in its own account
+    /// and context, and its cached package is not required to declare that code.
+    /// </summary>
+    private IReadOnlyList<FileIdentity>? PackagesSecondCopiesOpen(
+        PassAnswers pass, Func<string, bool?>? namesAFileInInstallerFolder)
+    {
+        if (pass.SecondCopiesRead) return pass.SecondCopies;
+
+        List<FileIdentity>? identities = [];
+        foreach (var installation in pass.Installations)
+        {
+            pass.CancellationToken.ThrowIfCancellationRequested();
+            if (!installation.SecondCopyNotRuledOut) continue;
+
+            if (!AddSecondCopyPackages(installation, namesAFileInInstallerFolder, identities))
+            {
+                identities = null;
+                break;
+            }
+        }
+
+        pass.SecondCopies = identities;
+        pass.SecondCopiesRead = true;
+        return identities;
+    }
+
+    /// <summary>
+    /// Adds to <paramref name="opened"/> the identity of the cached package one
+    /// installation records and of the package at each folder its sources name, and
+    /// answers false where any of them cannot be seen. The cached package has to be a
+    /// file that is there, that identifies, and that yields a product code: a value naming
+    /// anything else shows nothing about which package the installation opens.
+    /// </summary>
+    private bool AddSecondCopyPackages(
+        ListedInstallation installation,
+        Func<string, bool?>? namesAFileInInstallerFolder,
+        List<FileIdentity> opened)
+    {
+        if (_fileIdentities is null || _fileSystem is null) return false;
+
+        var context = (MsiInstallContext)installation.Context;
+        var read = InstallerQueryService.ReadProductProperty(
+            _msi, installation.ProductCode, installation.UserSid, context, MsiInstallProperty.LocalPackage);
+        if (read.Unreadable) return false;
+
+        var path = read.Value.TrimEnd('\0');
+        if (path.Length == 0) return false;
+
+        // File.Exists is false for a folder and for a path that will not parse, and the
+        // identity read below opens folders too, so this is what keeps a value naming a
+        // folder from standing in for a package.
+        if (!_fileSystem.File.Exists(path)) return false;
+
+        if (_fileIdentities.ReadOutcome(path, out var recorded) != FileIdentityRead.Read) return false;
+
+        var declared = _identityReader.Read(path, isPatch: false, out _);
+        if (declared is null || declared.Value.IsPatch || declared.Value.Code.Length == 0) return false;
+
+        opened.Add(recorded);
+
+        return AddSourcePackages(installation.ProductCode, isPatch: false, installation.UserSid, context,
+            namesAFileInInstallerFolder, opened);
+    }
+
+    /// <summary>
     /// Every installation the caller listed that is registered under a code other than
     /// the one its cached package declares, keyed by the declared code, and whether an
     /// installation whose cached package did not say what it declares is not shown by its
-    /// own record to be an ordinary installation. Read once per pass, the first time a
-    /// candidate's declared code is put to Windows.
+    /// own record to be an ordinary installation. Read once per pass, the first time it is
+    /// needed.
     ///
     /// EVERY CONTEXT IS READ, AND A FAILED READ KEEPS UNLESS THE RECORD RULES IT OUT. A
     /// link only ever adds an installation to the ones a candidate is compared with, so
     /// it can keep a file and never offer one. Where an installation's cached package
     /// does not say what it declares, nothing links it to any candidate, so that
     /// installation keeps every file unless its own record shows it to be an ordinary
-    /// installation (<see cref="AnswersFromItsOwnRecord"/>). An installation the scan
-    /// reads as a second copy withholds every installation package before this check
-    /// runs.
+    /// installation (<see cref="AnswersFromItsOwnRecord"/>): <see cref="Settle"/> then
+    /// gives every candidate the answer would let through
+    /// <see cref="DeclaredProductOutcome.SecondCopyUnestablished"/>.
     ///
     /// The codes are compared as GUIDs, because the reader canonicalises the declared
     /// code and the listed code is in whatever spelling the caller's enumeration gave.
@@ -1275,7 +1424,8 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             IMsiApi msi, IReadOnlyList<ListedInstallation> installations, CancellationToken cancellationToken)
         {
             _msi = msi;
-            _listed = InstallerQueryService.InstallationsByCode(installations);
+            _listed = InstallerQueryService.InstallationsByCode(
+                installations.Select(i => (i.ProductCode, i.UserSid, (MsiInstallContext)i.Context)));
             Installations = installations;
             CancellationToken = cancellationToken;
         }
@@ -1284,6 +1434,15 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
         /// <summary>The pass's links, once the first declared code has been asked about.</summary>
         internal InstallationLinks? Links { get; set; }
+
+        /// <summary>
+        /// The packages opened by the installations not ruled out as second copies, or
+        /// null where they could not all be seen, once <see cref="SecondCopiesRead"/>.
+        /// </summary>
+        internal IReadOnlyList<FileIdentity>? SecondCopies { get; set; }
+
+        /// <summary>Whether <see cref="SecondCopies"/> has been read for this pass.</summary>
+        internal bool SecondCopiesRead { get; set; }
 
         /// <summary>Every installation the caller's enumeration listed.</summary>
         internal IReadOnlyList<ListedInstallation> Installations { get; }

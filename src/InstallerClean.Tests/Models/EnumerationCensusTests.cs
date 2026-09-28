@@ -157,12 +157,10 @@ public class EnumerationCensusTests
     }
 
     /// <summary>
-    /// The census members the second-instance withholding fires on. Four, and they are
-    /// not one kind of finding: a product that positively answered that it is a second
-    /// instance of itself, a product that was asked and would not answer, a product the
-    /// registry names that Windows would not say was installed, and a registry product
-    /// key whose name yields no code. Nothing shows either of the last two was asked the
-    /// question.
+    /// The census members the third withholding leg fires on. Two, and they are not one
+    /// kind of finding: a product the registry names that Windows would not say was
+    /// installed, and a registry product key whose name yields no code. Nothing shows
+    /// either was asked its InstanceType or whether it holds a patch.
     ///
     /// <see cref="EnumerationCensus.RecoveredProductCount"/> IS DELIBERATELY ABSENT and
     /// is this list's trap, for the reason the attempts count is the other list's. A
@@ -170,17 +168,19 @@ public class EnumerationCensusTests
     /// keyed read each, so a machine with recovered products and clean answers is a
     /// machine that answered. A property that read the recovered count would empty the
     /// offer on exactly the machines the recovery pass exists to rescue.
+    ///
+    /// SO ARE THE TWO INSTANCETYPE COUNTS. An installation read as a second copy, or
+    /// whose reading failed, is listed with that mark and compared file by file by the
+    /// declared-product check, so neither count withholds anything as a count.
     /// </summary>
-    private static readonly string[] SecondInstanceMembers =
+    private static readonly string[] UnaskableMembers =
     [
-        "InstanceProductCount",
-        "InstanceTypeUnreadableCount",
         "UnansweredProductCount",
         "UnparseableProductKeyNames",
     ];
 
     [Fact]
-    public void Exactly_the_four_second_instance_members_make_a_scan_withhold()
+    public void Exactly_the_two_members_naming_a_product_nobody_could_ask_make_a_scan_withhold()
     {
         // THE SAME WALK AS ABOVE AND FOR THE SAME REASON. The rule is a hand-written
         // expression over a positional record of ints that grows, and a member added to
@@ -191,41 +191,27 @@ public class EnumerationCensusTests
         // AND THE MUST-MISS HALF IS CARRIED BY THE SAME COMPARISON, which is the point
         // of an equality rather than a set of assertions: every other member on the
         // record is in this run and is required NOT to fire.
-        var expected = SecondInstanceMembers.OrderBy(n => n, StringComparer.Ordinal).ToArray();
-        var actual = MembersFiring(census => census.SecondInstanceNotRuledOut);
+        var expected = UnaskableMembers.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        var actual = MembersFiring(census => census.RegistryProductUnaskable);
 
         Assert.True(expected.SequenceEqual(actual, StringComparer.Ordinal),
-            "SecondInstanceNotRuledOut fires on a different set of members than the withholding "
+            "RegistryProductUnaskable fires on a different set of members than the withholding "
             + "was written for.\n"
             + $"  expected: {string.Join(", ", expected)}\n"
             + $"  actual  : {string.Join(", ", actual)}\n"
             + $"  missing : {string.Join(", ", expected.Except(actual, StringComparer.Ordinal))}\n"
             + $"  extra   : {string.Join(", ", actual.Except(expected, StringComparer.Ordinal))}\n"
-            + "A MISSING member is a machine the scan reads as ordinary and cannot show to be, "
-            + "which is files offered that it meant to keep back. An EXTRA member is the scan "
-            + "emptying an offer on a fact that is not the second-instance question. Neither is a "
-            + "test to relax.");
+            + "A MISSING member is a product nothing compares a file with, which is files offered "
+            + "that the scan meant to keep back. An EXTRA member is the scan emptying an offer on a "
+            + "fact the file-by-file check already answers. Neither is a test to relax.");
     }
 
     [Fact]
-    public void Exactly_the_two_members_naming_a_product_nobody_could_ask_hold_the_patch_files_too()
-    {
-        // The same walk, for the narrower property the walk-derived patch files are held
-        // on. A member left out of it is a patch file offered that a product nobody could
-        // ask about may hold; a member added to it holds every patch file on a machine
-        // where each installation could be asked.
-        Assert.Equal(
-            new[] { "UnansweredProductCount", "UnparseableProductKeyNames" },
-            MembersFiring(census => census.RegistryProductUnaskable));
-    }
-
-    [Fact]
-    public void A_census_with_nothing_wrong_rules_the_second_instance_question_out()
+    public void A_census_with_nothing_wrong_withholds_nothing_on_the_third_leg()
     {
         // The floor under the walk above, and the one that keeps this rule off every
-        // ordinary machine: an absent InstanceType is documented as meaning an ordinary
-        // installation and reaches the census as neither count.
-        Assert.False(new EnumerationCensus().SecondInstanceNotRuledOut);
+        // ordinary machine.
+        Assert.False(new EnumerationCensus().RegistryProductUnaskable);
     }
 
     [Fact]
@@ -238,7 +224,17 @@ public class EnumerationCensusTests
         // enumeration missed, both of which answered, is entitled to its offer.
         var recovered = new EnumerationCensus(RecoveredProductCount: 2);
 
-        Assert.False(recovered.SecondInstanceNotRuledOut);
+        Assert.False(recovered.RegistryProductUnaskable);
+    }
+
+    [Fact]
+    public void A_second_copy_the_scan_read_or_could_not_read_is_not_by_itself_a_reason_to_withhold()
+    {
+        // The other two members most likely to be folded back in, pinned by name. Each
+        // counts installations the scan listed and marked, which the declared-product
+        // check compares file by file.
+        Assert.False(new EnumerationCensus(InstanceProductCount: 2).RegistryProductUnaskable);
+        Assert.False(new EnumerationCensus(InstanceTypeUnreadableCount: 2).RegistryProductUnaskable);
     }
 
     /// <summary>
@@ -263,7 +259,7 @@ public class EnumerationCensusTests
         // The denominator, printed as an assertion rather than assumed: a walk that
         // found the wrong constructor would report nothing fired, which reads exactly
         // like a property that answers false for everything.
-        Assert.True(parameters.Length >= SecondInstanceMembers.Length + 15,
+        Assert.True(parameters.Length >= UnaskableMembers.Length + 17,
             $"The census constructor has {parameters.Length} parameters, which is too few for this "
             + "walk to be measuring what it claims.");
 

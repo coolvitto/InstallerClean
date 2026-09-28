@@ -76,11 +76,11 @@ public class FileSystemScanServiceWithholdingLegsTests
         // The other half, and the one that shows the theory can reach its assertion at
         // all: a census that does fire a leg withholds the offer, and the leg is on the
         // list a host would print.
-        var result = await Scan(new EnumerationCensus(InstanceProductCount: 1));
+        var result = await Scan(new EnumerationCensus(UnansweredProductCount: 1));
 
         Assert.True(result.WithheldBy.WholesaleCount > 0);
         Assert.Equal(
-            new[] { WithholdingLeg.SecondInstanceNotRuledOut },
+            new[] { WithholdingLeg.RegistryProductUnaskable },
             result.WithholdingLegsFired);
         Assert.Empty(result.RemovableFiles);
     }

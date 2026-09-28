@@ -303,7 +303,7 @@ public class FileSystemScanServiceDeclaredProductTests
         Assert.Empty(unlisted.WithheldFiles!);
 
         var listed = await Scan(walked, msi, identities,
-            installations: [new ListedInstallation(ProductA, null, (int)MsiInstallContext.Machine)]);
+            installations: [new ListedInstallation(ProductA, null, (int)MsiInstallContext.Machine, SecondCopyNotRuledOut: false)]);
 
         var offered = Assert.Single(listed.RemovableFiles);
         Assert.Equal($@"{Folder}\gone.msi", offered.FullPath);

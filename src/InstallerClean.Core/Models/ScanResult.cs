@@ -255,17 +255,19 @@ namespace InstallerClean.Models;
 /// other than directly in the folder, or could not answer for it
 /// (<see cref="WithholdingSplit.ContainmentRefusedCount"/> and
 /// <see cref="WithholdingSplit.ContainmentUnestablishedCount"/>); or the scan could not
-/// establish which cached files belong to which programs, which
-/// withholds the whole walk-derived set at once, or its installation packages alone
-/// (<see cref="WithholdingSplit.WholesaleCount"/>, and <see cref="WithholdingLeg"/> for
-/// the three findings behind it); or this one candidate's own
+/// establish which cached files belong to which programs, which withholds the whole
+/// walk-derived set at once (<see cref="WithholdingSplit.WholesaleCount"/>, and
+/// <see cref="WithholdingLeg"/> for the three findings behind it); or this one
+/// candidate's own
 /// identity could not be read, so nothing could compare it against the
 /// registrations and it is kept back while the rest stand
 /// (<see cref="CandidateIdentityReads"/>); or the screen kept the candidate on what the
 /// file declares: an installation package whose own declared product Windows still holds
 /// a record of where some installation of it opens a package, its cached copy or its
-/// original at a source, not shown to be another file, or whose declaration this scan
-/// could not settle, or a patch whose declared patch Windows holds a registration of
+/// original at a source, not shown to be another file, one that an installation not
+/// ruled out as a second copy opens as its package, one kept while the packages such an
+/// installation opens could not all be seen, or one whose declaration this scan could
+/// not settle, or a patch whose declared patch Windows holds a registration of
 /// where some registration opens a copy of the patch, its cached copy or its original at
 /// a source, not shown to be another file, or whose declaration this scan could not
 /// settle; or the age check kept a candidate everything
@@ -285,16 +287,13 @@ namespace InstallerClean.Models;
 /// the candidate list and cannot say WHICH. For an unspellable claim, the claim is kept
 /// in the raw spelling Windows gave, so it matches nothing the walk produces, and the
 /// identity match cannot help either, because a value the path API refuses is a value
-/// CreateFile refuses too and there is nothing to open and compare. For a second copy of
-/// one program, the original package it was installed from declares the base product
-/// code and can be a file in the folder that the copy's source list names, so the
-/// per-file screen can be told there is no such record while the second copy's own
-/// registration still needs the file, and the census that finds the copy cannot say
-/// which file in the folder is its original package. Every unclaimed file of the set is
-/// therefore one that could have been meant, and the app cannot say of any of them that
-/// nothing needs it. The set is the installation packages alone where the only finding
-/// is a second copy the scan could ask about by name, the screen putting each patch
-/// file's code to that copy (<see cref="WithholdingLegs.AnyHoldingPatchFiles"/>).
+/// CreateFile refuses too and there is nothing to open and compare. For a product the
+/// registry names that this scan could not ask about, nothing shows it is not a second
+/// copy of a program, whose original package declares the base product code and can be a
+/// file in the folder that the copy's source list names; and no file in the folder is
+/// compared with a product nothing asked, whether as a package it opens or as a patch it
+/// holds. Every unclaimed file of the set is therefore one that could have been meant,
+/// and the app cannot say of any of them that nothing needs it.
 ///
 /// THE SUPERSEDED HALF OF THE OFFER IS NEVER PUT HERE. Those rows are judged on
 /// products, through registry keys read by product code and patch code, and the
@@ -468,8 +467,8 @@ public record ScanResult(
     /// <summary>
     /// The size of the files <see cref="UnestablishedWithheldCount"/> counts, on the same
     /// reading: the whole withheld list's size less that of the files kept because they
-    /// declare a program Windows still has installed, that of the files kept because
-    /// they are under a day old, and that of the patch copies kept because Windows holds
+    /// declare a program Windows still has installed or an installed program opens them,
+    /// that of the files kept because they are under a day old, and that of the patch copies kept because Windows holds
     /// a registration of the patch they declare.
     /// </summary>
     public long UnestablishedWithheldBytes =>
@@ -527,13 +526,10 @@ public record ScanResult(
     /// nobody established.
     ///
     /// AND THE WHOLESALE READING NEEDS NOTHING WALK-DERIVED ON THE OFFER. The wholesale
-    /// arm can hold the installation packages alone while the patch files go on to the
-    /// per-file checks (<see cref="WithholdingLegs.AnyHoldingPatchFiles"/>), and a patch
-    /// file those checks let through is offered. The wholesale sentences say the scan
-    /// offered nothing it found by looking in the folder, which is false of that run, so
-    /// it takes the per-file reading, whose sentences are true of every held file. An
-    /// offered superseded patch comes from its own registration and not from the folder,
-    /// so it does not count against the wholesale reading.
+    /// sentences say the scan offered nothing it found by looking in the folder, so a run
+    /// offering a walk-derived file takes the per-file reading, whose sentences are true of
+    /// every held file. An offered superseded patch comes from its own registration and
+    /// not from the folder, so it does not count against the wholesale reading.
     ///
     /// A RUN WHOSE WITHHELD FILES WERE ALL COUNTED BY THE DECLARED-PRODUCT-INSTALLED,
     /// UNDER-A-DAY-OLD AND DECLARED-PATCH-REGISTERED ARMS READS AS
@@ -595,6 +591,7 @@ public record ScanResult(
         + WithheldBy.DeclaredProductUnestablishedCount
         + WithheldBy.ScreenUnansweredCount
         + WithheldBy.DeclaredPatchUnestablishedCount
+        + WithheldBy.SecondCopyUnestablishedCount
         == UnestablishedWithheldCount;
 
     /// <summary>
@@ -606,9 +603,9 @@ public record ScanResult(
     /// <see cref="UnsettledHeldBackBytes"/> is their size.
     ///
     /// THE TWO ARMS LEFT OUT KEEP A FILE BECAUSE WINDOWS HOLDS A RECORD OF THE PROGRAM OR
-    /// PATCH IT DECLARES. Every other file held back, and every superseded file
-    /// <see cref="SupersededHeldBackCount"/> counts, was kept without the scan establishing
-    /// that anything needs it: a file under a day old, a file whose age was not
+    /// PATCH IT DECLARES, OR OF A PROGRAM THAT OPENS IT AS ITS PACKAGE. Every other file
+    /// held back, and every superseded file <see cref="SupersededHeldBackCount"/> counts,
+    /// was kept without the scan establishing that anything needs it: a file under a day old, a file whose age was not
     /// established, a file the containment check refused or could not answer for, a
     /// superseded patch the scan held back, and a file kept on any other verdict alike.
     ///
@@ -912,7 +909,7 @@ public static class ShortNameCreationLabels
 /// What kept each file on <see cref="ScanResult.WithheldFiles"/> back.
 ///
 /// EXACTLY FIVE DECISIONS PUT A FILE ON THAT LIST AND THEY ARE MUTUALLY EXCLUSIVE
-/// PER FILE, so this is a partition of it rather than eleven overlapping views. The
+/// PER FILE, so this is a partition of it rather than twelve overlapping views. The
 /// containment check keeps a file the path comparison left unclaimed, before the
 /// identity comparison sees it, counted in two arms by whether the check refused it or
 /// could not answer; the identity comparison keeps one candidate at a time; the
@@ -928,7 +925,7 @@ public static class ShortNameCreationLabels
 /// THE COUNTS ARE CARRIED APART BECAUSE THEY ARE READ APART. Each member is one fact
 /// about one machine, and nothing may add any two of them and call the result a
 /// cause: what is true of every file on the list is only that the scan declined to
-/// offer it. The opt-in report carries all eleven, each under its own key, and a member
+/// offer it. The opt-in report carries all twelve, each under its own key, and a member
 /// added here goes there too. Inside the app, the declared-product-installed,
 /// under-a-day-old and declared-patch-registered counts are read by
 /// <see cref="ScanResult.UnestablishedWithheldCount"/> and
@@ -937,13 +934,13 @@ public static class ShortNameCreationLabels
 /// by <see cref="ScanResult.Withholding"/>,
 /// <see cref="ScanResult.NamedConditionsCoverEveryHeldBackFile"/> and
 /// <see cref="ScanResult.UnsettledHeldBackIsWholesale"/>. The age-unestablished and the
-/// two containment counts are read by <see cref="Total"/> alone, and the other four by
+/// two containment counts are read by <see cref="Total"/> alone, and the other five by
 /// <see cref="ArmsFired"/> and <see cref="ScanResult.NamedConditionsCoverEveryHeldBackFile"/>.
 ///
 /// <see cref="Total"/> IS WHAT HOLDS THE PARTITION HONEST, and it is asserted against
 /// the list's own length rather than trusted. A partition is a partition until
-/// somebody adds a branch, and a twelfth arm arriving later would appear in none of
-/// these eleven while the list grew underneath them.
+/// somebody adds a branch, and a thirteenth arm arriving later would appear in none of
+/// these twelve while the list grew underneath them.
 /// </summary>
 /// <param name="UnderADayOldCount">
 /// Candidates the age check kept back as under a day old: every other decision let the
@@ -999,6 +996,20 @@ public static class ShortNameCreationLabels
 /// check failing to answer, and a total over the pair would say the files were reparse
 /// points or lay elsewhere when some of them were never shown to be.
 /// </param>
+/// <param name="SecondCopyUnestablishedCount">
+/// Installation packages the screen kept back because an installation the scan could
+/// not rule out as a second copy of a program opens packages that could not all be
+/// seen, or because an installation's cached package did not say which product it
+/// declares and its own record did not show it to be an ordinary installation. See
+/// <see cref="Services.DeclaredProductOutcome.SecondCopyUnestablished"/>.
+///
+/// NOT TO BE ADDED TO <see cref="DeclaredProductUnestablishedCount"/>. That one is about
+/// the product a file declares; this is about another installation on the machine, and
+/// a total over the pair would state a cause true of neither.
+///
+/// APPENDED AFTER THE OTHER ELEVEN, so a positional construction of the first eleven
+/// still means what it meant.
+/// </param>
 public readonly record struct WithholdingSplit(
     int IdentityUnestablishedCount = 0,
     int WholesaleCount = 0,
@@ -1010,13 +1021,14 @@ public readonly record struct WithholdingSplit(
     int DeclaredPatchRegisteredCount = 0,
     int DeclaredPatchUnestablishedCount = 0,
     int ContainmentRefusedCount = 0,
-    int ContainmentUnestablishedCount = 0)
+    int ContainmentUnestablishedCount = 0,
+    int SecondCopyUnestablishedCount = 0)
 {
     /// <summary>
-    /// Every file the eleven account for. It equals <see cref="ScanResult.WithheldFiles"/>'s
+    /// Every file the twelve account for. It equals <see cref="ScanResult.WithheldFiles"/>'s
     /// own length on any scan that filled both, and a test holds it there.
     ///
-    /// IT IS A COUNT AND NEVER A CAUSE. The eleven members are eleven different findings
+    /// IT IS A COUNT AND NEVER A CAUSE. The twelve members are twelve different findings
     /// about a machine, so this figure answers "how many were held back" and nothing
     /// whatever about why.
     /// </summary>
@@ -1031,7 +1043,8 @@ public readonly record struct WithholdingSplit(
         + DeclaredPatchRegisteredCount
         + DeclaredPatchUnestablishedCount
         + ContainmentRefusedCount
-        + ContainmentUnestablishedCount;
+        + ContainmentUnestablishedCount
+        + SecondCopyUnestablishedCount;
 
     /// <summary>
     /// Which of the per-file decisions the scan could not settle kept anything back,
@@ -1062,7 +1075,7 @@ public readonly record struct WithholdingSplit(
     {
         get
         {
-            var fired = new List<WithholdingSplitArm>(4);
+            var fired = new List<WithholdingSplitArm>(5);
 
             if (IdentityUnestablishedCount > 0)
                 fired.Add(WithholdingSplitArm.IdentityUnestablished);
@@ -1072,6 +1085,8 @@ public readonly record struct WithholdingSplit(
                 fired.Add(WithholdingSplitArm.ScreenUnanswered);
             if (DeclaredPatchUnestablishedCount > 0)
                 fired.Add(WithholdingSplitArm.DeclaredPatchUnestablished);
+            if (SecondCopyUnestablishedCount > 0)
+                fired.Add(WithholdingSplitArm.SecondCopyUnestablished);
 
             return fired;
         }
@@ -1117,6 +1132,15 @@ public enum WithholdingSplitArm
     /// them.
     /// </summary>
     DeclaredPatchUnestablished,
+
+    /// <summary>
+    /// An installation the scan could not rule out as a second copy of a program opens
+    /// packages that could not all be seen, or an installation's cached package would not
+    /// say which program it belongs to and its own record did not show it to be an
+    /// ordinary installation. Either way a file could be the package such an installation
+    /// opens. Two findings under one arm, as the verdict they come from keeps them.
+    /// </summary>
+    SecondCopyUnestablished,
 }
 
 /// <summary>
@@ -1139,12 +1163,11 @@ public enum WithholdingLeg
     FileIdentityUnestablished,
 
     /// <summary>
-    /// A product may be installed more than once on this machine. It holds the
-    /// walk-derived installation packages, and the walk-derived patch files as well only
-    /// where the registry names a product the scan could not ask about
+    /// The registry names a product the scan could not ask about, so nothing shows it is
+    /// not a second copy of a program, and nothing compares a file with it
     /// (<see cref="EnumerationCensus.RegistryProductUnaskable"/>).
     /// </summary>
-    SecondInstanceNotRuledOut,
+    RegistryProductUnaskable,
 }
 
 /// <summary>
@@ -1152,8 +1175,7 @@ public enum WithholdingLeg
 /// rather than an expression written twice.
 ///
 /// THE GATE AND THE HOST THAT EXPLAINS IT READ THE SAME CALL. The scan asks whether
-/// anything fired, and whether what fired holds the patch files; the command line asks
-/// which. Written as two expressions they agree
+/// anything fired; the command line asks which. Written as two expressions they agree
 /// until one of them changes, after which the gate can grow a fourth condition while
 /// the breakdown under it goes on naming three, every test still green and the output
 /// still looking like an answer. Here a leg added to the enum is a leg the gate acts
@@ -1178,15 +1200,15 @@ public static class WithholdingLegs
             fired.Add(WithholdingLeg.RecordedPathUnestablished);
         if (registrationIdentityReads.AnyUnestablished)
             fired.Add(WithholdingLeg.FileIdentityUnestablished);
-        if (census.SecondInstanceNotRuledOut)
-            fired.Add(WithholdingLeg.SecondInstanceNotRuledOut);
+        if (census.RegistryProductUnaskable)
+            fired.Add(WithholdingLeg.RegistryProductUnaskable);
 
         return fired;
     }
 
     /// <summary>
-    /// Whether the walk-derived installation packages are withheld wholesale: any leg at
-    /// all.
+    /// Whether the walk-derived offer is withheld wholesale, installation packages and
+    /// patch files alike: any leg at all.
     ///
     /// It calls <see cref="Fired"/> rather than repeating its conditions, which is the
     /// whole point of the type. The list is at most three entries and is built once per
@@ -1195,31 +1217,4 @@ public static class WithholdingLegs
     public static bool Any(
         EnumerationCensus census, FileIdentityReadTally registrationIdentityReads) =>
         Fired(census, registrationIdentityReads).Count > 0;
-
-    /// <summary>
-    /// Whether the walk-derived patch files are withheld wholesale as well: some leg that
-    /// fired holds them. Every leg does except
-    /// <see cref="WithholdingLeg.SecondInstanceNotRuledOut"/>, which holds them only where
-    /// <see cref="EnumerationCensus.RegistryProductUnaskable"/>: the check on a patch file
-    /// puts its patch code to every installation the scan listed, so a second copy the
-    /// scan listed answers for itself.
-    ///
-    /// A LEG ADDED LATER HOLDS PATCH FILES, the default arm below, until somebody decides
-    /// otherwise for it. It implies <see cref="Any"/>.
-    /// </summary>
-    public static bool AnyHoldingPatchFiles(
-        EnumerationCensus census, FileIdentityReadTally registrationIdentityReads)
-    {
-        foreach (var leg in Fired(census, registrationIdentityReads))
-        {
-            var holdsPatchFiles = leg switch
-            {
-                WithholdingLeg.SecondInstanceNotRuledOut => census.RegistryProductUnaskable,
-                _ => true,
-            };
-            if (holdsPatchFiles) return true;
-        }
-
-        return false;
-    }
 }
