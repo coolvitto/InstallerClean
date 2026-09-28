@@ -41,7 +41,7 @@ public class CliNoticeEntryTests
         var entries = await Run(Clean with { UnaccountedProductCount = 2 });
 
         AssertNotice(entries, CliEventClass.ScanRecordsIncompleteNotice,
-            () => string.Format(Strings.Cli_EventLogScanWithheld_Plural, Flag, 2));
+            MachineContract.English(() => string.Format(Strings.Cli_EventLogScanWithheld_Plural, Flag, 2)));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class CliNoticeEntryTests
         var entries = await Run(Clean with { Census = new EnumerationCensus(UnattributedPatchFileCount: 3) });
 
         AssertNotice(entries, CliEventClass.ScanRecordsIncompleteNotice,
-            () => string.Format(Strings.Cli_EventLogScanWithheldPatchFiles_Plural, Flag, 3));
+            MachineContract.English(() => string.Format(Strings.Cli_EventLogScanWithheldPatchFiles_Plural, Flag, 3)));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class CliNoticeEntryTests
         var entries = await Run(Clean with { MissingAffectedCount = 2 });
 
         AssertNotice(entries, CliEventClass.ScanMissingFilesNotice,
-            () => string.Format(Strings.Cli_EventLogMissingFromDisk_Plural, Flag, 2));
+            MachineContract.English(() => string.Format(Strings.Cli_EventLogMissingFromDisk_Plural, Flag, 2)));
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class CliNoticeEntryTests
         });
 
         AssertNotice(entries, CliEventClass.ScanNothingOfferedNotice,
-            () => string.Format(Strings.Cli_EventLogNothingOfferedPerFileNotice,
-                Flag, 2, DisplayHelpers.PluraliseFile(2)));
+            MachineContract.English(() => string.Format(Strings.Cli_EventLogNothingOfferedPerFileNotice,
+                Flag, 2, DisplayHelpers.PluraliseFile(2))));
     }
 
     [Fact]
@@ -87,8 +87,8 @@ public class CliNoticeEntryTests
         });
 
         AssertNotice(entries, CliEventClass.ScanNothingOfferedNotice,
-            () => string.Format(Strings.Cli_EventLogNothingOfferedNotice,
-                Flag, 2, DisplayHelpers.PluraliseFile(2)));
+            MachineContract.English(() => string.Format(Strings.Cli_EventLogNothingOfferedNotice,
+                Flag, 2, DisplayHelpers.PluraliseFile(2))));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class CliNoticeEntryTests
         var entries = await Run(Clean with { WithheldCount = 1 });
 
         AssertNotice(entries, CliEventClass.ScanSupersededHeldBackNotice,
-            () => string.Format(Strings.Cli_EventLogSupersededHeldBack_Singular, Flag, 1));
+            MachineContract.English(() => string.Format(Strings.Cli_EventLogSupersededHeldBack_Singular, Flag, 1)));
     }
 
     // ---- fixtures ----
@@ -113,16 +113,16 @@ public class CliNoticeEntryTests
         CliContract.EventIdFor(outcome) / 1000 == 3;
 
     /// <summary>
-    /// One entry of the notice's class, carrying the text the write site builds, and one
-    /// summary beside it. The expected text is built inside the same en-GB scope the
-    /// write site builds in.
+    /// One entry of the notice's class, carrying <paramref name="expected"/>, and one
+    /// summary beside it. Each caller builds the expected text inside
+    /// MachineContract.English, the en-GB scope the write site builds in.
     /// </summary>
     private static void AssertNotice(
         IReadOnlyList<(CliEventClass Class, string Text)> entries,
-        CliEventClass notice, Func<string> expected)
+        CliEventClass notice, string expected)
     {
         var written = Assert.Single(entries, entry => entry.Class == notice);
-        Assert.Equal(MachineContract.English(expected), written.Text);
+        Assert.Equal(expected, written.Text);
         Assert.Single(entries, entry => !IsNotice(entry.Class));
     }
 
