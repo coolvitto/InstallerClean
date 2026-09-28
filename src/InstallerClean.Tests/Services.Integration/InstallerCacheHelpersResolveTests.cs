@@ -130,14 +130,31 @@ public class InstallerCacheHelpersResolveTests
     public void TryResolveFinalPath_reports_failure_when_no_ancestor_exists()
     {
         // Nothing mounted on the letter, so the walk runs out of ancestors
-        // without ever opening anything. Degraded to a plain GetFullPath, this
-        // is the shape that made a spelling look like a location.
+        // without ever opening anything. What comes back is a spelling rather
+        // than a location, and the answer says so.
         var unmounted = Helpers.TestHost.FirstUnmountedDriveLetter();
         if (unmounted is null)
             return; // every letter is in use on this host; nothing to pose the question with
 
         Assert.False(InstallerCacheHelpers.TryResolveFinalPath(
             $@"{unmounted}:\Windows\Installer\x.msi", out _));
+    }
+
+    [Fact]
+    public void ResolveFinalPathOutcome_answers_OpenRefused_below_a_folder_that_refuses_the_open()
+    {
+        // System Volume Information on the system drive is there to be seen and
+        // refuses a handle to an administrator as well as to a standard user, so
+        // the walk stops at it and the open is refused. The path below it is
+        // handed back as GetFullPath spells it.
+        var folder = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "System Volume Information");
+        Assert.True(Directory.Exists(folder), $"{folder} is not there to be seen on this host");
+        var path = Path.Combine(folder, "x.msi");
+
+        var outcome = InstallerCacheHelpers.ResolveFinalPathOutcome(path, out var resolved);
+
+        Assert.Equal(PathResolution.OpenRefused, outcome);
+        Assert.Equal(Path.GetFullPath(path), resolved);
     }
 
     [Fact]
