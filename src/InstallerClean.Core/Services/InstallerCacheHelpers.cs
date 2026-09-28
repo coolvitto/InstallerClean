@@ -1,10 +1,11 @@
 using System.Buffers;
 using InstallerClean.Interop.Native;
+using Microsoft.Win32.SafeHandles;
 
 namespace InstallerClean.Services;
 
 /// <summary>
-/// What <see cref="InstallerCacheHelpers.ResolveFinalPathOutcome"/> established,
+/// What <see cref="InstallerCacheHelpers.ResolveFinalPathOutcome(string, out string)"/> established,
 /// with the five ways it can fail kept apart rather than collapsed into one
 /// <c>false</c>.
 ///
@@ -318,7 +319,7 @@ internal static class InstallerCacheHelpers
     /// <see cref="ResolvesInsideInstallerFolder"/> for which side wants which.
     ///
     /// THE BOOL IS THE WHOLE OF WHAT ANY GATE ASKS, and this stays the entry
-    /// every one of them takes. <see cref="ResolveFinalPathOutcome"/> is the same
+    /// every one of them takes. <see cref="ResolveFinalPathOutcome(string, out string)"/> is the same
     /// call with the failure named rather than collapsed, and the naming is read by
     /// the census and by the opt-in report; the offer is decided on the same
     /// not-<see cref="PathResolution.Resolved"/> question this bool asks. Routing
@@ -339,7 +340,18 @@ internal static class InstallerCacheHelpers
     /// by absence or by a permission, so a count over all five together says
     /// nothing anybody could act on.
     /// </summary>
-    internal static PathResolution ResolveFinalPathOutcome(string path, out string resolved)
+    internal static PathResolution ResolveFinalPathOutcome(string path, out string resolved) =>
+        ResolveFinalPathOutcome(path, out resolved, Win32FinalPathKernel.Instance);
+
+    /// <summary>
+    /// <see cref="ResolveFinalPathOutcome(string, out string)"/> with the handle open and
+    /// the final-name read made through <paramref name="kernel"/>. The two-argument form
+    /// is its only caller in the app, and passes
+    /// <see cref="Win32FinalPathKernel.Instance"/>, which makes the <c>CreateFile</c> and
+    /// <c>GetFinalPathNameByHandle</c> calls.
+    /// </summary>
+    internal static PathResolution ResolveFinalPathOutcome(
+        string path, out string resolved, IFinalPathKernel kernel)
     {
         string normalised;
         try { normalised = Path.GetFullPath(path); }
@@ -364,19 +376,11 @@ internal static class InstallerCacheHelpers
         var buffer = ArrayPool<char>.Shared.Rent(PathBufferLength);
         try
         {
-            using var handle = Kernel32.CreateFile(
-                probe,
-                0,
-                Kernel32.FILE_SHARE_ALL,
-                IntPtr.Zero,
-                Kernel32.OPEN_EXISTING,
-                Kernel32.FILE_FLAG_BACKUP_SEMANTICS,
-                IntPtr.Zero);
+            using var handle = kernel.Open(probe);
 
             if (handle.IsInvalid) return PathResolution.OpenRefused;
 
-            var length = Kernel32.GetFinalPathNameByHandle(
-                handle, buffer, (uint)buffer.Length, Kernel32.VOLUME_NAME_DOS);
+            var length = kernel.GetFinalName(handle, buffer, (uint)buffer.Length);
             if (length == 0) return PathResolution.FinalNameUnavailable;
             if (length >= buffer.Length)
             {
@@ -388,8 +392,7 @@ internal static class InstallerCacheHelpers
                 var larger = ArrayPool<char>.Shared.Rent((int)length);
                 ArrayPool<char>.Shared.Return(buffer);
                 buffer = larger;
-                length = Kernel32.GetFinalPathNameByHandle(
-                    handle, buffer, (uint)buffer.Length, Kernel32.VOLUME_NAME_DOS);
+                length = kernel.GetFinalName(handle, buffer, (uint)buffer.Length);
                 if (length == 0) return PathResolution.FinalNameUnavailable;
             }
 
@@ -473,4 +476,50 @@ internal static class InstallerCacheHelpers
     // headroom for the \\?\ prefix and the not-yet-created suffix the
     // caller may attach).
     private const int PathBufferLength = 520;
+}
+
+/// <summary>
+/// The two kernel calls <see cref="InstallerCacheHelpers.ResolveFinalPathOutcome(string, out string, IFinalPathKernel)"/>
+/// makes on the ancestor it has found: a handle open, and a read of the final name
+/// through that handle.
+/// </summary>
+internal interface IFinalPathKernel
+{
+    /// <summary>
+    /// A handle on <paramref name="path"/>, or an invalid one where the open was refused.
+    /// </summary>
+    SafeFileHandle Open(string path);
+
+    /// <summary>
+    /// The final path of <paramref name="handle"/>, drive-letter form, written into
+    /// <paramref name="buffer"/>. Answers as <c>GetFinalPathNameByHandle</c> does: the
+    /// length written, the length needed where that is <paramref name="length"/> or
+    /// more, and zero where the call fails.
+    /// </summary>
+    uint GetFinalName(SafeFileHandle handle, char[] buffer, uint length);
+}
+
+/// <summary>
+/// <see cref="IFinalPathKernel"/> over Win32. The open asks for no access, shares
+/// everything and takes <c>FILE_FLAG_BACKUP_SEMANTICS</c> so a directory opens as well
+/// as a file; the name is read in the <c>VOLUME_NAME_DOS</c> form.
+/// </summary>
+internal sealed class Win32FinalPathKernel : IFinalPathKernel
+{
+    internal static readonly Win32FinalPathKernel Instance = new();
+
+    private Win32FinalPathKernel() { }
+
+    public SafeFileHandle Open(string path) =>
+        Kernel32.CreateFile(
+            path,
+            0,
+            Kernel32.FILE_SHARE_ALL,
+            IntPtr.Zero,
+            Kernel32.OPEN_EXISTING,
+            Kernel32.FILE_FLAG_BACKUP_SEMANTICS,
+            IntPtr.Zero);
+
+    public uint GetFinalName(SafeFileHandle handle, char[] buffer, uint length) =>
+        Kernel32.GetFinalPathNameByHandle(handle, buffer, length, Kernel32.VOLUME_NAME_DOS);
 }

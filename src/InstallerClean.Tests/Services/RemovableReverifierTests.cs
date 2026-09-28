@@ -381,6 +381,58 @@ public class RemovableReverifierTests
         Assert.Equal(new HeldBackReasons(RecordsUnreadable: 1), recheck.Reasons);
     }
 
+    [Fact]
+    public void A_sibling_whose_Uninstallable_read_fails_holds_the_batch_path_back_as_unread()
+    {
+        // A read that fails with a code that is not an absence answer says nothing about
+        // whether the sibling can be uninstalled, so the app has not established that
+        // nothing can roll back onto the file. It is counted as the read that did not
+        // answer.
+        const string path = @"C:\Windows\Installer\superseded.msp";
+        var msi = new ScriptedPatchApi();
+        msi.Set(PatchA, ProductOne, state: "2", uninstallable: "0");
+        msi.Set(PatchB, ProductOne, state: "2", uninstallable: "0");
+        msi.FailProperty(PatchB, ProductOne, "Uninstallable");
+        var svc = new RemovableReverifier(Substitute.For<IInstallerQueryService>(), msi);
+
+        var recheck = svc.RecheckUnderLease(new UnderLeaseClaims(
+            new[] { Claim(path, PatchA, ProductOne) },
+            new[] { Claim(path, PatchA, ProductOne), Claim(@"C:\Windows\Installer\other.msp", PatchB, ProductOne) }));
+
+        Assert.Equal(new[] { path }, recheck.HeldBack);
+        Assert.Equal(new HeldBackReasons(RecordsUnreadable: 1), recheck.Reasons);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_sibling_that_can_be_uninstalled_outranks_one_whose_read_fails_whichever_is_read_first(
+        bool claimReadFirst)
+    {
+        // Two other patches on the product: one's Uninstallable read fails, and one
+        // answers that it can be uninstalled. A failed read does not end the reads on the
+        // product, so the claim is still read and the path is counted on it in either
+        // order.
+        const string path = @"C:\Windows\Installer\superseded.msp";
+        var msi = new ScriptedPatchApi();
+        msi.Set(PatchA, ProductOne, state: "2", uninstallable: "0");
+        msi.Set(PatchB, ProductOne, state: "2", uninstallable: "0");
+        msi.FailProperty(PatchB, ProductOne, "Uninstallable");
+        msi.Set(PatchC, ProductOne, state: "2", uninstallable: "1");
+        var svc = new RemovableReverifier(Substitute.For<IInstallerQueryService>(), msi);
+
+        var failing = Claim(@"C:\Windows\Installer\failing.msp", PatchB, ProductOne);
+        var claiming = Claim(@"C:\Windows\Installer\claiming.msp", PatchC, ProductOne);
+        var recheck = svc.RecheckUnderLease(new UnderLeaseClaims(
+            new[] { Claim(path, PatchA, ProductOne) },
+            claimReadFirst
+                ? new[] { Claim(path, PatchA, ProductOne), claiming, failing }
+                : new[] { Claim(path, PatchA, ProductOne), failing, claiming }));
+
+        Assert.Equal(new[] { path }, recheck.HeldBack);
+        Assert.Equal(new HeldBackReasons(Reclaimed: 1), recheck.Reasons);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

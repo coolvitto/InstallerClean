@@ -18,9 +18,12 @@ public class CliAdminRightsRefusalTests
     {
         // The whole line, because Application-log tooling matches on its words, and
         // the flag it opens with is the only part that varies. Built on an Italian
-        // thread inside MachineContract.English, as the refusal builds it. Safe to
-        // write the thread cultures because the assembly disables test
-        // parallelisation.
+        // thread inside MachineContract.English, as the refusal builds it, and the
+        // build runs with both thread cultures set to en-GB. The cultures are read
+        // inside the build because no satellite carries this line's template, so
+        // its words read English on any thread and would hold whether or not the
+        // swap took place. Safe to write the thread cultures because the assembly
+        // disables test parallelisation.
         var ui = CultureInfo.CurrentUICulture;
         var format = CultureInfo.CurrentCulture;
         var italian = CultureInfo.GetCultureInfo("it-IT");
@@ -29,8 +32,17 @@ public class CliAdminRightsRefusalTests
             CultureInfo.CurrentUICulture = italian;
             CultureInfo.CurrentCulture = italian;
 
-            var line = MachineContract.English(() => Program.AdminRightsNeededEventLogLine(arg));
+            string? builtUnderUi = null;
+            string? builtUnderFormat = null;
+            var line = MachineContract.English(() =>
+            {
+                builtUnderUi = CultureInfo.CurrentUICulture.Name;
+                builtUnderFormat = CultureInfo.CurrentCulture.Name;
+                return Program.AdminRightsNeededEventLogLine(arg);
+            });
 
+            Assert.Equal("en-GB", builtUnderUi);
+            Assert.Equal("en-GB", builtUnderFormat);
             Assert.Equal(
                 $"{arg} mode aborted: InstallerClean is not running as administrator, "
                 + "so it did not scan. No action taken.",

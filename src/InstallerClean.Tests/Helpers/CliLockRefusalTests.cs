@@ -84,11 +84,16 @@ public class CliLockRefusalTests
     {
         // Two properties. The line is machine-read, so it is built inside
         // MachineContract.English and an RMM gets the same words whatever language
-        // Windows is in; the first two assertions hold two phrases of it on an
-        // Italian thread. And English swaps two thread cultures and puts them back
-        // in a finally, so the last two hold that the thread is Italian again
-        // afterwards: a leak would leave en-GB on it for everything that ran next,
-        // sizes and nouns included.
+        // Windows is in. On an Italian thread, the line is built with both thread
+        // cultures set to en-GB, which is what puts a machine line's template, noun
+        // and size in English, and it reads as the English line. And English swaps
+        // the two cultures and puts them back in a finally, so the thread is Italian
+        // again afterwards: a leak would leave en-GB on it for everything that ran
+        // next, sizes and nouns included.
+        //
+        // The cultures are read inside the build, because no satellite carries this
+        // line's template: its words read English on any thread, so they alone
+        // would hold whether or not the swap took place.
         //
         // Safe to write the thread cultures because the assembly disables test
         // parallelisation (AssemblyInfo.cs).
@@ -100,8 +105,17 @@ public class CliLockRefusalTests
             CultureInfo.CurrentUICulture = italian;
             CultureInfo.CurrentCulture = italian;
 
-            var line = MachineContract.English(() => Program.InstallerLockUnavailableEventLogLine("/d"));
+            string? builtUnderUi = null;
+            string? builtUnderFormat = null;
+            var line = MachineContract.English(() =>
+            {
+                builtUnderUi = CultureInfo.CurrentUICulture.Name;
+                builtUnderFormat = CultureInfo.CurrentCulture.Name;
+                return Program.InstallerLockUnavailableEventLogLine("/d");
+            });
 
+            Assert.Equal("en-GB", builtUnderUi);
+            Assert.Equal("en-GB", builtUnderFormat);
             Assert.Contains("mode aborted", line, StringComparison.Ordinal);
             Assert.Contains("could not be acquired", line, StringComparison.Ordinal);
             // By name rather than by instance: what matters is the culture the
