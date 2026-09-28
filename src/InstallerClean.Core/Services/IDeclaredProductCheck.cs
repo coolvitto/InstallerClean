@@ -42,8 +42,9 @@ namespace InstallerClean.Services;
 /// installation's package cannot be seen: a value that is empty, that will not read,
 /// that names nothing identifiable, that names a file declaring another product, or
 /// that names this file under another spelling. It is kept too while some source
-/// cannot be ruled out: one in the Installer folder itself, one naming this file, and
-/// one that cannot be read. The folder an installation records as its
+/// cannot be ruled out: one in the Installer folder itself, one naming this file, one
+/// that cannot be read, and one whose package does not answer within the check's time
+/// limit. The folder an installation records as its
 /// <c>InstallSource</c>, the one its package was installed from, counts as a source
 /// whether or not the list still holds it. So it is while a source list holds
 /// something the check does not compare, a URL, an entry naming an environment
@@ -252,15 +253,17 @@ public enum DeclaredProductOutcome
     /// one naming a file that declares another product, and one naming this very
     /// file under another spelling. It covers a source list or package name that will
     /// not read, a source in the Installer folder itself, a source whose package is
-    /// this file, and a source that cannot be resolved or whose package will not
-    /// identify, and an installation in a per-user-unmanaged context, whose source list
+    /// this file, and a source that cannot be resolved, whose package will not identify
+    /// or whose package does not answer within the check's time limit, and an
+    /// installation in a per-user-unmanaged context, whose source list
     /// is not read. It covers a source list holding a URL, an entry naming an
     /// environment variable, a media package path or a package name naming a folder, a
     /// drive or a variable, one whose source used last is not a network entry on it,
     /// and one whose registry key does not hold what the API returned for it, package
     /// name included, or holds that name as anything but a REG_SZ. It covers an
     /// <c>InstallSource</c> that is the Installer folder itself, whose package is this
-    /// file or will not identify, that will not read, that the registry holds otherwise
+    /// file, will not identify or does not answer within the time limit, that will not
+    /// read, that the registry holds otherwise
     /// than the API answers it or as anything but a REG_SZ, that names an environment
     /// variable, or that starts neither with a drive letter, a ':' and a '\' nor with two
     /// '\'. In each of them the check cannot see which package that installation opens,
@@ -366,8 +369,9 @@ public enum DeclaredProductOutcome
     /// naming a file that does not read as the same patch, and one naming this very
     /// file under another spelling. It covers a source list or package name of the
     /// patch that will not read, a source in the Installer folder itself, a source
-    /// whose package is this file, and a source that cannot be resolved or whose
-    /// package will not identify, and a registration in a per-user-unmanaged context,
+    /// whose package is this file, and a source that cannot be resolved, whose package
+    /// will not identify or whose package does not answer within the check's time
+    /// limit, and a registration in a per-user-unmanaged context,
     /// where the patch's source list is not read. It covers the patch's source list
     /// keeping the file for any of the reasons a product's does at
     /// <see cref="DeclaredProductInstalled"/>. A check constructed without its two file

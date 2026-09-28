@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.IO.Abstractions;
+using System.Runtime.ExceptionServices;
+using InstallerClean.Helpers;
 using InstallerClean.Interop;
 using InstallerClean.Models;
 using Microsoft.Win32;
@@ -247,7 +249,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
         return new DeclarationAnswer(
             DeclaredProductOutcome.DeclaredProductInstalled,
-            PackagesOpenedBy(code, installations, namesAFileInInstallerFolder));
+            PackagesOpenedBy(code, installations, pass, namesAFileInInstallerFolder));
     }
 
     /// <summary>
@@ -353,7 +355,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             pass.CancellationToken.ThrowIfCancellationRequested();
             if (!installation.SecondCopyNotRuledOut) continue;
 
-            if (!AddSecondCopyPackages(installation, namesAFileInInstallerFolder, identities))
+            if (!AddSecondCopyPackages(installation, pass, namesAFileInInstallerFolder, identities))
             {
                 identities = null;
                 break;
@@ -374,6 +376,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// </summary>
     private bool AddSecondCopyPackages(
         ListedInstallation installation,
+        PassAnswers pass,
         Func<string, bool?>? namesAFileInInstallerFolder,
         List<FileIdentity> opened)
     {
@@ -399,7 +402,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
         opened.Add(recorded);
 
-        return AddSourcePackages(installation.ProductCode, isPatch: false, installation.UserSid, context,
+        return AddSourcePackages(installation.ProductCode, isPatch: false, installation.UserSid, context, pass,
             namesAFileInInstallerFolder, opened);
     }
 
@@ -586,6 +589,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     private IReadOnlyList<FileIdentity>? PackagesOpenedBy(
         string code,
         IReadOnlyList<(string RegisteredCode, string? Sid, MsiInstallContext Context)> installations,
+        PassAnswers pass,
         Func<string, bool?>? namesAFileInInstallerFolder)
     {
         if (_fileIdentities is null || _fileSystem is null) return null;
@@ -622,7 +626,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             identities.Add(recorded);
 
             if (!AddSourcePackages(
-                    registeredCode, isPatch: false, sid, context, namesAFileInInstallerFolder, identities))
+                    registeredCode, isPatch: false, sid, context, pass, namesAFileInInstallerFolder, identities))
                 return null;
         }
 
@@ -672,8 +676,10 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// of the five above; a source entry holding a null; a product's
     /// <c>InstallSource</c> that <see cref="InstallSourceOf"/> answers null for; a source
     /// whose package would be a file directly in the Installer folder, or where that
-    /// cannot be established; and a source package that exists and will not identify. A
-    /// source package that is not there is skipped, being no file.
+    /// cannot be established; a source package that exists and will not identify; and a
+    /// source package whose read has not answered within the time limit
+    /// (<see cref="ReadSourcePackage"/>). A source package that is not there is skipped,
+    /// being no file.
     /// </summary>
     /// <param name="isPatch">
     /// Whether <paramref name="code"/> is a patch code rather than a product code. The
@@ -684,6 +690,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         bool isPatch,
         string? sid,
         MsiInstallContext context,
+        PassAnswers pass,
         Func<string, bool?>? namesAFileInInstallerFolder,
         List<FileIdentity> opened)
     {
@@ -763,25 +770,170 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             // separator is the host's.
             var package = folder.EndsWith('\\') ? folder + packageName : folder + '\\' + packageName;
 
-            // A source in the Installer folder keeps every copy of the product or the
-            // patch, not only the one it names: the folder it was installed or applied
-            // from is the cache itself.
-            if (namesAFileInInstallerFolder(package) is not false) return false;
-
-            switch (_fileIdentities.ReadOutcome(package, out var identity))
-            {
-                case FileIdentityRead.Read:
-                    opened.Add(identity);
-                    break;
-                case FileIdentityRead.NamesNothing:
-                    break;
-                default:
-                    return false;
-            }
+            if (!ReadSourcePackage(package, pass, namesAFileInInstallerFolder, out var identity)) return false;
+            if (identity is { } read) opened.Add(read);
         }
 
         return true;
     }
+
+    /// <summary>
+    /// Reads the package at <paramref name="package"/>, a path built from a source folder,
+    /// for <see cref="AddSourcePackages"/>: true with its identity where it opens, true with
+    /// null where no file is there, and false where the copy is kept.
+    ///
+    /// FALSE for a package that would be a file directly in the Installer folder, or where
+    /// that cannot be established; a package that exists and will not identify; and a read
+    /// that has not answered within <see cref="SourceFolderTimeLimit"/>.
+    ///
+    /// THE READ IS WAITED FOR UP TO THE TIME LIMIT (<see cref="AnswersWithin"/>). A source
+    /// folder can be on a server that does not answer, and an open there waits until
+    /// Windows gives up on the server; the open itself takes no time limit. Once a package
+    /// on a network root, a share or a network drive (<see cref="IsNetworkRoot"/>), has not
+    /// answered within the limit, every later package under that root in the pass is kept
+    /// without being read, so a share that does not answer costs a pass the limit once. A
+    /// package on a local drive that has not answered keeps only its own file, and the next
+    /// package on that drive is read as usual. Cancelling the pass ends the wait at once.
+    /// </summary>
+    private bool ReadSourcePackage(
+        string package,
+        PassAnswers pass,
+        Func<string, bool?> namesAFileInInstallerFolder,
+        out FileIdentity? identity)
+    {
+        identity = null;
+
+        var root = RootOf(package);
+        if (pass.RootsNotAnswering.Contains(root)) return false;
+
+        var identities = _fileIdentities!;
+        var answered = AnswersWithin(
+            () =>
+            {
+                // A source in the Installer folder keeps every copy of the product or the
+                // patch, not only the one it names: the folder it was installed or applied
+                // from is the cache itself.
+                if (namesAFileInInstallerFolder(package) is not false) return (false, null);
+
+                return identities.ReadOutcome(package, out var read) switch
+                {
+                    FileIdentityRead.Read => (true, read),
+                    FileIdentityRead.NamesNothing => (true, (FileIdentity?)null),
+                    _ => (false, null),
+                };
+            },
+            pass.CancellationToken,
+            out (bool Settled, FileIdentity? Identity) answer);
+
+        if (!answered)
+        {
+            if (IsNetworkRoot(root, pass.CancellationToken)) pass.RootsNotAnswering.Add(root);
+            return false;
+        }
+
+        identity = answer.Identity;
+        return answer.Settled;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="read"/> on a thread of its own and waits for it up to
+    /// <see cref="SourceFolderTimeLimit"/>: true with its answer where it answered in time,
+    /// false where it did not. A read that answers after the limit finishes on its own thread
+    /// and its answer is not used. Cancelling ends the wait at once.
+    /// </summary>
+    private bool AnswersWithin<T>(Func<T> read, CancellationToken cancellationToken, out T value)
+    {
+        var answered = new TaskCompletionSource<(T Value, ExceptionDispatchInfo? Fault)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // A background thread, so a read still waiting when the app closes does not keep
+        // the process open, and not a thread-pool one, which a read that does not answer
+        // would hold until Windows gives up. Nothing escapes the thread: a throw is carried
+        // back and thrown again on the calling thread, as it would be from a read made
+        // there.
+        var reader = new Thread(() =>
+        {
+            try
+            {
+                answered.TrySetResult((read(), null));
+            }
+            catch (Exception ex)
+            {
+                answered.TrySetResult((default!, ExceptionDispatchInfo.Capture(ex)));
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Source package read",
+        };
+        reader.Start();
+
+        if (!answered.Task.Wait(SourceFolderTimeLimit, cancellationToken))
+        {
+            value = default!;
+            return false;
+        }
+
+        var (result, fault) = answered.Task.Result;
+        fault?.Throw();
+        value = result;
+        return true;
+    }
+
+    /// <summary>
+    /// The part of <paramref name="path"/> a server or a drive answers for: <c>\\server\share</c>
+    /// for a UNC path and the drive letter with its colon for a path on a drive, read through
+    /// a <c>\\?\</c> or <c>\\.\</c> prefix. Any other form is its own root. The pass
+    /// compares roots without case.
+    /// </summary>
+    private static string RootOf(string path)
+    {
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal) || path.StartsWith(@"\\.\", StringComparison.Ordinal))
+        {
+            var rest = path[4..];
+            return rest.StartsWith(@"UNC\", StringComparison.OrdinalIgnoreCase)
+                ? RootOf(@"\\" + rest[4..])
+                : RootOf(rest);
+        }
+
+        if (path.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            var server = path.IndexOf('\\', 2);
+            var share = server < 0 ? -1 : path.IndexOf('\\', server + 1);
+            return share < 0 ? path : path[..share];
+        }
+
+        return path.Length >= 2 && char.IsAsciiLetter(path[0]) && path[1] == ':' ? path[..2] : path;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="root"/>, from <see cref="RootOf"/>, is on the network: a
+    /// share, or a drive letter that Windows does not report as a local drive
+    /// (<see cref="DriveLetterIsLocal"/>). A drive whose kind does not answer within the time
+    /// limit counts as a network drive. Any other root counts as local.
+    /// </summary>
+    private bool IsNetworkRoot(string root, CancellationToken cancellationToken)
+    {
+        if (root.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+        if (root.Length != 2 || root[1] != ':') return false;
+
+        return !AnswersWithin(() => DriveLetterIsLocal(root), cancellationToken, out var local) || !local;
+    }
+
+    /// <summary>
+    /// Whether the drive letter <c>X:</c> given is a local drive: one Windows reports as
+    /// fixed, removable, an optical drive or a RAM disk. A network drive, and a drive whose
+    /// kind Windows does not report, answer false.
+    /// </summary>
+    internal Func<string, bool> DriveLetterIsLocal { get; init; } = drive =>
+        StorageHelpers.GetDriveKind(drive + @"\")
+            is DriveType.Fixed or DriveType.Removable or DriveType.CDRom or DriveType.Ram;
+
+    /// <summary>
+    /// How long <see cref="ReadSourcePackage"/> waits for one source folder's package to
+    /// answer before the copy is kept.
+    /// </summary>
+    internal TimeSpan SourceFolderTimeLimit { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// The entries on one source list, network or URL as <paramref name="sourceType"/>
@@ -1213,7 +1365,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         IReadOnlyList<FileIdentity>? copies = null;
         if (registrations.Count > 0)
         {
-            copies = CopiesOpenedBy(code, registrations, namesAFileInInstallerFolder);
+            copies = CopiesOpenedBy(code, registrations, pass, namesAFileInInstallerFolder);
             if (copies is null)
                 return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchRegistered, null);
         }
@@ -1243,7 +1395,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             return new DeclarationAnswer(DeclaredProductOutcome.DeclaredPatchRegistered, copies);
 
         var more = CopiesOpenedBy(
-            code, registrations.GetRange(found, registrations.Count - found), namesAFileInInstallerFolder);
+            code, registrations.GetRange(found, registrations.Count - found), pass, namesAFileInInstallerFolder);
         return new DeclarationAnswer(
             DeclaredProductOutcome.DeclaredPatchRegistered,
             more is null ? null : [.. copies ?? [], .. more]);
@@ -1295,6 +1447,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     private IReadOnlyList<FileIdentity>? CopiesOpenedBy(
         string code,
         IReadOnlyList<(string ProductCode, string? Sid, MsiInstallContext Context)> registrations,
+        PassAnswers pass,
         Func<string, bool?>? namesAFileInInstallerFolder)
     {
         if (_fileIdentities is null || _fileSystem is null) return null;
@@ -1343,7 +1496,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
             identities.Add(recorded);
 
             if (sourceListsRead.Add((sid?.ToUpperInvariant(), context))
-                && !AddSourcePackages(code, isPatch: true, sid, context, namesAFileInInstallerFolder, identities))
+                && !AddSourcePackages(code, isPatch: true, sid, context, pass, namesAFileInInstallerFolder, identities))
                 return null;
         }
 
@@ -1465,6 +1618,12 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
             return read;
         }
+
+        /// <summary>
+        /// Every root, a share or a network drive, under which a source package's read has
+        /// not answered within the time limit in this pass (<see cref="ReadSourcePackage"/>).
+        /// </summary>
+        internal HashSet<string> RootsNotAnswering { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Each declared patch's answer, keyed by patch code and target list.</summary>
         internal Dictionary<string, DeclarationAnswer> Patches { get; } = new(StringComparer.Ordinal);

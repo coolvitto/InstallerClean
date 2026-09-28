@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO.Abstractions.TestingHelpers;
 using System.Text.RegularExpressions;
@@ -3811,6 +3812,267 @@ public class DeclaredProductCheckTests
         Assert.Equal(new[] { (SecondCopy, (string?)null, MsiInstallContext.Machine) }, f.Msi.PackageNameReads);
         Assert.Single(f.Files.Reads, read => read == SetupPackage);
     }
+
+    // ---- A source package that does not answer in time ----
+    //
+    // A source folder can be on a server that does not answer, where an open waits until
+    // Windows gives up on it. The check waits for each source package's read up to its
+    // time limit, and a read that has not answered by then keeps the copy as a read that
+    // failed does. Each test holds a read back for longer than the limit, and the answer
+    // it gives once released is the one that lets the copy through.
+
+    /// <summary>The time limit the tests below give the check.</summary>
+    private static readonly TimeSpan ShortLimit = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>How long a held read is held for at most, far past <see cref="ShortLimit"/>.</summary>
+    private static readonly TimeSpan HeldFor = TimeSpan.FromSeconds(5);
+
+    private const string ShareFolder = @"\\nas\share\a\";
+    private const string SharePackage = @"\\nas\share\a\setup.msi";
+
+    [Fact]
+    public void A_copy_is_kept_when_a_source_package_of_its_product_does_not_answer_within_the_time_limit()
+    {
+        var f = ACopyBesideTheRecordedPackage();
+        f.Msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, SetupName, ShareFolder);
+        f.Files.Opens(SharePackage, 9);
+        using var files = new HeldFileIdentities(f.Files);
+        files.Holds(SharePackage, HeldFor);
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = ShortLimit }
+            .Screen([Package(Candidate)], [], default, null, InInstallerFolder)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcome);
+        Assert.True(clock.Elapsed < HeldFor, $"the screen took {clock.Elapsed}");
+        Assert.Contains(SharePackage, files.Started);
+    }
+
+    [Fact]
+    public void A_copy_is_let_through_when_a_source_package_answers_within_the_time_limit()
+    {
+        // The read is held back, and for less than the limit.
+        var f = ACopyBesideTheRecordedPackage();
+        f.Msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, SetupName, ShareFolder);
+        f.Files.Opens(SharePackage, 9);
+        using var files = new HeldFileIdentities(f.Files);
+        files.Holds(SharePackage, TimeSpan.FromMilliseconds(200));
+
+        var outcome = new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = HeldFor }
+            .Screen([Package(Candidate)], [], default, null, InInstallerFolder)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, outcome);
+        Assert.Contains(SharePackage, f.Files.Reads);
+    }
+
+    [Fact]
+    public void A_copy_is_kept_when_whether_a_source_is_in_the_Installer_folder_does_not_answer_within_the_time_limit()
+    {
+        // The answer, once given, is that the source is outside the folder. The package's
+        // identity is not read.
+        var f = ACopyBesideTheRecordedPackage();
+        f.Msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, SetupName, ShareFolder);
+        f.Files.Opens(SharePackage, 9);
+        using var released = new ManualResetEventSlim();
+
+        bool? HeldInInstallerFolder(string path)
+        {
+            released.Wait(HeldFor);
+            return InInstallerFolder(path);
+        }
+
+        var outcome = new DeclaredProductCheck(f.Msi, f.Packages, f.Files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = ShortLimit }
+            .Screen([Package(Candidate)], [], default, null, HeldInInstallerFolder)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcome);
+        Assert.DoesNotContain(SharePackage, f.Files.Reads);
+        released.Set();
+    }
+
+    [Fact]
+    public void A_patch_copy_is_kept_when_a_source_package_of_the_patch_does_not_answer_within_the_time_limit()
+    {
+        const string SharePatch = @"\\nas\share\a\fix.msp";
+        var f = APatchCopyBesideTheRecordedCopy();
+        f.Msi.RecordsPatchSources(PatchQ, null, MsiInstallContext.Machine, PatchSetupName, ShareFolder);
+        f.Files.Opens(SharePatch, 9);
+        using var files = new HeldFileIdentities(f.Files);
+        files.Holds(SharePatch, HeldFor);
+
+        var outcome = new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = ShortLimit }
+            .Screen([Patch(PatchCopy)], [], default, null, InInstallerFolder)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredPatchRegistered, outcome);
+        Assert.Contains(SharePatch, files.Started);
+    }
+
+    [Fact]
+    public void Every_installation_package_is_kept_beside_a_second_copy_whose_source_package_does_not_answer_within_the_time_limit()
+    {
+        var f = AMarkedSecondCopy();
+        f.Msi.RecordsSources(SecondCopy, null, MsiInstallContext.Machine, SetupName, ShareFolder);
+        f.Files.Opens(SharePackage, 9);
+        using var files = new HeldFileIdentities(f.Files);
+        files.Holds(SharePackage, HeldFor);
+
+        var outcomes = new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = ShortLimit }
+            .Screen([Package(Candidate), Package(OtherCandidate)], f.Listed, default, null, InInstallerFolder);
+
+        Assert.All(outcomes, outcome => Assert.Equal(DeclaredProductOutcome.SecondCopyUnestablished, outcome));
+        Assert.Single(files.Started, read => read == SharePackage);
+    }
+
+    [Fact]
+    public void Cancelling_the_pass_ends_the_wait_for_a_source_package()
+    {
+        var f = ACopyBesideTheRecordedPackage();
+        f.Msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, SetupName, ShareFolder);
+        f.Files.Opens(SharePackage, 9);
+        using var files = new HeldFileIdentities(f.Files);
+        files.Holds(SharePackage, HeldFor);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+                { SourceFolderTimeLimit = TimeSpan.FromMinutes(1) }
+                .Screen([Package(Candidate)], [], cts.Token, null, InInstallerFolder));
+
+        Assert.True(clock.Elapsed < HeldFor, $"the screen took {clock.Elapsed}");
+    }
+
+    /// <summary>
+    /// Product A installed from <paramref name="heldFolder"/>, whose package is held past the
+    /// limit, and product B installed from <paramref name="otherFolder"/>, whose package
+    /// opens as another file. <see cref="Candidate"/> declares A and
+    /// <see cref="OtherCandidate"/> B, and B's candidate is let through only where B's
+    /// source is read.
+    /// </summary>
+    private static ((ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
+        ScriptedFileIdentities Files, MockFileSystem Disk) F, HeldFileIdentities Held, string OtherPackage)
+        TwoProductsBesideAHeldSource(string heldFolder, string otherFolder)
+    {
+        const string OtherRecorded = @"C:\Windows\Installer\b3.msi";
+        var heldPackage = heldFolder + SetupName;
+        var otherPackage = otherFolder + SetupName;
+        var f = ACopyBesideTheRecordedPackage();
+        f.Msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, SetupName, heldFolder);
+        f.Files.Opens(heldPackage, 9);
+        f.Msi.Installed(ProductB);
+        f.Msi.RecordsPackage(ProductB, null, MsiInstallContext.Machine, OtherRecorded);
+        f.Msi.RecordsSources(ProductB, null, MsiInstallContext.Machine, SetupName, otherFolder);
+        f.Packages.Declares(OtherCandidate, ProductB);
+        f.Packages.Declares(OtherRecorded, ProductB);
+        f.Files.Opens(OtherCandidate, 3);
+        f.Files.Opens(OtherRecorded, 4);
+        f.Files.Opens(otherPackage, 10);
+        f.Disk.AddFile(OtherCandidate, new MockFileData(new byte[100]));
+        f.Disk.AddFile(OtherRecorded, new MockFileData(new byte[100]));
+        var held = new HeldFileIdentities(f.Files);
+        held.Holds(heldPackage, HeldFor);
+        return (f, held, otherPackage);
+    }
+
+    private static IReadOnlyList<DeclaredProductOutcome> ScreenBothCandidates(
+        (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
+            ScriptedFileIdentities Files, MockFileSystem Disk) f,
+        HeldFileIdentities files,
+        Func<string, bool> driveLetterIsLocal) =>
+        new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = ShortLimit, DriveLetterIsLocal = driveLetterIsLocal }
+            .Screen([Package(Candidate), Package(OtherCandidate)], [], default, null, InInstallerFolder);
+
+    [Theory]
+    [InlineData(@"\\nas\share\b\", false)]
+    [InlineData(@"\\NAS\SHARE\b\", false)]
+    [InlineData(@"\\nas\other\", true)]
+    public void A_source_package_under_a_share_that_has_not_answered_is_kept_for_the_rest_of_the_pass_without_being_read(
+        string otherFolder, bool read)
+    {
+        // A share is on the network by its spelling, so no drive is asked about.
+        var (f, files, otherPackage) = TwoProductsBesideAHeldSource(ShareFolder, otherFolder);
+        using var _ = files;
+
+        var outcomes = ScreenBothCandidates(f, files,
+            drive => throw new InvalidOperationException($"the check asked about drive {drive}"));
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcomes[0]);
+        Assert.Equal(
+            read ? DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile : DeclaredProductOutcome.DeclaredProductInstalled,
+            outcomes[1]);
+        Assert.Equal(read, files.Calls.Contains(otherPackage));
+    }
+
+    [Fact]
+    public void A_local_drive_whose_source_package_has_not_answered_still_has_its_next_source_package_read()
+    {
+        var asked = new ConcurrentQueue<string>();
+        var (f, files, otherPackage) = TwoProductsBesideAHeldSource(@"D:\Setup\a\", @"D:\Setup\b\");
+        using var _ = files;
+
+        var outcomes = ScreenBothCandidates(f, files, drive =>
+        {
+            asked.Enqueue(drive);
+            return true;
+        });
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcomes[0]);
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductCachedAsAnotherFile, outcomes[1]);
+        Assert.Contains(otherPackage, files.Calls);
+        Assert.Equal(new[] { "D:" }, asked);
+    }
+
+    [Fact]
+    public void A_drive_Windows_reports_as_a_network_drive_is_kept_for_the_rest_of_the_pass_like_a_share()
+    {
+        var (f, files, otherPackage) = TwoProductsBesideAHeldSource(@"Z:\Setup\a\", @"z:\Setup\b\");
+        using var _ = files;
+
+        var outcomes = ScreenBothCandidates(f, files, _ => false);
+
+        Assert.All(outcomes, outcome => Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcome));
+        Assert.DoesNotContain(otherPackage, files.Calls);
+    }
+
+    [Fact]
+    public void A_drive_whose_kind_does_not_answer_within_the_time_limit_is_kept_like_a_network_drive()
+    {
+        using var released = new ManualResetEventSlim();
+        var (f, files, otherPackage) = TwoProductsBesideAHeldSource(@"Z:\Setup\a\", @"Z:\Setup\b\");
+        using var _ = files;
+
+        var outcomes = ScreenBothCandidates(f, files, _ =>
+        {
+            released.Wait(HeldFor);
+            return true;
+        });
+
+        Assert.All(outcomes, outcome => Assert.Equal(DeclaredProductOutcome.DeclaredProductInstalled, outcome));
+        Assert.DoesNotContain(otherPackage, files.Calls);
+        released.Set();
+    }
+
+    [Fact]
+    public void A_share_that_has_not_answered_is_read_again_in_the_next_pass()
+    {
+        var f = ACopyBesideTheRecordedPackage();
+        f.Msi.RecordsSources(ProductA, null, MsiInstallContext.Machine, SetupName, ShareFolder);
+        f.Files.Opens(SharePackage, 9);
+        using var files = new HeldFileIdentities(f.Files);
+        files.Holds(SharePackage, HeldFor);
+        var check = new DeclaredProductCheck(f.Msi, f.Packages, files, f.Disk, f.Msi.Registry)
+            { SourceFolderTimeLimit = ShortLimit };
+
+        check.Screen([Package(Candidate)], [], default, null, InInstallerFolder);
+        check.Screen([Package(Candidate)], [], default, null, InInstallerFolder);
+
+        Assert.Equal(2, files.Started.Count(read => read == SharePackage));
+    }
 }
 
 /// <summary>
@@ -4744,6 +5006,41 @@ internal sealed class ScriptedFileIdentities : IFileIdentityReader
         identity = scripted.Identity;
         return scripted.Outcome;
     }
+}
+
+/// <summary>
+/// A <see cref="ScriptedFileIdentities"/> whose answer for the paths a test holds comes only
+/// once the test releases it or the hold runs out, standing in for a source folder on a
+/// server that is slow to answer. Disposing it releases every read still held, and a read
+/// released after its test has finished answers into a fixture nothing reads any more.
+/// </summary>
+internal sealed class HeldFileIdentities(ScriptedFileIdentities answers) : IFileIdentityReader, IDisposable
+{
+    private readonly ConcurrentDictionary<string, TimeSpan> _holds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ManualResetEventSlim _released = new();
+
+    /// <summary>Every path a read was started for, held or not, in order.</summary>
+    public ConcurrentQueue<string> Calls { get; } = new();
+
+    /// <summary>Every held path a read was started for, in order.</summary>
+    public ConcurrentQueue<string> Started { get; } = new();
+
+    /// <summary>A read of <paramref name="path"/> answers after <paramref name="hold"/>, or on release.</summary>
+    public void Holds(string path, TimeSpan hold) => _holds[path] = hold;
+
+    public FileIdentityRead ReadOutcome(string path, out FileIdentity identity)
+    {
+        Calls.Enqueue(path);
+        if (_holds.TryGetValue(path, out var hold))
+        {
+            Started.Enqueue(path);
+            _released.Wait(hold);
+        }
+
+        return answers.ReadOutcome(path, out identity);
+    }
+
+    public void Dispose() => _released.Set();
 }
 
 /// <summary>
