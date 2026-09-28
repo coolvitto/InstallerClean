@@ -682,12 +682,15 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// <summary>
     /// The HKLM path this check reads a product installation's <c>InstallProperties</c>
     /// key from: <c>SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData</c>, then
-    /// <c>S-1-5-18</c> per machine or the account per user and managed, then
-    /// <c>Products</c>, the code in its packed form and <c>InstallProperties</c>. A key
-    /// not found at this path keeps the file.
+    /// the account subtree <see cref="InstallerQueryService.UserDataAccount"/> names,
+    /// <c>S-1-5-18</c> per machine or the account per user, then <c>Products</c>, the code
+    /// in its packed form and <c>InstallProperties</c>. A key not found at this path keeps
+    /// the file.
     ///
-    /// NULL, WHICH KEEPS THE FILE, for the contexts, accounts and codes
-    /// <see cref="SourceListKeyPath"/> answers null for.
+    /// NULL, WHICH KEEPS THE FILE, per machine with an account, per user without one, and
+    /// for a code or an account that will not make a key name. A per-user unmanaged
+    /// installation has a path here and never reaches it: <see cref="AddSourcePackages"/>
+    /// keeps the file for that context before it reads an <c>InstallSource</c>.
     /// </summary>
     private static string? InstallPropertiesKeyPath(string code, string? sid, MsiInstallContext context)
     {

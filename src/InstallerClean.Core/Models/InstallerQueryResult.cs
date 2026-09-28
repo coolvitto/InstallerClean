@@ -507,7 +507,15 @@ public readonly record struct EnumerationCensus(
     // yields no code, or whose code no registry listing of a product this scan asks by
     // name records it as holding. One per entry. It withholds every superseded patch, and
     // it is not a count of products, so it is never added to the one above.
-    int UnattributedPatchFileCount = 0)
+    int UnattributedPatchFileCount = 0,
+    // UnsettledOwnerHiveNotLoadedProductCount, appended for the same reason: the codes in
+    // UnsettledEnumeratedProductCount that are there only because a per-user unmanaged
+    // installation's owner was not listed with their hive loaded under HKEY_USERS, at the
+    // registry fallback's listing or at the one taken after the confirmation pass, or a
+    // listing did not read. With the owner's hive taken as loaded, each such code's short
+    // installations would all have their lost records answered from the registry. A
+    // sub-count of UnsettledEnumeratedProductCount, never added to it.
+    int UnsettledOwnerHiveNotLoadedProductCount = 0)
 {
     /// <summary>
     /// Every recorded value this scan could not turn into a path, whatever refused

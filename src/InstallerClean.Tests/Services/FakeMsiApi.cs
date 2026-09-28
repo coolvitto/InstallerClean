@@ -72,6 +72,15 @@ internal sealed class FakeMsiApi : IMsiApi
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// The account and context the machine-wide product walk lists one product code
+    /// under. A code with no entry here is listed per machine with no account. A fixture
+    /// setting one sets the same installation in <see cref="KeyedInstances"/>, so the
+    /// keyed query answers for the installation the walk listed.
+    /// </summary>
+    public Dictionary<string, (string Sid, MsiInstallContext Context)> WalkInstances { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// What one ROW of a keyed enumeration returns, keyed by (product, index). It wins
     /// over everything else, which is what builds a walk that reads an instance and then
     /// meets a return it cannot read.
@@ -213,6 +222,15 @@ internal sealed class FakeMsiApi : IMsiApi
         var (code, result) = Products[(int)index];
         if (result != Success) return result;
         WriteCode(installedProductCode, code);
+        if (WalkInstances.TryGetValue(code, out var walked))
+        {
+            installedContext = walked.Context;
+            if (sid is not null)
+            {
+                for (var i = 0; i < walked.Sid.Length && i < sid.Length; i++) sid[i] = walked.Sid[i];
+                sidLength = (uint)walked.Sid.Length;
+            }
+        }
         return Success;
     }
 
@@ -233,6 +251,9 @@ internal sealed class FakeMsiApi : IMsiApi
             WriteCode(targetProductCode, heldTarget);
             return Success;
         }
+        // A patch of a product asked about in one context is that product's, in that
+        // context, which is what every row below answers.
+        targetProductContext = context;
         if (productCode is not null && index == 0) PatchEnumerationsStarted.Add(productCode);
         if (productCode is not null && productCode == NeverEndPatchesFor)
         {

@@ -79,7 +79,8 @@ public class ResultLogEntryTests
         UnsettledEnumeratedProductCount: 0,
         RecoveredEnumeratedInstallationCount: 0,
         UnattributedPatchFileCount: 0,
-        SupersededScanWideWithheldCount: 0);
+        SupersededScanWideWithheldCount: 0,
+        UnsettledOwnerHiveNotLoadedProductCount: 0);
 
     private static MachineInfo SampleMachine() => new(
         ShortNameCreation: ShortNameCreationLabels.NoVolumes,
@@ -295,6 +296,10 @@ public class ResultLogEntryTests
                 // withheldPatchCount, and the recorded-path count above is a sub-count of
                 // this.
                 "supersededScanWideWithheldCount",
+                // Listed programs the scan could not check only because a per-user
+                // unmanaged owner's hive was not loaded: a sub-count of
+                // unsettledEnumeratedProductCount, never added to it.
+                "unsettledOwnerHiveNotLoadedProductCount",
             ],
             root.GetProperty("scan").EnumerateObject().Select(p => p.Name));
 
@@ -856,7 +861,8 @@ public class ResultLogEntryTests
                 UnansweredProductCount: 18,
                 UnsettledEnumeratedProductCount: 34,
                 RecoveredEnumeratedInstallationCount: 35,
-                UnattributedPatchFileCount: 36),
+                UnattributedPatchFileCount: 36,
+                UnsettledOwnerHiveNotLoadedProductCount: 37),
             RegisteredWithheldCount: 19,
             WithheldFiles: withheld,
             WithheldBy: new WithholdingSplit(20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
@@ -902,6 +908,7 @@ public class ResultLogEntryTests
         Assert.Equal(35, info.RecoveredEnumeratedInstallationCount);
         Assert.Equal(36, info.UnattributedPatchFileCount);
         Assert.Equal(7, info.SupersededScanWideWithheldCount);
+        Assert.Equal(37, info.UnsettledOwnerHiveNotLoadedProductCount);
     }
 
     [Fact]

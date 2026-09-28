@@ -17,11 +17,13 @@ namespace InstallerClean.Tests.Services;
 /// beside it, and one of its reads fails: its package record, one of its patches' package
 /// records, or its patch list, which returns what it can and is then abandoned. The
 /// registry fallback is handed in finished, holding whatever records and listings a test
-/// gives it.
+/// gives it. The second program is per machine, or per user and unmanaged under one user's
+/// account.
 ///
 /// WHERE ITS OWN ACCOUNT'S REGISTRY HOLDS WHAT THE FAILED READ WOULD HAVE RETURNED, the
 /// program is asked about each superseded patch by name and its records are read against
-/// each file, and nothing is held back on the whole machine for it. Anywhere else, every
+/// each file, and nothing is held back on the whole machine for it. A per-user unmanaged
+/// program's records answer only while its owner's hive is loaded. Anywhere else, every
 /// superseded patch is.
 /// </summary>
 public class InstallerQueryServiceShortProgramTests
@@ -46,6 +48,12 @@ public class InstallerQueryServiceShortProgramTests
 
     /// <summary>A user's account, which is not a per-machine installation's own.</summary>
     private const string OtherAccount = "S-1-5-21-1111111111-2222222222-3333333333-1001";
+
+    /// <summary>
+    /// The account a per-user unmanaged <see cref="Short"/> is installed under, a user other
+    /// than <see cref="OtherAccount"/>.
+    /// </summary>
+    private const string OwnerAccount = "S-1-5-21-1111111111-2222222222-3333333333-1002";
 
     // ---- Whether the registry holds what the failed read would have returned ----
 
@@ -115,13 +123,177 @@ public class InstallerQueryServiceShortProgramTests
     [InlineData(OtherAccount, MsiInstallContext.UserManaged, OtherAccount)]
     [InlineData(null, MsiInstallContext.UserManaged, null)]
     [InlineData(@"S-1-5-21-1\..\S-1-5-18", MsiInstallContext.UserManaged, null)]
-    [InlineData(OtherAccount, MsiInstallContext.UserUnmanaged, null)]
+    [InlineData(OtherAccount, MsiInstallContext.UserUnmanaged, OtherAccount)]
+    [InlineData(null, MsiInstallContext.UserUnmanaged, null)]
+    [InlineData(@"S-1-5-21-1\..\S-1-5-18", MsiInstallContext.UserUnmanaged, null)]
     public void An_installations_records_are_read_only_under_the_account_it_is_installed_in(
         string? sid, MsiInstallContext context, string? account)
     {
-        // Per machine is the local system's subtree, and per user and managed is the
-        // user's own. Any other shape has no subtree whose records answer for it.
+        // Per machine is the local system's subtree, and per user, managed or not, is the
+        // user's own. Per machine with an account and per user without one have no
+        // subtree whose records answer for them.
         Assert.Equal(account, InstallerQueryService.UserDataAccount(sid, context));
+    }
+
+    // ---- A per-user unmanaged program, whose records answer while its owner's hive is loaded ----
+
+    [Theory]
+    [InlineData(OwnerAccount, true, 0, 0)]
+    [InlineData(OwnerAccount, false, 1, 1)]
+    [InlineData(OtherAccount, true, 1, 0)]
+    [InlineData(MachineAccount, true, 1, 0)]
+    [InlineData(null, true, 1, 0)]
+    public async Task A_per_user_programs_failed_package_read_holds_every_superseded_patch_unless_its_own_account_records_the_package_and_its_hive_is_loaded(
+        string? recordedUnder, bool hiveLoaded, int unsettled, int unsettledForHive)
+    {
+        var msi = PerUserMachine();
+        msi.ProductPropertyResult[(Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(
+            records: recordedUnder is null
+                ? []
+                : [new(Path.GetFullPath(ShortFile), IsPatch: false, Short, recordedUnder)],
+            loadedHives: hiveLoaded ? [OwnerAccount] : []));
+
+        AssertCounted(result, unsettled, unsettledForHive);
+    }
+
+    /// <summary>
+    /// The patch whose package read fails is listed in the program's own account and
+    /// context, so its record answers under <see cref="OwnerAccount"/> and under no other.
+    /// </summary>
+    [Theory]
+    [InlineData(OwnerAccount, true, 0, 0)]
+    [InlineData(OwnerAccount, false, 1, 1)]
+    [InlineData(OtherAccount, true, 1, 0)]
+    [InlineData(MachineAccount, true, 1, 0)]
+    [InlineData(null, true, 1, 0)]
+    public async Task A_per_user_programs_failed_patch_package_read_holds_every_superseded_patch_unless_its_own_account_records_the_package_and_its_hive_is_loaded(
+        string? recordedUnder, bool hiveLoaded, int unsettled, int unsettledForHive)
+    {
+        var msi = PerUserMachine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchPropertyResult[(OtherPatch, Short, "LocalPackage")] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(
+            records: recordedUnder is null
+                ? []
+                : [new(Path.GetFullPath(OtherPatchFile), IsPatch: true, OtherPatch, recordedUnder)],
+            loadedHives: hiveLoaded ? [OwnerAccount] : []));
+
+        AssertCounted(result, unsettled, unsettledForHive);
+    }
+
+    [Theory]
+    [InlineData(OwnerAccount, true, 0, 0)]
+    [InlineData(OwnerAccount, false, 1, 1)]
+    [InlineData(OtherAccount, true, 1, 0)]
+    [InlineData(MachineAccount, true, 1, 0)]
+    [InlineData(null, true, 1, 0)]
+    public async Task A_per_user_programs_short_patch_list_holds_every_superseded_patch_unless_its_own_accounts_listing_names_every_patch_it_returned_and_its_hive_is_loaded(
+        string? listedUnder, bool hiveLoaded, int unsettled, int unsettledForHive)
+    {
+        var msi = PerUserMachine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchRowsFailFrom[Short] = 1;
+
+        var result = await Scan(msi, Fallback(
+            listings: listedUnder is null
+                ? new()
+                : new() { [new AccountCode(listedUnder, Short)] = [OtherPatch, ThirdPatch] },
+            loadedHives: hiveLoaded ? [OwnerAccount] : []));
+
+        AssertCounted(result, unsettled, unsettledForHive);
+    }
+
+    [Fact]
+    public async Task A_short_per_user_program_holding_no_record_of_the_patch_is_asked_in_its_own_account_and_leaves_it_offered()
+    {
+        var msi = PerUserMachine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchRowsFailFrom[Short] = 1;
+
+        var result = await Scan(msi, Fallback(
+            listings: new() { [new AccountCode(OwnerAccount, Short)] = [OtherPatch] },
+            loadedHives: [OwnerAccount]));
+
+        Assert.Equal(0, result.UnaccountedProductCount);
+        Assert.Contains(msi.PatchInfoReads, r => r.PatchCode == Superseded && r.ProductCode == Short
+            && r.Sid == OwnerAccount && r.Context == MsiInstallContext.UserUnmanaged && r.Property == "State");
+        AssertOffered(Row(result));
+    }
+
+    [Fact]
+    public async Task A_short_per_user_program_holding_the_patch_applied_keeps_it_as_a_claim()
+    {
+        var msi = PerUserMachine();
+        msi.AddPatch(Short, OtherPatch, OtherPatchFile, state: "1", uninstallable: "0");
+        msi.PatchRowsFailFrom[Short] = 1;
+        msi.SetPatchProperty(Superseded, Short, "State", "1");
+        msi.SetPatchProperty(Superseded, Short, "Uninstallable", "0");
+
+        var result = await Scan(msi, Fallback(
+            listings: new() { [new AccountCode(OwnerAccount, Short)] = [OtherPatch, Superseded] },
+            loadedHives: [OwnerAccount]));
+
+        AssertKeptOnAClaim(Row(result));
+        Assert.Equal(0, result.UnaccountedProductCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_per_user_programs_owner_not_listed_with_their_hive_loaded_after_the_questions_holds_every_superseded_patch(
+        bool listingFails)
+    {
+        // Loaded when the fallback read the registry, and signed out, or unreadable, by
+        // the second listing.
+        var msi = PerUserMachine();
+        msi.ProductPropertyResult[(Short, "LocalPackage")] = BadConfiguration;
+        var fallback = Fallback(
+            records: [new(Path.GetFullPath(ShortFile), IsPatch: false, Short, OwnerAccount)],
+            loadedHives: [OwnerAccount]);
+
+        var result = await Scan(msi, fallback, loadedAtDecision: () => listingFails ? null : []);
+
+        AssertCounted(result, unsettled: 1, unsettledForHive: 1);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_per_user_programs_owner_not_listed_with_their_hive_loaded_when_the_registry_was_read_holds_every_superseded_patch(
+        bool listingFails)
+    {
+        // Not loaded, or unreadable, when the fallback read the registry, and loaded by the
+        // second listing.
+        var msi = PerUserMachine();
+        msi.ProductPropertyResult[(Short, "LocalPackage")] = BadConfiguration;
+        var fallback = Fallback(
+            records: [new(Path.GetFullPath(ShortFile), IsPatch: false, Short, OwnerAccount)],
+            loadedHives: listingFails ? null : []);
+
+        var result = await Scan(msi, fallback, loadedAtDecision: () => [OwnerAccount]);
+
+        AssertCounted(result, unsettled: 1, unsettledForHive: 1);
+    }
+
+    [Fact]
+    public async Task A_code_the_scan_could_not_settle_for_another_reason_as_well_is_not_counted_as_held_for_the_hive()
+    {
+        // The short per-user program's owner's hive is not loaded, and asked by its code
+        // the program will not answer while its registry entry names a cached file the
+        // enumeration never claimed.
+        var msi = PerUserMachine();
+        msi.ProductPropertyResult[(Short, "LocalPackage")] = BadConfiguration;
+        msi.KeyedRowResult[(Short, 0)] = BadConfiguration;
+
+        var result = await Scan(msi, Fallback(
+            records: [new(Path.GetFullPath(ShortFile), IsPatch: false, Short, OwnerAccount)],
+            loadedHives: [],
+            unclaimedProductFiles: [Short]));
+
+        AssertCounted(result, unsettled: 1, unsettledForHive: 0);
     }
 
     // ---- A short program whose own account's registry holds what it lost ----
@@ -312,6 +484,19 @@ public class InstallerQueryServiceShortProgramTests
     }
 
     /// <summary>
+    /// The same machine, with <see cref="Short"/> installed per user and unmanaged under
+    /// <see cref="OwnerAccount"/>, as the product walk lists it and as the keyed query
+    /// answers for it.
+    /// </summary>
+    private static FakeMsiApi PerUserMachine()
+    {
+        var msi = Machine();
+        msi.WalkInstances[Short] = (OwnerAccount, MsiInstallContext.UserUnmanaged);
+        msi.KeyedInstances[Short] = [(OwnerAccount, MsiInstallContext.UserUnmanaged)];
+        return msi;
+    }
+
+    /// <summary>
     /// A fallback whose listing of <see cref="Short"/>'s patches, under its own account,
     /// names what its list returned and <paramref name="alsoHeld"/>.
     /// </summary>
@@ -335,13 +520,18 @@ public class InstallerQueryServiceShortProgramTests
     /// The registry fallback's reading. Every code in <paramref name="registryCodes"/> has
     /// an established patch set holding nothing removable, except
     /// <paramref name="removablePatchOn"/>, so only what a test adds can hold the patch back.
-    /// <paramref name="listings"/> are the own-account patch listings the reader established.
+    /// <paramref name="listings"/> are the own-account patch listings the reader established,
+    /// <paramref name="loadedHives"/> the accounts whose own hive it found loaded, and
+    /// <paramref name="unclaimedProductFiles"/> the codes whose entry names a cached file on
+    /// the disk that the enumeration never claimed.
     /// </summary>
     private static InstallerQueryService.FallbackRead Fallback(
         string[]? registryCodes = null,
         Dictionary<AccountCode, IReadOnlyCollection<string>>? listings = null,
         RegistryPackageRecord[]? records = null,
-        string? removablePatchOn = null)
+        string? removablePatchOn = null,
+        string[]? loadedHives = null,
+        string?[]? unclaimedProductFiles = null)
     {
         registryCodes ??= [Listed, Short];
         var patchSets = new Dictionary<string, ProductPatchSet>(StringComparer.OrdinalIgnoreCase);
@@ -356,6 +546,7 @@ public class InstallerQueryServiceShortProgramTests
 
         return new InstallerQueryService.FallbackRead(
             0, registryCodes.Length,
+            UnclaimedProductFileCodes: unclaimedProductFiles,
             RegistryProductCodes: registryCodes,
             ProductPatchSets: patchSets,
             Reach: new EstablishedPatchReach(held,
@@ -364,11 +555,21 @@ public class InstallerQueryServiceShortProgramTests
                     [Superseded] = [Path.GetFullPath(SupersededFile)],
                 }),
             PackageRecords: records,
-            PatchListings: listings);
+            PatchListings: listings,
+            LoadedUserHives: loadedHives);
     }
 
-    private static async Task<InstallerQueryResult> Scan(FakeMsiApi msi, InstallerQueryService.FallbackRead fallback) =>
-        await new InstallerQueryService(msi, (_, _) => fallback).GetRegisteredPackagesAsync();
+    /// <summary>
+    /// A scan whose second listing of loaded hives, taken after the confirmation pass, is
+    /// <paramref name="loadedAtDecision"/>, or the fallback's own where none is given.
+    /// </summary>
+    private static async Task<InstallerQueryResult> Scan(
+        FakeMsiApi msi,
+        InstallerQueryService.FallbackRead fallback,
+        Func<IReadOnlyCollection<string>?>? loadedAtDecision = null) =>
+        await new InstallerQueryService(msi, (_, _) => fallback,
+                readLoadedHives: loadedAtDecision ?? (() => fallback.LoadedUserHives))
+            .GetRegisteredPackagesAsync();
 
     /// <summary>
     /// The superseded patch's row, found by its file name. A package record is handed in
@@ -381,14 +582,16 @@ public class InstallerQueryServiceShortProgramTests
 
     /// <summary>
     /// The short program is counted as a program whose records came back short whatever
-    /// the registry holds, and as one the scan could not check only where it holds too
-    /// little.
+    /// the registry holds, as one the scan could not check only where it holds too little
+    /// or the owner's hive is not loaded, and as one it could not check for the hive alone
+    /// in <paramref name="unsettledForHive"/>.
     /// </summary>
-    private static void AssertCounted(InstallerQueryResult result, int unsettled)
+    private static void AssertCounted(InstallerQueryResult result, int unsettled, int unsettledForHive = 0)
     {
         Assert.Equal(1, result.Census.UnreadableProducts);
         Assert.Equal(unsettled, result.Census.UnsettledEnumeratedProductCount);
         Assert.Equal(unsettled, result.UnaccountedProductCount);
+        Assert.Equal(unsettledForHive, result.Census.UnsettledOwnerHiveNotLoadedProductCount);
     }
 
     private static void AssertOffered(RegisteredPackage row)
