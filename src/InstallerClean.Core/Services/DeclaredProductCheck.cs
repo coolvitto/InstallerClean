@@ -18,8 +18,9 @@ namespace InstallerClean.Services;
 /// The cached package of each of those installations is read too, and a candidate is
 /// also put to every installation whose cached package declares the candidate's code
 /// while the installation is registered under another, read by the code it is registered
-/// under. A per-user-unmanaged installation whose cached package does not say which
-/// product it declares keeps every candidate installation package.
+/// under. An installation whose cached package does not say which product it declares
+/// keeps every candidate installation package, unless its own record shows it to be an
+/// ordinary installation.
 /// For each candidate patch it reads the patch's own code and the products its Template
 /// names, finds the registrations of that patch through the machine-wide patch
 /// enumeration and the keyed patch read, and reads the <c>LocalPackage</c> each
@@ -52,6 +53,7 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     private readonly IFileIdentityReader? _fileIdentities;
     private readonly IFileSystem? _fileSystem;
     private readonly IRegistryReader? _registry;
+    private readonly IRunningAccount? _runningAccount;
 
     /// <param name="fileIdentities">
     /// Identifies the file each recorded package path opens, and the candidate's own.
@@ -64,6 +66,10 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// Reads the registry key each source list is held in, which the list the API
     /// returns is checked against.
     /// </param>
+    /// <param name="runningAccount">
+    /// The account this process runs as, which a per-user installation's account is held
+    /// against before its own record is read (<see cref="AnswersFromItsOwnRecord"/>).
+    /// </param>
     /// <remarks>
     /// WITHOUT BOTH FILE READERS NO RECORDED PACKAGE IS LOOKED AT, and every candidate
     /// whose declared product is installed is kept as
@@ -71,21 +77,25 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// candidate whose declared patch is registered as
     /// <see cref="DeclaredProductOutcome.DeclaredPatchRegistered"/>. WITHOUT THE
     /// REGISTRY READER NO SOURCE LIST IS RELIED ON, and every candidate the comparison
-    /// reaches a source list for is kept the same way. That is the direction a missing
-    /// dependency has to fail in. The composition root supplies all three.
+    /// reaches a source list for is kept the same way. WITHOUT THE RUNNING ACCOUNT NO
+    /// PER-USER INSTALLATION'S RECORD IS READ, so one whose cached package does not say
+    /// what it declares keeps every installation package. That is the direction a missing
+    /// dependency has to fail in. The composition root supplies all four.
     /// </remarks>
     public DeclaredProductCheck(
         IMsiApi msi,
         IPackageIdentityReader identityReader,
         IFileIdentityReader? fileIdentities = null,
         IFileSystem? fileSystem = null,
-        IRegistryReader? registry = null)
+        IRegistryReader? registry = null,
+        IRunningAccount? runningAccount = null)
     {
         _msi = msi;
         _identityReader = identityReader;
         _fileIdentities = fileIdentities;
         _fileSystem = fileSystem;
         _registry = registry;
+        _runningAccount = runningAccount;
     }
 
     /// <summary>Whether this check compares recorded packages with the candidate.</summary>
@@ -93,6 +103,9 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
     /// <summary>Whether this check reads the registry key each source list is held in.</summary>
     internal bool ReadsSourceListKeys => _registry is not null;
+
+    /// <summary>Whether this check knows the account this process runs as.</summary>
+    internal bool KnowsTheRunningAccount => _runningAccount is not null;
 
     /// <inheritdoc />
     public IReadOnlyList<DeclaredProductOutcome> Screen(
@@ -222,10 +235,11 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         if (resolved.Unaskable)
             return new DeclarationAnswer(DeclaredProductOutcome.Unestablished, null);
 
-        // A per-user-unmanaged installation whose cached package does not say what it
-        // declares could be a second copy of any program, so it keeps every file.
+        // An installation whose cached package does not say what it declares, and whose
+        // own record does not show it to be an ordinary installation, could be a second
+        // copy of any program, so it keeps every file.
         var links = LinksOf(pass, recordRefusal);
-        if (links.UnmanagedPackageUnread)
+        if (links.UnreadPackageNotRuledOut)
             return new DeclarationAnswer(DeclaredProductOutcome.Unestablished, null);
 
         var installations = new List<(string RegisteredCode, string? Sid, MsiInstallContext Context)>();
@@ -242,18 +256,19 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
 
     /// <summary>
     /// Every installation the caller listed that is registered under a code other than
-    /// the one its cached package declares, keyed by the declared code, and whether the
-    /// cached package of a per-user-unmanaged installation did not say what it declares.
-    /// Read once per pass, the first time a candidate's declared code is put to Windows.
+    /// the one its cached package declares, keyed by the declared code, and whether an
+    /// installation whose cached package did not say what it declares is not shown by its
+    /// own record to be an ordinary installation. Read once per pass, the first time a
+    /// candidate's declared code is put to Windows.
     ///
-    /// EVERY CONTEXT IS READ, AND ONE CONTEXT KEEPS ON A FAILED READ. A link only ever
-    /// adds an installation to the ones a candidate is compared with, so it can keep a
-    /// file and never offer one. Where an installation's cached package does not say
-    /// what it declares, nothing links it to any candidate: in the per-user-unmanaged
-    /// context that keeps every file, because <c>InstanceType</c> for such an
-    /// installation is recorded in its owner's own registry rather than the machine's. In
-    /// every other context, an installation the scan reads as a second copy withholds
-    /// every installation package before this check runs.
+    /// EVERY CONTEXT IS READ, AND A FAILED READ KEEPS UNLESS THE RECORD RULES IT OUT. A
+    /// link only ever adds an installation to the ones a candidate is compared with, so
+    /// it can keep a file and never offer one. Where an installation's cached package
+    /// does not say what it declares, nothing links it to any candidate, so that
+    /// installation keeps every file unless its own record shows it to be an ordinary
+    /// installation (<see cref="AnswersFromItsOwnRecord"/>). An installation the scan
+    /// reads as a second copy withholds every installation package before this check
+    /// runs.
     ///
     /// The codes are compared as GUIDs, because the reader canonicalises the declared
     /// code and the listed code is in whatever spelling the caller's enumeration gave.
@@ -278,7 +293,8 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
                 installation.ProductCode, installation.UserSid, context, out var detail);
             if (declared is null)
             {
-                if (context == MsiInstallContext.UserUnmanaged) unread ??= detail;
+                if (!AnswersFromItsOwnRecord(installation.ProductCode, installation.UserSid, context))
+                    unread ??= detail;
                 continue;
             }
 
@@ -294,11 +310,50 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
         if (unread is not null)
             recordRefusal?.Invoke(
                 new InvalidOperationException(
-                    "A per-user program's cached package did not yield the product code it declares, so every "
-                    + "installation package is kept rather than offered. Detail: " + unread + "."),
+                    "A program's cached package did not yield the product code it declares, and its own "
+                    + "record did not show it to be an ordinary installation, so every installation package "
+                    + "is kept rather than offered. Detail: " + unread + "."),
                 unread);
 
         return pass.Links = new InstallationLinks(byDeclaredCode, unread is not null);
+    }
+
+    /// <summary>
+    /// Whether Windows answers, to this process, the record one installation keeps of
+    /// itself, and the record shows an ordinary installation: its <c>PackageCode</c> reads
+    /// as a value, and its <c>InstanceType</c> reads as an ordinary installation, through
+    /// the classification the scan's own reading uses
+    /// (<see cref="InstallerQueryService.ReadInstanceType"/>). Both are read by the code
+    /// the installation is registered under, in its account and context.
+    ///
+    /// A PER-USER INSTALLATION HAS TO BELONG TO THE ACCOUNT THIS PROCESS RUNS AS. A
+    /// per-user installation keeps these properties under its own account, and asked
+    /// about another account's installation, an answer need not come from that account's
+    /// record. So in the two per-user contexts the installation's account is
+    /// compared with <see cref="IRunningAccount.Sid"/>, without regard to case, and any
+    /// other account, or no account, answers false. A per-machine installation's record is
+    /// the machine's, and no account is compared for it.
+    ///
+    /// <c>PACKAGECODE</c> IS WHAT SHOWS THE RECORD ANSWERED. Every installed product has a
+    /// package code. The returns <see cref="InstallerQueryService.ReadProductProperty"/>
+    /// reads as benign give an empty value, so an <c>InstanceType</c> that reads as
+    /// ordinary looks the same whether the record carries no such value or did not answer
+    /// at all. A <c>PackageCode</c> that comes back as a value tells the two apart.
+    /// </summary>
+    private bool AnswersFromItsOwnRecord(string code, string? sid, MsiInstallContext context)
+    {
+        if (context != MsiInstallContext.Machine
+            && (sid is null
+                || _runningAccount?.Sid is not { } account
+                || !string.Equals(sid, account, StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        var packageCode = InstallerQueryService.ReadProductProperty(
+            _msi, code, sid, context, MsiInstallProperty.PackageCode);
+        if (packageCode.Unreadable || packageCode.Value.TrimEnd('\0').Length == 0) return false;
+
+        return InstallerQueryService.ReadInstanceType(_msi, code, sid, context)
+            == InstallerQueryService.InstanceReading.Ordinary;
     }
 
     /// <summary>
@@ -1193,13 +1248,13 @@ public sealed class DeclaredProductCheck : IDeclaredProductCheck
     /// Every listed installation registered under a code other than the one its cached
     /// package declares, keyed by the declared code.
     /// </param>
-    /// <param name="UnmanagedPackageUnread">
-    /// Whether the cached package of a per-user-unmanaged installation did not say what
-    /// it declares.
+    /// <param name="UnreadPackageNotRuledOut">
+    /// Whether an installation whose cached package did not say what it declares is not
+    /// shown by its own record to be an ordinary installation.
     /// </param>
     private sealed record InstallationLinks(
         Dictionary<string, List<(string RegisteredCode, string? Sid, MsiInstallContext Context)>> ByDeclaredCode,
-        bool UnmanagedPackageUnread);
+        bool UnreadPackageNotRuledOut);
 
     /// <summary>
     /// What one pass has asked Windows about installations and patch registrations,

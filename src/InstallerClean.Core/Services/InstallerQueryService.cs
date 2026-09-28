@@ -871,7 +871,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
             // property carries no claim on any file, so counting it there would treat a
             // fact about the machine as a lost claim. What it DOES feed is a separate rule, and
             // where the two counts are read together is EnumerationCensus.
-            switch (ReadInstanceType(productCode, userSid, context))
+            switch (ReadInstanceType(_msi, productCode, userSid, context))
             {
                 case InstanceReading.SecondInstance: instanceProducts++; break;
                 case InstanceReading.Unreadable: instanceTypeUnreadable++; break;
@@ -1055,7 +1055,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
         foreach (var (recoveredCode, recoveredSid, recoveredContext) in missed.Recovered)
         {
             ct.ThrowIfCancellationRequested();
-            switch (ReadInstanceType(recoveredCode, recoveredSid, recoveredContext))
+            switch (ReadInstanceType(_msi, recoveredCode, recoveredSid, recoveredContext))
             {
                 case InstanceReading.SecondInstance: instanceProducts++; break;
                 case InstanceReading.Unreadable: instanceTypeUnreadable++; break;
@@ -5176,7 +5176,7 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// exists to avoid: a product that would not answer has NOT been shown to be
     /// ordinary.
     /// </summary>
-    private enum InstanceReading
+    internal enum InstanceReading
     {
         /// <summary>An ordinary single-instance installation, positively established.</summary>
         Ordinary,
@@ -5192,11 +5192,12 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// Puts the second-instance question to one product.
     ///
     /// ONE COPY OF THE CLASSIFICATION, FOR THE REASON <see cref="IsProductNotInstalled"/>
-    /// IS SHARED RATHER THAN COPIED. Two call sites ask it, the product enumeration's own
-    /// loop and the products that loop lost and the registry named, and what is worth
-    /// sharing is not the property read: it is which readings count as an answer. A second
-    /// copy of that is a second place for a spelling to be handled, or not handled, and the
-    /// direction it fails in is a machine wrongly reported ordinary.
+    /// IS SHARED RATHER THAN COPIED. Three call sites ask it, the product enumeration's own
+    /// loop, the products that loop lost and the registry named, and
+    /// <see cref="DeclaredProductCheck"/>, and what is worth sharing is not the property
+    /// read: it is which readings count as an answer. A second copy of that is a second
+    /// place for a spelling to be handled, or not handled, and the direction it fails in is
+    /// a machine wrongly reported ordinary.
     ///
     /// A POSITIVE READING IS THE ONLY THING THAT REPORTS <see cref="InstanceReading.SecondInstance"/>.
     /// An absent property is documented as meaning an ordinary installation, and
@@ -5209,9 +5210,10 @@ public sealed class InstallerQueryService : IInstallerQueryService
     /// nothing documents the spelling the API returns and a machine answering "01" or "1 "
     /// would read as ordinary on a string test.
     /// </summary>
-    private InstanceReading ReadInstanceType(string productCode, string? userSid, MsiInstallContext context)
+    internal static InstanceReading ReadInstanceType(
+        IMsiApi msi, string productCode, string? userSid, MsiInstallContext context)
     {
-        var read = GetProductProperty(productCode, userSid, context, MsiInstallProperty.InstanceType);
+        var read = ReadProductProperty(msi, productCode, userSid, context, MsiInstallProperty.InstanceType);
         if (read.Unreadable) return InstanceReading.Unreadable;
         return int.TryParse(read.Value.TrimEnd('\0').Trim(), out var instanceType) && instanceType != 0
             ? InstanceReading.SecondInstance

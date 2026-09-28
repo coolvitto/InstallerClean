@@ -283,7 +283,9 @@ public class FileSystemScanServiceDeclaredProductTests
         // The scan hands the screen the installations its enumeration listed. One folder
         // is scanned twice, with Windows answering that neither product is installed:
         // where the enumeration listed nothing both files are offered, and where it
-        // listed product A the file declaring A is kept and the other is offered.
+        // listed product A the file declaring A is kept and the other is offered. The
+        // screen is built without its file readers, so it reads no cached package, and
+        // product A's own record is what shows it to be no second copy of product B.
         var identities = new ScriptedPackageIdentities();
         identities.Declares($@"{Folder}\listed.msi", ProductA);
         identities.Declares($@"{Folder}\gone.msi", ProductB);
@@ -291,6 +293,7 @@ public class FileSystemScanServiceDeclaredProductTests
         var msi = new ScriptedMsiProducts();
         msi.NotInstalled(ProductA, MsiError.UnknownProduct);
         msi.NotInstalled(ProductB, MsiError.UnknownProduct);
+        msi.AnswersItsOwnRecord(ProductA, null, MsiInstallContext.Machine);
 
         var walked = new[] { $@"{Folder}\listed.msi", $@"{Folder}\gone.msi" };
 

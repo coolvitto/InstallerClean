@@ -2761,12 +2761,14 @@ public class DeclaredProductCheckTests
     public void A_package_whose_product_the_caller_did_not_list_is_answered_not_installed_as_before()
     {
         // The caller listed product B, so an answer that product A is not installed
-        // contradicts nothing.
+        // contradicts nothing. Built without its file readers, the check reads no cached
+        // package, so product B's own record is what shows it to be no second copy.
         var identities = new ScriptedPackageIdentities();
         identities.Declares(@"C:\Windows\Installer\a.msi", ProductA);
 
         var msi = new ScriptedMsiProducts();
         msi.NotInstalled(ProductA, MsiError.UnknownProduct);
+        msi.AnswersItsOwnRecord(ProductB, null, MsiInstallContext.Machine);
 
         var outcome = new DeclaredProductCheck(msi, identities)
             .Screen(new[] { Package(@"C:\Windows\Installer\a.msi") }, [ListedPerMachine(ProductB)])[0];
@@ -3145,9 +3147,22 @@ public class DeclaredProductCheckTests
         (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
             ScriptedFileIdentities Files, MockFileSystem Disk, ListedInstallation[] Listed) f,
         OrphanedFile[]? candidates = null,
-        Action<Exception, string>? recordRefusal = null) =>
-        new DeclaredProductCheck(f.Msi, f.Packages, f.Files, f.Disk, f.Msi.Registry)
+        Action<Exception, string>? recordRefusal = null,
+        IRunningAccount? account = null) =>
+        new DeclaredProductCheck(f.Msi, f.Packages, f.Files, f.Disk, f.Msi.Registry, account)
             .Screen(candidates ?? [Package(Candidate)], f.Listed, default, recordRefusal, InInstallerFolder);
+
+    /// <summary>A running account as a test names it.</summary>
+    private sealed class Account(string? sid) : IRunningAccount
+    {
+        public string? Sid => sid;
+    }
+
+    /// <summary>The account the second copy's fixture puts a per-user installation in.</summary>
+    private static readonly IRunningAccount TheOwner = new Account(OtherUserSid);
+
+    /// <summary>An account other than the one the fixture puts a per-user installation in.</summary>
+    private static readonly IRunningAccount SomebodyElse = new Account(UserSid);
 
     [Fact]
     public void A_copy_declaring_the_code_another_users_second_copy_caches_is_kept()
@@ -3293,13 +3308,14 @@ public class DeclaredProductCheckTests
     [InlineData(CachedPackageFault.NoIdentity)]
     [InlineData(CachedPackageFault.APatch)]
     [InlineData(CachedPackageFault.NoCode)]
-    public void Every_installation_package_is_kept_while_a_per_user_unmanaged_cached_package_does_not_say_what_it_declares(
+    public void Every_installation_package_is_kept_while_another_accounts_cached_package_does_not_say_what_it_declares(
         CachedPackageFault fault)
     {
         // That installation could be a second copy of any program, and the candidate its
-        // original package, so no candidate can be put to it or ruled out. The second
-        // candidate declares a code no installation holds, and is kept all the same. The
-        // refusal is recorded once for the pass, not once per file.
+        // original package, so no candidate can be put to it or ruled out. It belongs to
+        // an account other than the one this process runs as, so its own record is not
+        // asked. The second candidate declares a code no installation holds, and is kept
+        // all the same. The refusal is recorded once for the pass, not once per file.
         const string OtherCandidate = @"C:\Windows\Installer\b2.msi";
         var f = ACopyBesideASecondCopy();
         f.Packages.Declares(OtherCandidate, ProductB);
@@ -3308,10 +3324,11 @@ public class DeclaredProductCheckTests
         var recorded = new List<Exception>();
 
         var outcomes = ScreenBesideTheSecondCopy(f, [Package(Candidate), Package(OtherCandidate)],
-            (ex, _) => recorded.Add(ex));
+            (ex, _) => recorded.Add(ex), SomebodyElse);
 
         Assert.All(outcomes, outcome => Assert.Equal(DeclaredProductOutcome.Unestablished, outcome));
         Assert.Single(recorded);
+        Assert.Empty(f.Msi.RecordReads);
     }
 
     [Theory]
@@ -3321,21 +3338,182 @@ public class DeclaredProductCheckTests
     [InlineData(CachedPackageFault.NoIdentity)]
     [InlineData(CachedPackageFault.APatch)]
     [InlineData(CachedPackageFault.NoCode)]
-    public void A_cached_package_outside_that_context_that_does_not_say_what_it_declares_keeps_nothing(
+    public void A_per_machine_cached_package_that_does_not_say_what_it_declares_keeps_nothing_where_its_record_shows_an_ordinary_installation(
         CachedPackageFault fault)
     {
         // The must-miss half of the theory above: the same faults on a per-machine
-        // installation. Whether one outside that context is a second copy is read from its
-        // own record, and a second copy there withholds every installation package before
-        // this screen runs.
-        var f = ACopyBesideASecondCopy(MsiInstallContext.Machine);
-        Break(f, fault, null, MsiInstallContext.Machine);
+        // installation whose record answers, with a package code and an ordinary
+        // InstanceType. No account is compared for a per-machine installation, so it is
+        // the same whether the check knows the account it runs as or not.
+        foreach (var account in new[] { TheOwner, null })
+        {
+            var f = ACopyBesideASecondCopy(MsiInstallContext.Machine);
+            Break(f, fault, null, MsiInstallContext.Machine);
+            f.Msi.AnswersItsOwnRecord(SecondCopy, null, MsiInstallContext.Machine);
+            var recorded = new List<Exception>();
+
+            var outcome = ScreenBesideTheSecondCopy(f, recordRefusal: (ex, _) => recorded.Add(ex),
+                account: account)[0];
+
+            Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcome);
+            Assert.Empty(recorded);
+        }
+    }
+
+    // ---- The installation's own record, where its cached package does not read ----
+    //
+    // Each test below breaks the cached package of the second copy's installation the
+    // same way, so nothing links it, and changes one thing about what its own record
+    // answers or whose it is.
+
+    /// <summary>
+    /// The second copy's fixture in the context given, its cached package unread, the
+    /// installation belonging to <see cref="TheOwner"/> where the context has an account.
+    /// </summary>
+    private static (ScriptedPackageIdentities Packages, ScriptedMsiProducts Msi,
+        ScriptedFileIdentities Files, MockFileSystem Disk, ListedInstallation[] Listed)
+        AnUnreadCachedPackage(MsiInstallContext context = MsiInstallContext.UserUnmanaged)
+    {
+        var f = ACopyBesideASecondCopy(context);
+        Break(f, CachedPackageFault.ReadFails, f.Listed[0].UserSid, context);
+        return f;
+    }
+
+    [Fact]
+    public void The_running_accounts_own_installation_whose_record_reads_ordinary_keeps_nothing()
+    {
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged);
         var recorded = new List<Exception>();
 
-        var outcome = ScreenBesideTheSecondCopy(f, recordRefusal: (ex, _) => recorded.Add(ex))[0];
+        var outcome = ScreenBesideTheSecondCopy(f, recordRefusal: (ex, _) => recorded.Add(ex),
+            account: TheOwner)[0];
 
         Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcome);
         Assert.Empty(recorded);
+        // Read by the code the installation is registered under, in its own account and
+        // context.
+        Assert.Equal(
+            new[]
+            {
+                (MsiInstallProperty.PackageCode, SecondCopy, (string?)OtherUserSid, MsiInstallContext.UserUnmanaged),
+                (MsiInstallProperty.InstanceType, SecondCopy, (string?)OtherUserSid, MsiInstallContext.UserUnmanaged),
+            },
+            f.Msi.RecordReads);
+    }
+
+    [Fact]
+    public void A_record_without_an_InstanceType_value_is_an_ordinary_installation()
+    {
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged, instanceType: null);
+
+        var outcome = ScreenBesideTheSecondCopy(f, account: TheOwner)[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcome);
+    }
+
+    [Fact]
+    public void The_account_is_compared_without_regard_to_case()
+    {
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged);
+
+        var outcome = ScreenBesideTheSecondCopy(f, account: new Account(OtherUserSid.ToLowerInvariant()))[0];
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled, outcome);
+    }
+
+    [Fact]
+    public void A_record_showing_a_second_copy_keeps_every_installation_package()
+    {
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged, instanceType: "1");
+
+        var outcome = ScreenBesideTheSecondCopy(f, account: TheOwner)[0];
+
+        Assert.Equal(DeclaredProductOutcome.Unestablished, outcome);
+    }
+
+    [Fact]
+    public void An_InstanceType_that_will_not_read_keeps_every_installation_package()
+    {
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged);
+        f.Msi.InstanceTypeAnswers(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged, MsiError.AccessDenied);
+
+        var outcome = ScreenBesideTheSecondCopy(f, account: TheOwner)[0];
+
+        Assert.Equal(DeclaredProductOutcome.Unestablished, outcome);
+    }
+
+    [Theory]
+    [InlineData(MsiError.UnknownProperty, "")]
+    [InlineData(MsiError.AccessDenied, "")]
+    [InlineData(MsiError.Success, "")]
+    public void A_package_code_that_does_not_come_back_as_a_value_keeps_every_installation_package(
+        uint error, string value)
+    {
+        // ERROR_UNKNOWN_PROPERTY is what a record that did not answer gives, and it reads
+        // as an empty value, as an InstanceType the record does not carry does.
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged);
+        f.Msi.PackageCodeAnswers(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged, error, value);
+
+        var outcome = ScreenBesideTheSecondCopy(f, account: TheOwner)[0];
+
+        Assert.Equal(DeclaredProductOutcome.Unestablished, outcome);
+    }
+
+    [Fact]
+    public void Without_the_running_account_a_per_user_installation_keeps_every_installation_package()
+    {
+        var f = AnUnreadCachedPackage();
+        f.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserUnmanaged);
+
+        var withNoCheckAccount = ScreenBesideTheSecondCopy(f)[0];
+        var withAnAccountNotRead = ScreenBesideTheSecondCopy(f, account: new Account(null))[0];
+
+        Assert.Equal(DeclaredProductOutcome.Unestablished, withNoCheckAccount);
+        Assert.Equal(DeclaredProductOutcome.Unestablished, withAnAccountNotRead);
+        Assert.Empty(f.Msi.RecordReads);
+    }
+
+    [Fact]
+    public void A_per_user_managed_installation_is_held_to_its_account_as_well()
+    {
+        // Its own record answering is not enough where it belongs to another account.
+        var ownAccount = AnUnreadCachedPackage(MsiInstallContext.UserManaged);
+        ownAccount.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserManaged);
+        var otherAccount = AnUnreadCachedPackage(MsiInstallContext.UserManaged);
+        otherAccount.Msi.AnswersItsOwnRecord(SecondCopy, OtherUserSid, MsiInstallContext.UserManaged);
+
+        Assert.Equal(DeclaredProductOutcome.DeclaredProductNotInstalled,
+            ScreenBesideTheSecondCopy(ownAccount, account: TheOwner)[0]);
+        Assert.Equal(DeclaredProductOutcome.Unestablished,
+            ScreenBesideTheSecondCopy(otherAccount, account: SomebodyElse)[0]);
+    }
+
+    [Fact]
+    public void A_per_machine_installation_whose_record_does_not_answer_keeps_every_installation_package()
+    {
+        var f = AnUnreadCachedPackage(MsiInstallContext.Machine);
+        f.Msi.AnswersItsOwnRecord(SecondCopy, null, MsiInstallContext.Machine);
+        f.Msi.PackageCodeAnswers(SecondCopy, null, MsiInstallContext.Machine, MsiError.UnknownProperty);
+
+        var outcome = ScreenBesideTheSecondCopy(f, account: TheOwner)[0];
+
+        Assert.Equal(DeclaredProductOutcome.Unestablished, outcome);
+    }
+
+    [Fact]
+    public void The_composition_root_gives_the_check_the_running_account()
+    {
+        using var services = new ServiceCollection().AddInstallerCleanCore().BuildServiceProvider();
+
+        var check = Assert.IsType<DeclaredProductCheck>(services.GetRequiredService<IDeclaredProductCheck>());
+
+        Assert.True(check.KnowsTheRunningAccount);
     }
 }
 
@@ -3722,14 +3900,47 @@ internal sealed class ScriptedMsiProducts : IMsiApi
         return (MsiError.Success, list.Folders.Length > 0 ? list.Folders[0] : string.Empty);
     }
 
+    private readonly Dictionary<(string ProductCode, string? Sid, MsiInstallContext Context), (uint Error, string Value)>
+        _packageCodes = new();
+
+    private readonly Dictionary<(string ProductCode, string? Sid, MsiInstallContext Context), (uint Error, string Value)>
+        _instanceTypes = new();
+
+    /// <summary>Every PackageCode and InstanceType read this API answered, in order, with the property.</summary>
+    public List<(string Property, string ProductCode, string? Sid, MsiInstallContext Context)> RecordReads { get; } = new();
+
     /// <summary>
-    /// Answers LocalPackage, PackageName and InstallSource, the three product properties
-    /// the check reads, with the real API's two-call shape: a null buffer is answered
-    /// with the length, a buffer with the value.
+    /// The record one installation keeps of itself answers, with a package code and the
+    /// InstanceType given. A null InstanceType is a record that does not carry the value,
+    /// which the real API answers with ERROR_UNKNOWN_PROPERTY.
+    /// </summary>
+    public void AnswersItsOwnRecord(string productCode, string? sid, MsiInstallContext context,
+        string? instanceType = "0")
+    {
+        _packageCodes[(productCode, sid, context)] = (MsiError.Success, "{55555555-5555-5555-5555-555555555555}");
+        _instanceTypes[(productCode, sid, context)] = instanceType is null
+            ? (MsiError.UnknownProperty, string.Empty)
+            : (MsiError.Success, instanceType);
+    }
+
+    /// <summary>What reading one installation's PackageCode returns instead of a package code.</summary>
+    public void PackageCodeAnswers(string productCode, string? sid, MsiInstallContext context, uint error,
+        string value = "") =>
+        _packageCodes[(productCode, sid, context)] = (error, value);
+
+    /// <summary>What reading one installation's InstanceType returns instead of a value.</summary>
+    public void InstanceTypeAnswers(string productCode, string? sid, MsiInstallContext context, uint error) =>
+        _instanceTypes[(productCode, sid, context)] = (error, string.Empty);
+
+    /// <summary>
+    /// Answers LocalPackage, PackageName, InstallSource, PackageCode and InstanceType, the
+    /// product properties the check reads, with the real API's two-call shape: a null
+    /// buffer is answered with the length, a buffer with the value.
     ///
     /// AN UNSCRIPTED INSTALLATION THROWS. A recorded package that is present and is
     /// another file is the answer that lets a file through, so a fake inventing one
-    /// would let a test assert an offer nothing established.
+    /// would let a test assert an offer nothing established. So is a record answering
+    /// that an installation is ordinary.
     /// </summary>
     public uint GetProductInfo(string productCode, string? userSid, MsiInstallContext context, string property,
         char[]? value, ref uint valueLength)
@@ -3745,9 +3956,11 @@ internal sealed class ScriptedMsiProducts : IMsiApi
             {
                 MsiInstallProperty.LocalPackage => _localPackages,
                 MsiInstallProperty.PackageName => _packageNames,
+                MsiInstallProperty.PackageCode => _packageCodes,
+                MsiInstallProperty.InstanceType => _instanceTypes,
                 _ => throw new InvalidOperationException(
-                    "the declared-product check reads LocalPackage, PackageName and InstallSource, "
-                    + $"and was asked for {property}"),
+                    "the declared-product check reads LocalPackage, PackageName, InstallSource, PackageCode "
+                    + $"and InstanceType, and was asked for {property}"),
             };
 
             if (!table.TryGetValue((productCode, userSid, context), out scripted))
@@ -3758,6 +3971,8 @@ internal sealed class ScriptedMsiProducts : IMsiApi
 
         if (value is null && property == MsiInstallProperty.LocalPackage) PackageReads.Add((productCode, userSid, context));
         if (value is null && property == MsiInstallProperty.PackageName) PackageNameReads.Add((productCode, userSid, context));
+        if (value is null && property is MsiInstallProperty.PackageCode or MsiInstallProperty.InstanceType)
+            RecordReads.Add((property, productCode, userSid, context));
         if (scripted.Error != MsiError.Success) return scripted.Error;
 
         if (value is not null)

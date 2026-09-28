@@ -63,6 +63,9 @@ public static class CoreComposition
         // can do nothing else; see IDeclaredProductCheck for why the superseded half
         // of the offer is never put to it.
         services.AddSingleton<IDeclaredProductCheck, DeclaredProductCheck>();
+        // The account this process runs as, which the screen above holds a per-user
+        // installation's account against.
+        services.AddSingleton<IRunningAccount, RunningAccount>();
         // Answers which file a recorded path names, so the scan's path comparison
         // is not defeated by a registration written in a spelling the folder walk
         // does not produce. Stateless, and it holds nothing between scans.

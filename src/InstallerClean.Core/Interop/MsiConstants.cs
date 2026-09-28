@@ -120,22 +120,28 @@ public static class MsiSourceListOptions
 public static class MsiInstallProperty
 {
     /// <summary>
-    /// Path to the cached package. That is the whole of what Microsoft states for
-    /// INSTALLPROPERTY_LOCALPACKAGE, and this line named a location on no source:
-    /// "%windir%\Installer".
+    /// Path to the cached package (INSTALLPROPERTY_LOCALPACKAGE). Microsoft states no
+    /// folder for it.
     ///
     /// DO NOT NARROW A PATH TEST ON IT. FileSystemScanService is written for values
-    /// that fall outside that folder, which is why NamesFileDirectlyIn exists to
-    /// separate the in-folder registrations from the rest and why the
+    /// that fall outside the Installer folder, which is why NamesFileDirectlyIn exists
+    /// to separate the in-folder registrations from the rest and why the
     /// missing-from-disk counts deliberately cover every registration whose file has
-    /// gone wherever it pointed. Read out of one machine's hive on 2026-08-28, all 147
-    /// of its values are inside the folder in three spellings, and one machine cannot
-    /// make the stronger claim true.
+    /// gone wherever it pointed.
     /// </summary>
     public const string LocalPackage = "LocalPackage";
 
     /// <summary>Display name of the installed product.</summary>
     public const string ProductName = "ProductName";
+
+    /// <summary>
+    /// The identifier of the package a product was installed from
+    /// (INSTALLPROPERTY_PACKAGECODE). Microsoft lists it, with
+    /// <see cref="InstanceType"/>, among the properties available for advertised or
+    /// installed products
+    /// (<see href="https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msigetproductinfoexw"/>).
+    /// </summary>
+    public const string PackageCode = "PackageCode";
 
     /// <summary>
     /// The file name of the original installation package or patch package, which
